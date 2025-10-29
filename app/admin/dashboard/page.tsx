@@ -15,6 +15,8 @@ import {
   Trash2,
   Eye,
   RotateCcw,
+  Menu,
+  X,
 } from "lucide-react"
 
 type AdminTab = "overview" | "movies" | "upload" | "users" | "ads"
@@ -62,6 +64,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
   const [movieSearch, setMovieSearch] = useState("")
   const [userSearch, setUserSearch] = useState("")
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
     thumbnail: "",
@@ -95,8 +98,27 @@ export default function AdminDashboard() {
   const filteredUsers = mockUsers.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex">
-      <aside className="w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 fixed h-screen flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex flex-col lg:flex-row">
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
+        aria-label="Toggle sidebar"
+      >
+        {sidebarOpen ? <X className="w-6 h-6 text-white" /> : <Menu className="w-6 h-6 text-white" />}
+      </button>
+
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 flex flex-col transition-all duration-300 ${
+          sidebarOpen ? "fixed inset-y-0 left-0 z-40" : "hidden lg:flex"
+        }`}
+      >
         <div className="p-6 border-b border-white/10">
           <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-cyan-300 heartbeat">
             moBix
@@ -114,7 +136,10 @@ export default function AdminDashboard() {
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id as AdminTab)}
+              onClick={() => {
+                setActiveTab(id as AdminTab)
+                setSidebarOpen(false)
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                 activeTab === id
                   ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
@@ -135,9 +160,8 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="ml-64 flex-1 overflow-auto">
-        <div className="p-8 space-y-8">
+      <main className="flex-1 overflow-auto w-full lg:w-auto">
+        <div className="p-4 sm:p-8 space-y-8 pt-16 lg:pt-8">
           {activeTab === "overview" && (
             <div className="space-y-8">
               <div>
