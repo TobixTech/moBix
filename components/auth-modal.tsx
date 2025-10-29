@@ -1,9 +1,13 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react"
 import Image from "next/image"
+import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -14,8 +18,111 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [invitationCode, setInvitationCode] = useState("")
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  if (!isOpen) return null
+  const { signUp, setActive: setActiveSignUp } = useSignUp()
+  const { signIn, setActive: setActiveSignIn } = useSignIn()
+  const { isLoaded } = useAuth()
+  const router = useRouter()
+
+  if (!isOpen || !isLoaded) return null
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setIsLoading(true)
+
+    try {
+      if (password !== confirmPassword) {
+        setError("Passwords do not match")
+        setIsLoading(false)
+        return
+      }
+
+      if (!signUp) {
+        setError("Sign up is not available")
+        setIsLoading(false)
+        return
+      }
+
+      const result = await signUp.create({
+        emailAddress: email,
+        password,
+      })
+
+      if (result.status === "complete") {
+        await setActiveSignUp({ session: result.createdSessionId })
+        router.push("/dashboard")
+        onClose()
+      } else {
+        setError("Sign up incomplete. Please try again.")
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Sign up failed")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setIsLoading(true)
+
+    try {
+      if (!signIn) {
+        setError("Sign in is not available")
+        setIsLoading(false)
+        return
+      }
+
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      })
+
+      if (result.status === "complete") {
+        await setActiveSignIn({ session: result.createdSessionId })
+        router.push("/dashboard")
+        onClose()
+      } else {
+        setError("Sign in incomplete. Please try again.")
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Sign in failed")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleAuth = async () => {
+    setError("")
+    setIsLoading(true)
+
+    try {
+      const authMethod = isLogin ? signIn : signUp
+
+      if (!authMethod) {
+        setError("Authentication is not available")
+        setIsLoading(false)
+        return
+      }
+
+      await authMethod.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/dashboard",
+      })
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Google authentication failed")
+      setIsLoading(false)
+    }
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -113,7 +220,10 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               {["Login", "Sign Up"].map((tab) => (
                 <motion.button
                   key={tab}
-                  onClick={() => setIsLogin(tab === "Login")}
+                  onClick={() => {
+                    setIsLogin(tab === "Login")
+                    setError("")
+                  }}
                   className={`flex-1 py-2.5 rounded-md font-semibold transition-all ${
                     (tab === "Login" && isLogin) || (tab === "Sign Up" && !isLogin)
                       ? "bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] shadow-lg shadow-[#00FFFF]/50"
@@ -127,11 +237,22 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               ))}
             </motion.div>
 
+            {error && (
+              <motion.div
+                className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {error}
+              </motion.div>
+            )}
+
             <motion.form
               className="space-y-4 mb-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
+              onSubmit={isLogin ? handleSignIn : handleSignUp}
             >
               {/* Email Input */}
               <motion.div
@@ -144,6 +265,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 <input
                   type="email"
                   placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                   className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
                 />
               </motion.div>
@@ -159,6 +283,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                   className="w-full pl-10 pr-10 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
                 />
                 <button
@@ -182,6 +309,28 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="Confirm password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                  />
+                </motion.div>
+              )}
+
+              {/* Invitation Code for Sign Up */}
+              {!isLogin && (
+                <motion.div
+                  className="relative"
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  <Lock className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
+                  <input
+                    type="text"
+                    placeholder="Admin Invitation Code (optional)"
+                    value={invitationCode}
+                    onChange={(e) => setInvitationCode(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
                   />
                 </motion.div>
@@ -192,7 +341,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 className="flex items-center justify-between text-sm"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
+                transition={{ delay: 0.65 }}
               >
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -212,18 +361,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
               <motion.button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all relative overflow-hidden group mt-6"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                disabled={isLoading}
+                className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all relative overflow-hidden group mt-6 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                whileTap={{ scale: isLoading ? 1 : 0.98 }}
               >
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-[#00CCCC] to-[#00FFFF] opacity-0 group-hover:opacity-100 transition-opacity"
-                  initial={{ x: "-100%" }}
-                  whileHover={{ x: "100%" }}
-                  transition={{ duration: 0.5 }}
-                />
-                <span className="relative flex items-center justify-center gap-2">
-                  {isLogin ? "Login to moBix" : "Create Account"} →
+                {isLoading && <Loader className="w-4 h-4 animate-spin" />}
+                <span className="relative">
+                  {isLoading ? "Processing..." : isLogin ? "Login to moBix" : "Create Account"} {!isLoading && "→"}
                 </span>
               </motion.button>
             </motion.form>
@@ -232,7 +377,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               className="flex items-center gap-4 mb-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.65 }}
+              transition={{ delay: 0.7 }}
             >
               <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#2A2B33] to-transparent" />
               <span className="text-[#888888] text-sm">OR</span>
@@ -243,17 +388,26 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               className="w-full"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
+              transition={{ delay: 0.75 }}
             >
               <motion.button
-                className="w-full py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white hover:border-[#00FFFF] hover:bg-[#1A1B23] transition-all flex items-center justify-center gap-3 group"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={handleGoogleAuth}
+                disabled={isLoading}
+                className="w-full py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white hover:border-[#00FFFF] hover:bg-[#1A1B23] transition-all flex items-center justify-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
+                whileHover={{ scale: isLoading ? 1 : 1.05 }}
+                whileTap={{ scale: isLoading ? 1 : 0.95 }}
               >
-                <div className="relative w-5 h-5">
-                  <Image src="https://www.google.com/favicon.ico" alt="Google" fill className="object-contain" />
-                </div>
-                <span className="text-sm font-medium">Continue with Google</span>
+                {isLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <div className="relative w-5 h-5">
+                      <Image src="https://www.google.com/favicon.ico" alt="Google" fill className="object-contain" />
+                    </div>
+                    <span className="text-sm font-medium">Continue with Google</span>
+                  </>
+                )}
               </motion.button>
             </motion.div>
           </div>
