@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   LogOut,
   LayoutDashboard,
@@ -18,53 +18,59 @@ import {
   Menu,
   X,
 } from "lucide-react"
+import { useAuth, SignOutButton } from "@clerk/nextjs"
+import {
+  getAdminMetrics,
+  getTrendingMovies,
+  getRecentSignups,
+  getAdminMovies,
+  getAdminUsers,
+} from "@/lib/server-actions"
 
 type AdminTab = "overview" | "movies" | "upload" | "users" | "ads"
 
-// Mock data
-const mockMetrics = [
-  { label: "Total Users", value: "1.2M", change: "+5.2%" },
-  { label: "New Users (30d)", value: "+12,450", change: "+8.1%" },
-  { label: "Total Movies", value: "4,500", change: "+120" },
-  { label: "Total Watch Hours", value: "9,870h", change: "+15.3%" },
-]
+interface Metric {
+  label: string
+  value: string
+  change: string
+}
 
-const mockTrendingMovies = [
-  { id: 1, title: "The Last Horizon", views: "245.8K" },
-  { id: 2, title: "Cosmic Adventure", views: "198.3K" },
-  { id: 3, title: "Silent Echo", views: "156.2K" },
-  { id: 4, title: "Neon Dreams", views: "142.5K" },
-  { id: 5, title: "Digital Frontier", views: "128.9K" },
-]
+interface Movie {
+  id: number
+  title: string
+  views?: string
+  genre?: string
+  uploadDate?: string
+  status?: string
+}
 
-const mockRecentSignups = [
-  { id: 1, email: "user1@example.com", date: "2024-01-20" },
-  { id: 2, email: "user2@example.com", date: "2024-01-19" },
-  { id: 3, email: "user3@example.com", date: "2024-01-18" },
-  { id: 4, email: "user4@example.com", date: "2024-01-17" },
-  { id: 5, email: "user5@example.com", date: "2024-01-16" },
-]
+interface Signup {
+  id: number
+  email: string
+  date: string
+}
 
-const mockMovies = [
-  { id: 1, title: "The Last Horizon", genre: "Sci-Fi", uploadDate: "2024-01-15", status: "Published", views: "245.8K" },
-  { id: 2, title: "Cosmic Adventure", genre: "Action", uploadDate: "2024-01-10", status: "Published", views: "198.3K" },
-  { id: 3, title: "Silent Echo", genre: "Drama", uploadDate: "2024-01-05", status: "Draft", views: "0" },
-  { id: 4, title: "Neon Dreams", genre: "Thriller", uploadDate: "2024-01-01", status: "Published", views: "142.5K" },
-]
-
-const mockUsers = [
-  { id: 1, email: "admin@example.com", dateJoined: "2023-06-15", role: "Admin" },
-  { id: 2, email: "user1@example.com", dateJoined: "2024-01-10", role: "User" },
-  { id: 3, email: "user2@example.com", dateJoined: "2024-01-12", role: "User" },
-  { id: 4, email: "user3@example.com", dateJoined: "2024-01-15", role: "User" },
-  { id: 5, email: "user4@example.com", dateJoined: "2024-01-18", role: "User" },
-]
+interface User {
+  id: number
+  email: string
+  dateJoined: string
+  role: string
+}
 
 export default function AdminDashboard() {
+  const { signOut } = useAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
   const [movieSearch, setMovieSearch] = useState("")
   const [userSearch, setUserSearch] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const [metrics, setMetrics] = useState<Metric[]>([])
+  const [trendingMovies, setTrendingMovies] = useState<Movie[]>([])
+  const [recentSignups, setRecentSignups] = useState<Signup[]>([])
+  const [movies, setMovies] = useState<Movie[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+
   const [formData, setFormData] = useState({
     title: "",
     thumbnail: "",
@@ -74,6 +80,31 @@ export default function AdminDashboard() {
     releaseDate: "",
     status: "draft",
   })
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [metricsData, trendingData, signupsData, moviesData, usersData] = await Promise.all([
+          getAdminMetrics(),
+          getTrendingMovies(),
+          getRecentSignups(),
+          getAdminMovies(),
+          getAdminUsers(),
+        ])
+        setMetrics(metricsData)
+        setTrendingMovies(trendingData)
+        setRecentSignups(signupsData)
+        setMovies(moviesData)
+        setUsers(usersData)
+      } catch (error) {
+        console.error("Error fetching admin data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -94,8 +125,19 @@ export default function AdminDashboard() {
     })
   }
 
-  const filteredMovies = mockMovies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
-  const filteredUsers = mockUsers.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
+  const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
+  const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/60">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex flex-col lg:flex-row">
@@ -153,10 +195,12 @@ export default function AdminDashboard() {
         </nav>
 
         <div className="p-4 border-t border-white/10">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all border border-red-500/20">
-            <LogOut className="w-4 h-4" />
-            <span className="text-sm font-medium">Logout</span>
-          </button>
+          <SignOutButton signOutCallback={() => (window.location.href = "/")}>
+            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all border border-red-500/20">
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-medium">Logout</span>
+            </button>
+          </SignOutButton>
         </div>
       </aside>
 
@@ -171,7 +215,7 @@ export default function AdminDashboard() {
 
               {/* Metric Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {mockMetrics.map((metric, idx) => (
+                {metrics.map((metric, idx) => (
                   <div
                     key={idx}
                     className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 backdrop-blur-xl border border-cyan-500/20 rounded-xl p-6 hover:border-cyan-500/40 transition-all"
@@ -189,7 +233,7 @@ export default function AdminDashboard() {
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6">
                   <h2 className="text-xl font-bold text-white mb-4">Top 5 Trending Movies</h2>
                   <div className="space-y-3">
-                    {mockTrendingMovies.map((movie) => (
+                    {trendingMovies.map((movie) => (
                       <div
                         key={movie.id}
                         className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
@@ -205,7 +249,7 @@ export default function AdminDashboard() {
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6">
                   <h2 className="text-xl font-bold text-white mb-4">Recent User Signups</h2>
                   <div className="space-y-3">
-                    {mockRecentSignups.map((signup) => (
+                    {recentSignups.map((signup) => (
                       <div
                         key={signup.id}
                         className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all"

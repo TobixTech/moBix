@@ -1,18 +1,16 @@
 "use client"
 
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import MovieCard from "./movie-card"
+import { getPublicMovies } from "@/lib/server-actions"
 
-const mockMovies = [
-  { id: 1, title: "Cosmic Adventure", rating: 8.5 },
-  { id: 2, title: "Silent Echo", rating: 7.8 },
-  { id: 3, title: "Neon Dreams", rating: 8.2 },
-  { id: 4, title: "Lost Kingdom", rating: 7.9 },
-  { id: 5, title: "Time Paradox", rating: 8.7 },
-  { id: 6, title: "Ocean Depths", rating: 7.6 },
-]
+interface Movie {
+  id: number
+  title: string
+  rating: number
+}
 
 interface MovieCarouselProps {
   title: string
@@ -20,6 +18,23 @@ interface MovieCarouselProps {
 
 export default function MovieCarousel({ title }: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
+  const [movies, setMovies] = useState<Movie[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        const data = await getPublicMovies()
+        setMovies(data)
+      } catch (error) {
+        console.error("Error fetching movies:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMovies()
+  }, [])
 
   const scroll = (direction: "left" | "right") => {
     const container = document.getElementById(`carousel-${title}`)
@@ -29,6 +44,29 @@ export default function MovieCarousel({ title }: MovieCarouselProps) {
       container.scrollLeft = newPosition
       setScrollPosition(newPosition)
     }
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        className="space-y-4"
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true }}
+      >
+        <motion.h2
+          className="text-2xl font-bold text-white"
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true }}
+        >
+          {title}
+        </motion.h2>
+        <div className="h-48 bg-white/5 rounded-lg animate-pulse" />
+      </motion.div>
+    )
   }
 
   return (
@@ -66,7 +104,7 @@ export default function MovieCarousel({ title }: MovieCarouselProps) {
           className="flex gap-4 overflow-x-auto scroll-smooth pb-4"
           style={{ scrollBehavior: "smooth" }}
         >
-          {mockMovies.map((movie, index) => (
+          {movies.map((movie, index) => (
             <motion.div
               key={movie.id}
               initial={{ opacity: 0, scale: 0.8 }}
