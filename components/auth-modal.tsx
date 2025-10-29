@@ -25,7 +25,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [verificationCode, setVerificationCode] = useState("")
 
   const { signUp, setActive: setActiveSignUp } = useSignUp()
   const { signIn, setActive: setActiveSignIn } = useSignIn()
@@ -88,7 +87,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       if (result.status === "complete") {
         await setActiveSignIn({ session: result.createdSessionId })
-        router.push("/dashboard")
+        router.push("/home")
         onClose()
       } else {
         setError("Sign in incomplete. Please try again.")
@@ -117,7 +116,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       await authMethod.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrlComplete: "/home",
       })
     } catch (err: any) {
       console.log("[v0] Google auth error:", err)
@@ -142,7 +141,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       if (completeSignUp.status === "complete") {
         await setActiveSignUp({ session: completeSignUp.createdSessionId })
-        router.push("/dashboard")
+        router.push("/home")
         onClose()
       }
     } catch (err: any) {
@@ -218,7 +217,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 onBack={() => {
                   setStep("form")
                   setError("")
-                  setVerificationCode("")
                 }}
                 isLoading={isLoading}
               />

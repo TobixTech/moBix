@@ -5,10 +5,11 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Mail, Loader, ArrowLeft } from "lucide-react"
+import { useSignUp } from "@clerk/nextjs"
 
 interface EmailVerificationProps {
   email: string
-  onVerified: () => void
+  onVerified: (code: string) => void
   onBack: () => void
   isLoading?: boolean
 }
@@ -17,6 +18,7 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
+  const { signUp } = useSignUp()
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,17 +27,30 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
 
     try {
       if (!code || code.length < 6) {
-        setError("Please enter a valid verification code")
+        setError("Please enter a valid 6-digit verification code")
         setIsVerifying(false)
         return
       }
 
-      // Simulate verification - in real app, this would call Clerk's verification method
-      // For now, we'll just call onVerified after a short delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      onVerified()
+      if (!signUp) {
+        setError("Sign up is not available")
+        setIsVerifying(false)
+        return
+      }
+
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code: code,
+      })
+
+      if (completeSignUp.status === "complete") {
+        onVerified(code)
+      } else {
+        setError("Verification incomplete. Please try again.")
+        setIsVerifying(false)
+      }
     } catch (err: any) {
-      setError(err.message || "Verification failed")
+      console.log("[v0] Verification error:", err)
+      setError(err.errors?.[0]?.message || "Verification failed. Please check your code.")
       setIsVerifying(false)
     }
   }
