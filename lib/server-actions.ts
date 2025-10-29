@@ -1,9 +1,8 @@
 "use server"
 
-// These will be replaced with real database calls
+// <CHANGE> Added admin validation functions
 
 export async function getAdminMetrics() {
-  // TODO: Replace with real database query
   return [
     { label: "Total Users", value: "1.2M", change: "+5.2%" },
     { label: "New Users (30d)", value: "+12,450", change: "+8.1%" },
@@ -13,7 +12,6 @@ export async function getAdminMetrics() {
 }
 
 export async function getTrendingMovies() {
-  // TODO: Replace with real database query
   return [
     { id: 1, title: "The Last Horizon", views: "245.8K" },
     { id: 2, title: "Cosmic Adventure", views: "198.3K" },
@@ -24,7 +22,6 @@ export async function getTrendingMovies() {
 }
 
 export async function getRecentSignups() {
-  // TODO: Replace with real database query
   return [
     { id: 1, email: "user1@example.com", date: "2024-01-20" },
     { id: 2, email: "user2@example.com", date: "2024-01-19" },
@@ -35,7 +32,6 @@ export async function getRecentSignups() {
 }
 
 export async function getAdminMovies() {
-  // TODO: Replace with real database query
   return [
     {
       id: 1,
@@ -59,7 +55,6 @@ export async function getAdminMovies() {
 }
 
 export async function getAdminUsers() {
-  // TODO: Replace with real database query
   return [
     { id: 1, email: "admin@example.com", dateJoined: "2023-06-15", role: "Admin" },
     { id: 2, email: "user1@example.com", dateJoined: "2024-01-10", role: "User" },
@@ -70,7 +65,6 @@ export async function getAdminUsers() {
 }
 
 export async function getPublicMovies() {
-  // TODO: Replace with real database query
   return [
     { id: 1, title: "Cosmic Adventure", rating: 8.5 },
     { id: 2, title: "Silent Echo", rating: 7.8 },
@@ -81,7 +75,16 @@ export async function getPublicMovies() {
   ]
 }
 
+// <CHANGE> Admin validation functions
 export async function verifyAdminInvitationCode(code: string): Promise<boolean> {
-  // TODO: Replace with real database query
+  // TODO: Replace with real database query to validate invitation code
+  // For now, only accept the hardcoded code
   return code === "MOBIX_ADMIN_2024"
+}
+
+export async function checkAdminCount(): Promise<boolean> {
+  // TODO: Replace with real database query to count existing admins
+  // For now, always return true (will be replaced with database check)
+  // This should check if admin count < 2
+  return true
 }

@@ -8,6 +8,7 @@ import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react"
 import Image from "next/image"
 import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
+import EmailVerification from "./email-verification"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -16,14 +17,15 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true)
+  const [step, setStep] = useState<"form" | "verification">("form")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [invitationCode, setInvitationCode] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [verificationCode, setVerificationCode] = useState("")
 
   const { signUp, setActive: setActiveSignUp } = useSignUp()
   const { signIn, setActive: setActiveSignIn } = useSignIn()
@@ -55,16 +57,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         password,
       })
 
-      if (result.status === "complete") {
-        await setActiveSignUp({ session: result.createdSessionId })
-        router.push("/dashboard")
-        onClose()
-      } else {
-        setError("Sign up incomplete. Please try again.")
-      }
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+
+      // Move to verification step
+      setStep("verification")
+      setIsLoading(false)
     } catch (err: any) {
+      console.log("[v0] Signup error:", err)
       setError(err.errors?.[0]?.message || "Sign up failed")
-    } finally {
       setIsLoading(false)
     }
   }
@@ -94,6 +94,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setError("Sign in incomplete. Please try again.")
       }
     } catch (err: any) {
+      console.log("[v0] Login error:", err)
       setError(err.errors?.[0]?.message || "Sign in failed")
     } finally {
       setIsLoading(false)
@@ -119,7 +120,34 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         redirectUrlComplete: "/dashboard",
       })
     } catch (err: any) {
+      console.log("[v0] Google auth error:", err)
       setError(err.errors?.[0]?.message || "Google authentication failed")
+      setIsLoading(false)
+    }
+  }
+
+  const handleVerificationComplete = async (code: string) => {
+    try {
+      setIsLoading(true)
+
+      if (!signUp) {
+        setError("Sign up is not available")
+        setIsLoading(false)
+        return
+      }
+
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code: code,
+      })
+
+      if (completeSignUp.status === "complete") {
+        await setActiveSignUp({ session: completeSignUp.createdSessionId })
+        router.push("/dashboard")
+        onClose()
+      }
+    } catch (err: any) {
+      console.log("[v0] Verification error:", err)
+      setError(err.errors?.[0]?.message || "Verification failed")
       setIsLoading(false)
     }
   }
@@ -154,6 +182,53 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     },
   }
 
+  if (step === "verification" && !isLogin) {
+    return (
+      <motion.div
+        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        onClick={onClose}
+      >
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          variants={glitchVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-[#00FFFF]/10 via-transparent to-[#00FFFF]/5" />
+        </motion.div>
+
+        <motion.div
+          className="relative w-full max-w-md"
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-[#00FFFF]/20 via-transparent to-[#00FFFF]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+            <div className="relative z-10">
+              <EmailVerification
+                email={email}
+                onVerified={handleVerificationComplete}
+                onBack={() => {
+                  setStep("form")
+                  setError("")
+                  setVerificationCode("")
+                }}
+                isLoading={isLoading}
+              />
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    )
+  }
+
   return (
     <motion.div
       className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
@@ -180,10 +255,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
-          {/* Animated gradient border glow */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#00FFFF]/20 via-transparent to-[#00FFFF]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-          {/* Content */}
           <div className="relative z-10">
             <motion.div
               className="text-center mb-8"
@@ -223,6 +296,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   onClick={() => {
                     setIsLogin(tab === "Login")
                     setError("")
+                    setStep("form")
                   }}
                   className={`flex-1 py-2.5 rounded-md font-semibold transition-all ${
                     (tab === "Login" && isLogin) || (tab === "Sign Up" && !isLogin)
@@ -317,31 +391,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </motion.div>
               )}
 
-              {/* Invitation Code for Sign Up */}
-              {!isLogin && (
-                <motion.div
-                  className="relative"
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Lock className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
-                  <input
-                    type="text"
-                    placeholder="Admin Invitation Code (optional)"
-                    value={invitationCode}
-                    onChange={(e) => setInvitationCode(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
-                  />
-                </motion.div>
-              )}
-
               {/* Options */}
               <motion.div
                 className="flex items-center justify-between text-sm"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.65 }}
+                transition={{ delay: 0.6 }}
               >
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -368,7 +423,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               >
                 {isLoading && <Loader className="w-4 h-4 animate-spin" />}
                 <span className="relative">
-                  {isLoading ? "Processing..." : isLogin ? "Login to moBix" : "Create Account"} {!isLoading && "→"}
+                  {isLoading ? "Processing..." : isLogin ? "Login to moBix" : "Proceed to Verification"}{" "}
+                  {!isLoading && "→"}
                 </span>
               </motion.button>
             </motion.form>
@@ -377,7 +433,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               className="flex items-center gap-4 mb-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
+              transition={{ delay: 0.65 }}
             >
               <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#2A2B33] to-transparent" />
               <span className="text-[#888888] text-sm">OR</span>
@@ -388,7 +444,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               className="w-full"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.75 }}
+              transition={{ delay: 0.7 }}
             >
               <motion.button
                 type="button"
