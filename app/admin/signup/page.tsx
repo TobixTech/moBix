@@ -4,11 +4,11 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff, Loader, Key, ArrowLeft } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Loader, Key } from "lucide-react"
 import { useSignUp } from "@clerk/nextjs"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import EmailVerification from "@/components/email-verification"
-import { verifyAdminInvitationCode, checkAdminCount } from "@/lib/server-actions"
+import { verifyAdminInvitationCode, checkAdminCount, assignAdminRole } from "@/lib/server-actions"
 
 export default function AdminSignupPage() {
   const [step, setStep] = useState<"form" | "verification">("form")
@@ -83,7 +83,7 @@ export default function AdminSignupPage() {
     }
   }
 
-  const handleVerificationComplete = async () => {
+  const handleVerificationComplete = async (code: string) => {
     try {
       setIsLoading(true)
 
@@ -93,17 +93,25 @@ export default function AdminSignupPage() {
         return
       }
 
-      // Complete the sign up
+      // Verify email
       const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code: "", // This will be handled by the verification component
+        code: code,
       })
 
       if (completeSignUp.status === "complete") {
         // Set the session
         await setActive({ session: completeSignUp.createdSessionId })
 
+        const userId = completeSignUp.createdUserId
+        if (userId) {
+          await assignAdminRole(userId)
+        }
+
         // Redirect to admin dashboard
         router.push("/admin/dashboard")
+      } else {
+        setError("Verification incomplete. Please try again.")
+        setIsLoading(false)
       }
     } catch (err: any) {
       console.log("[v0] Verification error:", err)

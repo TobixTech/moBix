@@ -1,6 +1,6 @@
 "use server"
 
-// <CHANGE> Added admin validation functions
+import { clerkClient } from "@clerk/nextjs/server"
 
 export async function getAdminMetrics() {
   return [
@@ -75,7 +75,6 @@ export async function getPublicMovies() {
   ]
 }
 
-// <CHANGE> Admin validation functions
 export async function verifyAdminInvitationCode(code: string): Promise<boolean> {
   // TODO: Replace with real database query to validate invitation code
   // For now, only accept the hardcoded code
@@ -87,4 +86,22 @@ export async function checkAdminCount(): Promise<boolean> {
   // For now, always return true (will be replaced with database check)
   // This should check if admin count < 2
   return true
+}
+
+export async function assignAdminRole(userId: string): Promise<void> {
+  try {
+    const client = await clerkClient()
+
+    // Update user with admin role in public metadata
+    await client.users.updateUser(userId, {
+      publicMetadata: {
+        role: "admin",
+      },
+    })
+
+    console.log("[v0] Admin role assigned to user:", userId)
+  } catch (err: any) {
+    console.log("[v0] Error assigning admin role:", err)
+    throw new Error("Failed to assign admin role")
+  }
 }

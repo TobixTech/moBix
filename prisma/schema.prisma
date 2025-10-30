@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. User Model (To store app-specific data linked to Clerk)
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique // Link to Clerk's user ID
+  email     String   @unique
+  role      Role     @default(USER) // ADMIN or USER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// User Roles
+enum Role {
+  USER
+  ADMIN
+}
+
+// 2. Movie Model (For all movie data)
+model Movie {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  year        Int
+  genre       String
+  posterUrl   String   // URL to the movie poster image
+  videoUrl    String   // URL to the movie video/stream
+  isTrending  Boolean  @default(false)
+  isFeatured  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 3. Admin Invite Code (For secure admin sign-up)
+model AdminInvite {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  isValid   Boolean   @default(true) // Can be disabled after use
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+}
