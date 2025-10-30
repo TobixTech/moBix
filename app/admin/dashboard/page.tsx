@@ -25,7 +25,11 @@ import {
   getRecentSignups,
   getAdminMovies,
   getAdminUsers,
-  uploadMovie, // Import the uploadMovie server action
+  uploadMovie,
+  updateMovie,
+  deleteMovie,
+  saveAdSettings,
+  getAdSettings,
 } from "@/lib/server-actions"
 
 type AdminTab = "overview" | "movies" | "upload" | "users" | "ads"
@@ -37,7 +41,7 @@ interface Metric {
 }
 
 interface Movie {
-  id: number
+  id: string
   title: string
   views?: string
   genre?: string
@@ -64,6 +68,7 @@ export default function AdminDashboard() {
   const [movieSearch, setMovieSearch] = useState("")
   const [userSearch, setUserSearch] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [editingMovieId, setEditingMovieId] = useState<string | null>(null)
 
   const [metrics, setMetrics] = useState<Metric[]>([])
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([])
@@ -82,21 +87,29 @@ export default function AdminDashboard() {
     status: "draft",
   })
 
+  const [adSettings, setAdSettings] = useState({
+    horizontalCode: "",
+    verticalCode: "",
+    placements: [] as string[],
+  })
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsData, trendingData, signupsData, moviesData, usersData] = await Promise.all([
+        const [metricsData, trendingData, signupsData, moviesData, usersData, adData] = await Promise.all([
           getAdminMetrics(),
           getTrendingMovies(),
           getRecentSignups(),
           getAdminMovies(),
           getAdminUsers(),
+          getAdSettings(),
         ])
         setMetrics(metricsData)
         setTrendingMovies(trendingData)
         setRecentSignups(signupsData)
         setMovies(moviesData)
         setUsers(usersData)
+        setAdSettings(adData)
       } catch (error) {
         console.error("Error fetching admin data:", error)
       } finally {
@@ -115,34 +128,90 @@ export default function AdminDashboard() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const result = await uploadMovie({
-        title: formData.title,
-        description: formData.description,
-        genre: formData.genre,
-        posterUrl: formData.thumbnail,
-        videoUrl: formData.videoLink,
-        year: new Date(formData.releaseDate).getFullYear(),
-        isFeatured: formData.status === "published",
-      })
-
-      if (result.success) {
-        alert("Movie uploaded successfully!")
-        setFormData({
-          title: "",
-          thumbnail: "",
-          videoLink: "",
-          description: "",
-          genre: "Action",
-          releaseDate: "",
-          status: "draft",
+      if (editingMovieId) {
+        const result = await updateMovie(editingMovieId, {
+          title: formData.title,
+          description: formData.description,
+          genre: formData.genre,
+          posterUrl: formData.thumbnail,
+          videoUrl: formData.videoLink,
+          year: new Date(formData.releaseDate).getFullYear(),
+          isFeatured: formData.status === "published",
         })
-        // Refresh movies list
-        const updatedMovies = await getAdminMovies()
-        setMovies(updatedMovies)
+
+        if (result.success) {
+          alert("Movie updated successfully!")
+          setEditingMovieId(null)
+        }
+      } else {
+        const result = await uploadMovie({
+          title: formData.title,
+          description: formData.description,
+          genre: formData.genre,
+          posterUrl: formData.thumbnail,
+          videoUrl: formData.videoLink,
+          year: new Date(formData.releaseDate).getFullYear(),
+          isFeatured: formData.status === "published",
+        })
+
+        if (result.success) {
+          alert("Movie uploaded successfully!")
+        }
       }
+
+      setFormData({
+        title: "",
+        thumbnail: "",
+        videoLink: "",
+        description: "",
+        genre: "Action",
+        releaseDate: "",
+        status: "draft",
+      })
+      // Refresh movies list
+      const updatedMovies = await getAdminMovies()
+      setMovies(updatedMovies)
     } catch (error) {
       console.error("Error uploading movie:", error)
       alert("Failed to upload movie")
+    }
+  }
+
+  const handleEditMovie = (movie: Movie) => {
+    setEditingMovieId(movie.id)
+    setFormData({
+      title: movie.title,
+      thumbnail: "",
+      videoLink: "",
+      description: "",
+      genre: movie.genre || "Action",
+      releaseDate: "",
+      status: movie.status === "Published" ? "published" : "draft",
+    })
+    setActiveTab("upload")
+  }
+
+  const handleDeleteMovie = async (movieId: string) => {
+    if (confirm("Are you sure you want to delete this movie?")) {
+      try {
+        await deleteMovie(movieId)
+        alert("Movie deleted successfully!")
+        const updatedMovies = await getAdminMovies()
+        setMovies(updatedMovies)
+      } catch (error) {
+        console.error("Error deleting movie:", error)
+        alert("Failed to delete movie")
+      }
+    }
+  }
+
+  const handleSaveAdSettings = async () => {
+    try {
+      await saveAdSettings(adSettings.horizontalCode, adSettings.verticalCode, adSettings.placements)
+      alert("Ad settings saved successfully!")
+    } catch (error) {
+      console.error("Error saving ad settings:", error)
+      alert("Failed to save ad settings")
     }
   }
 
@@ -343,10 +412,16 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-6 py-4 text-cyan-400 font-bold">{movie.views}</td>
                           <td className="px-6 py-4 flex gap-2">
-                            <button className="p-2 bg-white/5 hover:bg-cyan-500/20 rounded-lg transition-all">
+                            <button
+                              onClick={() => handleEditMovie(movie)}
+                              className="p-2 bg-white/5 hover:bg-cyan-500/20 rounded-lg transition-all"
+                            >
                               <Edit className="w-4 h-4 text-cyan-400" />
                             </button>
-                            <button className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all">
+                            <button
+                              onClick={() => handleDeleteMovie(movie.id)}
+                              className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
+                            >
                               <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
                           </td>
@@ -362,8 +437,12 @@ export default function AdminDashboard() {
           {activeTab === "upload" && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Upload New Movie</h1>
-                <p className="text-white/50">Add a new movie to the platform</p>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  {editingMovieId ? "Edit Movie" : "Upload New Movie"}
+                </h1>
+                <p className="text-white/50">
+                  {editingMovieId ? "Update movie details" : "Add a new movie to the platform"}
+                </p>
               </div>
 
               <form
@@ -482,7 +561,7 @@ export default function AdminDashboard() {
                   className="w-full mt-8 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all flex items-center justify-center gap-2"
                 >
                   <Upload className="w-5 h-5" />
-                  Upload Movie
+                  {editingMovieId ? "Update Movie" : "Upload Movie"}
                 </button>
               </form>
             </div>
@@ -570,6 +649,8 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-white font-bold mb-3 text-sm">Horizontal Ad Code (728x90)</label>
                   <textarea
+                    value={adSettings.horizontalCode}
+                    onChange={(e) => setAdSettings({ ...adSettings, horizontalCode: e.target.value })}
                     placeholder="Paste your AdSense code here..."
                     rows={5}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none font-mono text-xs"
@@ -580,6 +661,8 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-white font-bold mb-3 text-sm">Vertical Ad Code (300x250)</label>
                   <textarea
+                    value={adSettings.verticalCode}
+                    onChange={(e) => setAdSettings({ ...adSettings, verticalCode: e.target.value })}
                     placeholder="Paste your AdSense code here..."
                     rows={5}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none font-mono text-xs"
@@ -596,7 +679,24 @@ export default function AdminDashboard() {
                           key={placement}
                           className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all"
                         >
-                          <input type="checkbox" defaultChecked className="w-4 h-4 accent-cyan-400 rounded" />
+                          <input
+                            type="checkbox"
+                            checked={adSettings.placements.includes(placement)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAdSettings({
+                                  ...adSettings,
+                                  placements: [...adSettings.placements, placement],
+                                })
+                              } else {
+                                setAdSettings({
+                                  ...adSettings,
+                                  placements: adSettings.placements.filter((p) => p !== placement),
+                                })
+                              }
+                            }}
+                            className="w-4 h-4 accent-cyan-400 rounded"
+                          />
                           <span className="text-white font-medium text-sm">{placement}</span>
                         </label>
                       ),
@@ -604,7 +704,10 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <button className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all">
+                <button
+                  onClick={handleSaveAdSettings}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                >
                   Save Ad Settings
                 </button>
               </div>

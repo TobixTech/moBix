@@ -28,17 +28,19 @@ enum Role {
 
 // 2. Movie Model (For all movie data)
 model Movie {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   title       String
   description String
   year        Int
   genre       String
   posterUrl   String   // URL to the movie poster image
   videoUrl    String   // URL to the movie video/stream
-  isTrending  Boolean  @default(false)
-  isFeatured  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isTrending  Boolean   @default(false)
+  isFeatured  Boolean   @default(false)
+  likes       Like[]
+  comments    Comment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // 3. Admin Invite Code (For secure admin sign-up)
@@ -48,4 +50,33 @@ model AdminInvite {
   isValid   Boolean   @default(true) // Can be disabled after use
   expiresAt DateTime?
   createdAt DateTime  @default(now())
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String   // Clerk user ID
+  movieId   String
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, movieId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String   // Clerk user ID
+  movieId   String
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  text      String
+  rating    Int      @default(5) // 1-5 star rating
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdSettings {
+  id              String   @id @default(uuid())
+  horizontalCode  String?  // 728x90 ad code
+  verticalCode    String?  // 300x250 ad code
+  placements      String[] @default([]) // Array of placement names
+  updatedAt       DateTime @updatedAt
 }

@@ -167,3 +167,193 @@ export async function assignAdminRole(userId: string): Promise<void> {
     throw new Error("Failed to assign admin role")
   }
 }
+
+export async function updateMovie(
+  movieId: string,
+  formData: {
+    title?: string
+    description?: string
+    genre?: string
+    posterUrl?: string
+    videoUrl?: string
+    year?: number
+    isTrending?: boolean
+    isFeatured?: boolean
+  },
+) {
+  try {
+    const movie = await prisma.movie.update({
+      where: { id: movieId },
+      data: formData,
+    })
+    return { success: true, movieId: movie.id }
+  } catch (error) {
+    console.error("[v0] Error updating movie:", error)
+    throw new Error("Failed to update movie")
+  }
+}
+
+export async function deleteMovie(movieId: string) {
+  try {
+    await prisma.movie.delete({
+      where: { id: movieId },
+    })
+    return { success: true }
+  } catch (error) {
+    console.error("[v0] Error deleting movie:", error)
+    throw new Error("Failed to delete movie")
+  }
+}
+
+export async function toggleLike(userId: string, movieId: string) {
+  try {
+    // Check if like already exists
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_movieId: {
+          userId,
+          movieId,
+        },
+      },
+    })
+
+    if (existingLike) {
+      // Unlike
+      await prisma.like.delete({
+        where: { id: existingLike.id },
+      })
+      return { success: true, liked: false }
+    } else {
+      // Like
+      await prisma.like.create({
+        data: {
+          userId,
+          movieId,
+        },
+      })
+      return { success: true, liked: true }
+    }
+  } catch (error) {
+    console.error("[v0] Error toggling like:", error)
+    throw new Error("Failed to toggle like")
+  }
+}
+
+export async function getLikeCount(movieId: string) {
+  try {
+    const count = await prisma.like.count({
+      where: { movieId },
+    })
+    return count
+  } catch (error) {
+    console.error("[v0] Error fetching like count:", error)
+    return 0
+  }
+}
+
+export async function isMovieLiked(userId: string, movieId: string) {
+  try {
+    const like = await prisma.like.findUnique({
+      where: {
+        userId_movieId: {
+          userId,
+          movieId,
+        },
+      },
+    })
+    return !!like
+  } catch (error) {
+    console.error("[v0] Error checking like status:", error)
+    return false
+  }
+}
+
+export async function postComment(userId: string, movieId: string, text: string, rating: number) {
+  try {
+    const comment = await prisma.comment.create({
+      data: {
+        userId,
+        movieId,
+        text,
+        rating: Math.min(Math.max(rating, 1), 5), // Ensure rating is between 1-5
+      },
+    })
+    return { success: true, commentId: comment.id }
+  } catch (error) {
+    console.error("[v0] Error posting comment:", error)
+    throw new Error("Failed to post comment")
+  }
+}
+
+export async function getMovieComments(movieId: string) {
+  try {
+    const comments = await prisma.comment.findMany({
+      where: { movieId },
+      orderBy: { createdAt: "desc" },
+    })
+    return comments
+  } catch (error) {
+    console.error("[v0] Error fetching comments:", error)
+    return []
+  }
+}
+
+export async function getAverageRating(movieId: string) {
+  try {
+    const result = await prisma.comment.aggregate({
+      where: { movieId },
+      _avg: {
+        rating: true,
+      },
+      _count: true,
+    })
+    return {
+      average: result._avg.rating || 0,
+      count: result._count,
+    }
+  } catch (error) {
+    console.error("[v0] Error fetching average rating:", error)
+    return { average: 0, count: 0 }
+  }
+}
+
+export async function saveAdSettings(horizontalCode: string, verticalCode: string, placements: string[]) {
+  try {
+    // Get or create ad settings (there should only be one record)
+    const existing = await prisma.adSettings.findFirst()
+
+    if (existing) {
+      const updated = await prisma.adSettings.update({
+        where: { id: existing.id },
+        data: {
+          horizontalCode,
+          verticalCode,
+          placements,
+        },
+      })
+      return { success: true, settingsId: updated.id }
+    } else {
+      const created = await prisma.adSettings.create({
+        data: {
+          horizontalCode,
+          verticalCode,
+          placements,
+        },
+      })
+      return { success: true, settingsId: created.id }
+    }
+  } catch (error) {
+    console.error("[v0] Error saving ad settings:", error)
+    throw new Error("Failed to save ad settings")
+  }
+}
+
+export async function getAdSettings() {
+  try {
+    const settings = await prisma.adSettings.findFirst()
+    return settings || { horizontalCode: "", verticalCode: "", placements: [] }
+  } catch (error) {
+    console.error("[v0] Error fetching ad settings:", error)
+    return { horizontalCode: "", verticalCode: "", placements: [] }
+  }
+}
