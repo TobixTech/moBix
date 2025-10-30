@@ -1,6 +1,7 @@
 "use server"
 
 import { clerkClient } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
 
 export async function getAdminMetrics() {
   return [
@@ -11,14 +12,48 @@ export async function getAdminMetrics() {
   ]
 }
 
+export async function uploadMovie(formData: {
+  title: string
+  description: string
+  genre: string
+  posterUrl: string
+  videoUrl: string
+  year: number
+  isTrending?: boolean
+  isFeatured?: boolean
+}) {
+  try {
+    const movie = await prisma.movie.create({
+      data: {
+        title: formData.title,
+        description: formData.description,
+        genre: formData.genre,
+        posterUrl: formData.posterUrl,
+        videoUrl: formData.videoUrl,
+        year: formData.year,
+        isTrending: formData.isTrending || false,
+        isFeatured: formData.isFeatured || false,
+      },
+    })
+    return { success: true, movieId: movie.id }
+  } catch (error) {
+    console.error("[v0] Error uploading movie:", error)
+    throw new Error("Failed to upload movie")
+  }
+}
+
 export async function getTrendingMovies() {
-  return [
-    { id: 1, title: "The Last Horizon", views: "245.8K" },
-    { id: 2, title: "Cosmic Adventure", views: "198.3K" },
-    { id: 3, title: "Silent Echo", views: "156.2K" },
-    { id: 4, title: "Neon Dreams", views: "142.5K" },
-    { id: 5, title: "Digital Frontier", views: "128.9K" },
-  ]
+  try {
+    const movies = await prisma.movie.findMany({
+      where: { isTrending: true },
+      take: 5,
+      orderBy: { createdAt: "desc" },
+    })
+    return movies.map((m) => ({ id: m.id, title: m.title, views: "0" }))
+  } catch (error) {
+    console.error("[v0] Error fetching trending movies:", error)
+    return []
+  }
 }
 
 export async function getRecentSignups() {
@@ -32,26 +67,22 @@ export async function getRecentSignups() {
 }
 
 export async function getAdminMovies() {
-  return [
-    {
-      id: 1,
-      title: "The Last Horizon",
-      genre: "Sci-Fi",
-      uploadDate: "2024-01-15",
-      status: "Published",
-      views: "245.8K",
-    },
-    {
-      id: 2,
-      title: "Cosmic Adventure",
-      genre: "Action",
-      uploadDate: "2024-01-10",
-      status: "Published",
-      views: "198.3K",
-    },
-    { id: 3, title: "Silent Echo", genre: "Drama", uploadDate: "2024-01-05", status: "Draft", views: "0" },
-    { id: 4, title: "Neon Dreams", genre: "Thriller", uploadDate: "2024-01-01", status: "Published", views: "142.5K" },
-  ]
+  try {
+    const movies = await prisma.movie.findMany({
+      orderBy: { createdAt: "desc" },
+    })
+    return movies.map((m) => ({
+      id: m.id,
+      title: m.title,
+      genre: m.genre,
+      uploadDate: m.createdAt.toISOString().split("T")[0],
+      status: m.isFeatured ? "Published" : "Draft",
+      views: "0",
+    }))
+  } catch (error) {
+    console.error("[v0] Error fetching admin movies:", error)
+    return []
+  }
 }
 
 export async function getAdminUsers() {
@@ -65,14 +96,45 @@ export async function getAdminUsers() {
 }
 
 export async function getPublicMovies() {
-  return [
-    { id: 1, title: "Cosmic Adventure", rating: 8.5 },
-    { id: 2, title: "Silent Echo", rating: 7.8 },
-    { id: 3, title: "Neon Dreams", rating: 8.2 },
-    { id: 4, title: "Lost Kingdom", rating: 7.9 },
-    { id: 5, title: "Time Paradox", rating: 8.7 },
-    { id: 6, title: "Ocean Depths", rating: 7.6 },
-  ]
+  try {
+    const movies = await prisma.movie.findMany({
+      take: 12,
+      orderBy: { createdAt: "desc" },
+    })
+    return movies.map((m) => ({ id: m.id, title: m.title, rating: 8.5 }))
+  } catch (error) {
+    console.error("[v0] Error fetching public movies:", error)
+    return []
+  }
+}
+
+export async function getMovieById(id: string) {
+  try {
+    const movie = await prisma.movie.findUnique({
+      where: { id },
+    })
+    return movie
+  } catch (error) {
+    console.error("[v0] Error fetching movie:", error)
+    return null
+  }
+}
+
+export async function getRelatedMovies(genre: string, excludeId: string, limit = 4) {
+  try {
+    const movies = await prisma.movie.findMany({
+      where: {
+        genre: genre,
+        NOT: { id: excludeId },
+      },
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    })
+    return movies
+  } catch (error) {
+    console.error("[v0] Error fetching related movies:", error)
+    return []
+  }
 }
 
 export async function verifyAdminInvitationCode(code: string): Promise<boolean> {

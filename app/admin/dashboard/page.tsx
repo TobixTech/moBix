@@ -25,6 +25,7 @@ import {
   getRecentSignups,
   getAdminMovies,
   getAdminUsers,
+  uploadMovie, // Import the uploadMovie server action
 } from "@/lib/server-actions"
 
 type AdminTab = "overview" | "movies" | "upload" | "users" | "ads"
@@ -111,18 +112,38 @@ export default function AdminDashboard() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleUpload = (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Movie upload:", formData)
-    setFormData({
-      title: "",
-      thumbnail: "",
-      videoLink: "",
-      description: "",
-      genre: "Action",
-      releaseDate: "",
-      status: "draft",
-    })
+    try {
+      const result = await uploadMovie({
+        title: formData.title,
+        description: formData.description,
+        genre: formData.genre,
+        posterUrl: formData.thumbnail,
+        videoUrl: formData.videoLink,
+        year: new Date(formData.releaseDate).getFullYear(),
+        isFeatured: formData.status === "published",
+      })
+
+      if (result.success) {
+        alert("Movie uploaded successfully!")
+        setFormData({
+          title: "",
+          thumbnail: "",
+          videoLink: "",
+          description: "",
+          genre: "Action",
+          releaseDate: "",
+          status: "draft",
+        })
+        // Refresh movies list
+        const updatedMovies = await getAdminMovies()
+        setMovies(updatedMovies)
+      }
+    } catch (error) {
+      console.error("Error uploading movie:", error)
+      alert("Failed to upload movie")
+    }
   }
 
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))

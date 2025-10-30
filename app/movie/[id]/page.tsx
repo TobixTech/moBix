@@ -1,11 +1,9 @@
-"use client"
-
-import { useState } from "react"
+import { getMovieById, getRelatedMovies } from "@/lib/server-actions"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import AdBanner from "@/components/ad-banner"
-import MovieCarousel from "@/components/movie-carousel"
 import { Play, Download, Heart, Star } from "lucide-react"
+import { notFound } from "next/navigation"
 
 const mockComments = [
   { id: 1, author: "John Doe", rating: 5, text: "Absolutely amazing! Best movie I've seen this year." },
@@ -13,9 +11,14 @@ const mockComments = [
   { id: 3, author: "Mike Johnson", rating: 5, text: "A masterpiece! Highly recommended." },
 ]
 
-export default function MovieDetail({ params }: { params: { id: string } }) {
-  const [isLiked, setIsLiked] = useState(false)
-  const [comment, setComment] = useState("")
+export default async function MovieDetail({ params }: { params: { id: string } }) {
+  const movie = await getMovieById(params.id)
+
+  if (!movie) {
+    notFound()
+  }
+
+  const relatedMovies = await getRelatedMovies(movie.genre, params.id, 4)
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
@@ -25,54 +28,56 @@ export default function MovieDetail({ params }: { params: { id: string } }) {
         {/* Video Player Area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
           <div className="lg:col-span-2">
-            {/* Player Placeholder */}
             <div className="relative w-full aspect-video bg-[#1A1B23] rounded-lg overflow-hidden border border-[#2A2B33] mb-6">
-              <img src="/movie-video-player.jpg" alt="Video Player" className="w-full h-full object-cover" />
+              <img
+                src={movie.posterUrl || "/placeholder.svg"}
+                alt={movie.title}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                <button className="p-4 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 rounded-full transition">
+                <a
+                  href={movie.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-4 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 rounded-full transition"
+                >
                   <Play className="w-12 h-12 text-[#00FFFF] fill-[#00FFFF]" />
-                </button>
+                </a>
               </div>
             </div>
 
-            {/* Movie Info */}
             <div className="mb-8">
-              <h1 className="text-4xl font-bold text-white mb-2">The Last Horizon</h1>
+              <h1 className="text-4xl font-bold text-white mb-2">{movie.title}</h1>
               <div className="flex flex-wrap gap-4 text-[#888888] text-sm mb-4">
-                <span>2024</span>
+                <span>{movie.year}</span>
                 <span>•</span>
-                <span>2h 45m</span>
-                <span>•</span>
-                <span>Action, Sci-Fi</span>
+                <span>{movie.genre}</span>
               </div>
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-3 mb-6">
-                <button className="flex items-center gap-2 px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition">
+                <a
+                  href={movie.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
+                >
                   <Play className="w-4 h-4" />
                   Watch Now
-                </button>
+                </a>
                 <button className="flex items-center gap-2 px-6 py-2 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition">
                   <Download className="w-4 h-4" />
                   Download
                 </button>
-                <button
-                  onClick={() => setIsLiked(!isLiked)}
-                  className="flex items-center gap-2 px-6 py-2 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition"
-                >
-                  <Heart className={`w-4 h-4 ${isLiked ? "fill-[#00FFFF] text-[#00FFFF]" : ""}`} />
-                  {isLiked ? "Liked" : "Like"}
+                <button className="flex items-center gap-2 px-6 py-2 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition">
+                  <Heart className="w-4 h-4" />
+                  Like
                 </button>
               </div>
 
-              {/* Description */}
               <div>
                 <h3 className="text-white font-bold mb-2">Description</h3>
-                <p className="text-[#CCCCCC] leading-relaxed">
-                  An epic journey across distant worlds. Experience breathtaking visuals and an unforgettable story that
-                  will keep you on the edge of your seat. Follow our heroes as they navigate through cosmic challenges
-                  and discover the truth about their destiny.
-                </p>
+                <p className="text-[#CCCCCC] leading-relaxed">{movie.description}</p>
               </div>
             </div>
 
@@ -85,8 +90,6 @@ export default function MovieDetail({ params }: { params: { id: string } }) {
                 <div className="flex gap-4">
                   <div className="flex-1">
                     <textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
                       placeholder="Share your thoughts..."
                       className="w-full bg-[#0B0C10] border border-[#2A2B33] rounded px-4 py-2 text-white placeholder-[#555555] focus:outline-none focus:border-[#00FFFF] focus:ring-1 focus:ring-[#00FFFF] resize-none"
                       rows={3}
@@ -149,8 +152,32 @@ export default function MovieDetail({ params }: { params: { id: string } }) {
         {/* Footer Ad */}
         <AdBanner type="horizontal" className="mb-12" />
 
-        {/* Related Movies */}
-        <MovieCarousel title="Related Movies" />
+        {relatedMovies.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-4">Related Movies</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {relatedMovies.map((relatedMovie) => (
+                <a
+                  key={relatedMovie.id}
+                  href={`/movie/${relatedMovie.id}`}
+                  className="group relative overflow-hidden rounded-lg"
+                >
+                  <img
+                    src={relatedMovie.posterUrl || "/placeholder.svg"}
+                    alt={relatedMovie.title}
+                    className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Play className="w-12 h-12 text-[#00FFFF]" />
+                  </div>
+                  <p className="absolute bottom-0 left-0 right-0 bg-black/80 text-white p-2 text-sm font-bold">
+                    {relatedMovie.title}
+                  </p>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <Footer />
