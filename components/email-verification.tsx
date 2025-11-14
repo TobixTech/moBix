@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
 import { Mail, Loader, ArrowLeft } from "lucide-react"
 import { useSignUp } from "@clerk/nextjs"
@@ -18,46 +18,7 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(120) // 2 minutes
-  const [canResend, setCanResend] = useState(false)
   const { signUp } = useSignUp()
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      setCanResend(true)
-      return
-    }
-
-    const timer = setTimeout(() => {
-      setTimeLeft(timeLeft - 1)
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [timeLeft])
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
-
-  const handleResend = async () => {
-    try {
-      setError("")
-      if (!signUp) {
-        setError("Sign up is not available")
-        return
-      }
-
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-      setTimeLeft(120) // Restart 2-minute countdown
-      setCanResend(false)
-      setCode("")
-    } catch (err: any) {
-      console.log("[v0] Resend error:", err)
-      setError(err.errors?.[0]?.message || "Failed to resend code. Please try again.")
-    }
-  }
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -167,24 +128,9 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
         <span>Back to Sign Up</span>
       </motion.button>
 
-      <div className="text-center space-y-2">
-        <p className="text-[#666666] text-xs">
-          Didn't receive the code?{" "}
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={!canResend}
-            className="text-[#00FFFF] hover:text-[#00CCCC] disabled:text-[#666666] disabled:cursor-not-allowed transition"
-          >
-            Resend
-          </button>
-        </p>
-        {!canResend && timeLeft > 0 && (
-          <p className="text-[#888888] text-xs">
-            Resend available in <span className="text-[#00FFFF] font-semibold">{formatTime(timeLeft)}</span>
-          </p>
-        )}
-      </div>
+      <p className="text-center text-[#666666] text-xs">
+        Didn't receive the code? <button className="text-[#00FFFF] hover:text-[#00CCCC]">Resend</button>
+      </p>
     </motion.div>
   )
 }

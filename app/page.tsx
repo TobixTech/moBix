@@ -1,11 +1,11 @@
 "use client"
+import { useState } from "react"
 import Navbar from "@/components/navbar"
 import HeroBanner from "@/components/hero-banner"
 import MovieCarousel from "@/components/movie-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
 import AuthModal from "@/components/auth-modal"
-import { useState } from "react"
 
 export default function PublicHomePage() {
   const [showAuthModal, setShowAuthModal] = useState(false)

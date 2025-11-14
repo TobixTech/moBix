@@ -1,7 +1,6 @@
 "use server"
 
-import { clerkClient } from "@clerk/nextjs/server"
-import { prisma } from "@/lib/prisma"
+// <CHANGE> Added admin validation functions
 
 export async function getAdminMetrics() {
   return [
@@ -12,48 +11,14 @@ export async function getAdminMetrics() {
   ]
 }
 
-export async function uploadMovie(formData: {
-  title: string
-  description: string
-  genre: string
-  posterUrl: string
-  videoUrl: string
-  year: number
-  isTrending?: boolean
-  isFeatured?: boolean
-}) {
-  try {
-    const movie = await prisma.movie.create({
-      data: {
-        title: formData.title,
-        description: formData.description,
-        genre: formData.genre,
-        posterUrl: formData.posterUrl,
-        videoUrl: formData.videoUrl,
-        year: formData.year,
-        isTrending: formData.isTrending || false,
-        isFeatured: formData.isFeatured || false,
-      },
-    })
-    return { success: true, movieId: movie.id }
-  } catch (error) {
-    console.error("[v0] Error uploading movie:", error)
-    throw new Error("Failed to upload movie")
-  }
-}
-
 export async function getTrendingMovies() {
-  try {
-    const movies = await prisma.movie.findMany({
-      where: { isTrending: true },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-    })
-    return movies.map((m) => ({ id: m.id, title: m.title, views: "0" }))
-  } catch (error) {
-    console.error("[v0] Error fetching trending movies:", error)
-    return []
-  }
+  return [
+    { id: 1, title: "The Last Horizon", views: "245.8K" },
+    { id: 2, title: "Cosmic Adventure", views: "198.3K" },
+    { id: 3, title: "Silent Echo", views: "156.2K" },
+    { id: 4, title: "Neon Dreams", views: "142.5K" },
+    { id: 5, title: "Digital Frontier", views: "128.9K" },
+  ]
 }
 
 export async function getRecentSignups() {
@@ -67,22 +32,26 @@ export async function getRecentSignups() {
 }
 
 export async function getAdminMovies() {
-  try {
-    const movies = await prisma.movie.findMany({
-      orderBy: { createdAt: "desc" },
-    })
-    return movies.map((m) => ({
-      id: m.id,
-      title: m.title,
-      genre: m.genre,
-      uploadDate: m.createdAt.toISOString().split("T")[0],
-      status: m.isFeatured ? "Published" : "Draft",
-      views: "0",
-    }))
-  } catch (error) {
-    console.error("[v0] Error fetching admin movies:", error)
-    return []
-  }
+  return [
+    {
+      id: 1,
+      title: "The Last Horizon",
+      genre: "Sci-Fi",
+      uploadDate: "2024-01-15",
+      status: "Published",
+      views: "245.8K",
+    },
+    {
+      id: 2,
+      title: "Cosmic Adventure",
+      genre: "Action",
+      uploadDate: "2024-01-10",
+      status: "Published",
+      views: "198.3K",
+    },
+    { id: 3, title: "Silent Echo", genre: "Drama", uploadDate: "2024-01-05", status: "Draft", views: "0" },
+    { id: 4, title: "Neon Dreams", genre: "Thriller", uploadDate: "2024-01-01", status: "Published", views: "142.5K" },
+  ]
 }
 
 export async function getAdminUsers() {
@@ -96,47 +65,17 @@ export async function getAdminUsers() {
 }
 
 export async function getPublicMovies() {
-  try {
-    const movies = await prisma.movie.findMany({
-      take: 12,
-      orderBy: { createdAt: "desc" },
-    })
-    return movies.map((m) => ({ id: m.id, title: m.title, rating: 8.5 }))
-  } catch (error) {
-    console.error("[v0] Error fetching public movies:", error)
-    return []
-  }
+  return [
+    { id: 1, title: "Cosmic Adventure", rating: 8.5 },
+    { id: 2, title: "Silent Echo", rating: 7.8 },
+    { id: 3, title: "Neon Dreams", rating: 8.2 },
+    { id: 4, title: "Lost Kingdom", rating: 7.9 },
+    { id: 5, title: "Time Paradox", rating: 8.7 },
+    { id: 6, title: "Ocean Depths", rating: 7.6 },
+  ]
 }
 
-export async function getMovieById(id: string) {
-  try {
-    const movie = await prisma.movie.findUnique({
-      where: { id },
-    })
-    return movie
-  } catch (error) {
-    console.error("[v0] Error fetching movie:", error)
-    return null
-  }
-}
-
-export async function getRelatedMovies(genre: string, excludeId: string, limit = 4) {
-  try {
-    const movies = await prisma.movie.findMany({
-      where: {
-        genre: genre,
-        NOT: { id: excludeId },
-      },
-      take: limit,
-      orderBy: { createdAt: "desc" },
-    })
-    return movies
-  } catch (error) {
-    console.error("[v0] Error fetching related movies:", error)
-    return []
-  }
-}
-
+// <CHANGE> Admin validation functions
 export async function verifyAdminInvitationCode(code: string): Promise<boolean> {
   // TODO: Replace with real database query to validate invitation code
   // For now, only accept the hardcoded code
@@ -148,212 +87,4 @@ export async function checkAdminCount(): Promise<boolean> {
   // For now, always return true (will be replaced with database check)
   // This should check if admin count < 2
   return true
-}
-
-export async function assignAdminRole(userId: string): Promise<void> {
-  try {
-    const client = await clerkClient()
-
-    // Update user with admin role in public metadata
-    await client.users.updateUser(userId, {
-      publicMetadata: {
-        role: "admin",
-      },
-    })
-
-    console.log("[v0] Admin role assigned to user:", userId)
-  } catch (err: any) {
-    console.log("[v0] Error assigning admin role:", err)
-    throw new Error("Failed to assign admin role")
-  }
-}
-
-export async function updateMovie(
-  movieId: string,
-  formData: {
-    title?: string
-    description?: string
-    genre?: string
-    posterUrl?: string
-    videoUrl?: string
-    year?: number
-    isTrending?: boolean
-    isFeatured?: boolean
-  },
-) {
-  try {
-    const movie = await prisma.movie.update({
-      where: { id: movieId },
-      data: formData,
-    })
-    return { success: true, movieId: movie.id }
-  } catch (error) {
-    console.error("[v0] Error updating movie:", error)
-    throw new Error("Failed to update movie")
-  }
-}
-
-export async function deleteMovie(movieId: string) {
-  try {
-    await prisma.movie.delete({
-      where: { id: movieId },
-    })
-    return { success: true }
-  } catch (error) {
-    console.error("[v0] Error deleting movie:", error)
-    throw new Error("Failed to delete movie")
-  }
-}
-
-export async function toggleLike(userId: string, movieId: string) {
-  try {
-    // Check if like already exists
-    const existingLike = await prisma.like.findUnique({
-      where: {
-        userId_movieId: {
-          userId,
-          movieId,
-        },
-      },
-    })
-
-    if (existingLike) {
-      // Unlike
-      await prisma.like.delete({
-        where: { id: existingLike.id },
-      })
-      return { success: true, liked: false }
-    } else {
-      // Like
-      await prisma.like.create({
-        data: {
-          userId,
-          movieId,
-        },
-      })
-      return { success: true, liked: true }
-    }
-  } catch (error) {
-    console.error("[v0] Error toggling like:", error)
-    throw new Error("Failed to toggle like")
-  }
-}
-
-export async function getLikeCount(movieId: string) {
-  try {
-    const count = await prisma.like.count({
-      where: { movieId },
-    })
-    return count
-  } catch (error) {
-    console.error("[v0] Error fetching like count:", error)
-    return 0
-  }
-}
-
-export async function isMovieLiked(userId: string, movieId: string) {
-  try {
-    const like = await prisma.like.findUnique({
-      where: {
-        userId_movieId: {
-          userId,
-          movieId,
-        },
-      },
-    })
-    return !!like
-  } catch (error) {
-    console.error("[v0] Error checking like status:", error)
-    return false
-  }
-}
-
-export async function postComment(userId: string, movieId: string, text: string, rating: number) {
-  try {
-    const comment = await prisma.comment.create({
-      data: {
-        userId,
-        movieId,
-        text,
-        rating: Math.min(Math.max(rating, 1), 5), // Ensure rating is between 1-5
-      },
-    })
-    return { success: true, commentId: comment.id }
-  } catch (error) {
-    console.error("[v0] Error posting comment:", error)
-    throw new Error("Failed to post comment")
-  }
-}
-
-export async function getMovieComments(movieId: string) {
-  try {
-    const comments = await prisma.comment.findMany({
-      where: { movieId },
-      orderBy: { createdAt: "desc" },
-    })
-    return comments
-  } catch (error) {
-    console.error("[v0] Error fetching comments:", error)
-    return []
-  }
-}
-
-export async function getAverageRating(movieId: string) {
-  try {
-    const result = await prisma.comment.aggregate({
-      where: { movieId },
-      _avg: {
-        rating: true,
-      },
-      _count: true,
-    })
-    return {
-      average: result._avg.rating || 0,
-      count: result._count,
-    }
-  } catch (error) {
-    console.error("[v0] Error fetching average rating:", error)
-    return { average: 0, count: 0 }
-  }
-}
-
-export async function saveAdSettings(horizontalCode: string, verticalCode: string, placements: string[]) {
-  try {
-    // Get or create ad settings (there should only be one record)
-    const existing = await prisma.adSettings.findFirst()
-
-    if (existing) {
-      const updated = await prisma.adSettings.update({
-        where: { id: existing.id },
-        data: {
-          horizontalCode,
-          verticalCode,
-          placements,
-        },
-      })
-      return { success: true, settingsId: updated.id }
-    } else {
-      const created = await prisma.adSettings.create({
-        data: {
-          horizontalCode,
-          verticalCode,
-          placements,
-        },
-      })
-      return { success: true, settingsId: created.id }
-    }
-  } catch (error) {
-    console.error("[v0] Error saving ad settings:", error)
-    throw new Error("Failed to save ad settings")
-  }
-}
-
-export async function getAdSettings() {
-  try {
-    const settings = await prisma.adSettings.findFirst()
-    return settings || { horizontalCode: "", verticalCode: "", placements: [] }
-  } catch (error) {
-    console.error("[v0] Error fetching ad settings:", error)
-    return { horizontalCode: "", verticalCode: "", placements: [] }
-  }
 }
