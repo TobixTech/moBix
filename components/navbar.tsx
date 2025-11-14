@@ -105,6 +105,26 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
               </Link>
             </motion.div>
           ))}
+          {!showAuthButtons && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Link
+                href="/profile"
+                className="text-white hover:text-[#00FFFF] transition relative group"
+              >
+                Profile
+                <motion.div
+                  className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"
+                  initial={{ width: 0 }}
+                  whileHover={{ width: "100%" }}
+                  transition={{ duration: 0.3 }}
+                />
+              </Link>
+            </motion.div>
+          )}
         </div>
 
         <motion.div

@@ -262,26 +262,51 @@ export async function checkAdminCount(): Promise<boolean> {
 export async function assignAdminRole(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const client = await clerkClient()
+    
+    // First, check if user already exists in database to prevent duplicates
+    const existingUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
 
+    if (existingUser) {
+      // User already exists, just update role
+      await client.users.updateUser(userId, {
+        publicMetadata: {
+          role: "admin",
+        },
+      })
+
+      await prisma.user.update({
+        where: { clerkId: userId },
+        data: { role: "ADMIN" },
+      })
+
+      return { success: true }
+    }
+
+    // Get user email from Clerk
+    const clerkUser = await client.users.getUser(userId)
+    const email = clerkUser.emailAddresses?.[0]?.emailAddress
+
+    if (!email) {
+      return { success: false, error: "User email not found" }
+    }
+
+    // Update Clerk metadata
     await client.users.updateUser(userId, {
       publicMetadata: {
         role: "admin",
       },
     })
 
-    // Also create user in database
-    const { user: clerkUser } = await auth()
-    if (clerkUser) {
-      await prisma.user.upsert({
-        where: { clerkId: userId },
-        update: { role: "ADMIN" },
-        create: {
-          clerkId: userId,
-          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
-          role: "ADMIN",
-        },
-      })
-    }
+    // Create user in database with ADMIN role
+    await prisma.user.create({
+      data: {
+        clerkId: userId,
+        email: email,
+        role: "ADMIN",
+      },
+    })
 
     return { success: true }
   } catch (error: any) {
@@ -619,5 +644,100 @@ export async function getAdSettings() {
   } catch (error) {
     console.error("[v0] Error fetching ad settings:", error)
     return null
+  }
+}
+
+export async function getUserProfile() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const client = await clerkClient()
+    const clerkUser = await client.users.getUser(userId)
+    
+    let dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
+
+    // Create user in DB if doesn't exist
+    if (!dbUser) {
+      dbUser = await prisma.user.create({
+        data: {
+          clerkId: userId,
+          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+          role: "USER",
+        },
+      })
+    }
+
+    return {
+      success: true,
+      user: {
+        id: dbUser.id,
+        email: dbUser.email,
+        role: dbUser.role,
+        username: clerkUser.username || clerkUser.firstName || "User",
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+        createdAt: dbUser.createdAt.toISOString(),
+      },
+    }
+  } catch (error: any) {
+    console.error("[v0] Error fetching user profile:", error)
+    return { success: false, error: error.message || "Failed to fetch profile" }
+  }
+}
+
+export async function updateUserProfile(data: { username?: string; firstName?: string; lastName?: string }) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const client = await clerkClient()
+    
+    await client.users.updateUser(userId, {
+      username: data.username,
+      firstName: data.firstName,
+      lastName: data.lastName,
+    })
+
+    revalidatePath("/profile")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error updating user profile:", error)
+    return { success: false, error: error.message || "Failed to update profile" }
+  }
+}
+
+export async function getUserStats(userId: string) {
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      include: {
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+          },
+        },
+      },
+    })
+
+    if (!dbUser) {
+      return { likesCount: 0, commentsCount: 0 }
+    }
+
+    return {
+      likesCount: dbUser._count.likes,
+      commentsCount: dbUser._count.comments,
+    }
+  } catch (error) {
+    console.error("[v0] Error fetching user stats:", error)
+    return { likesCount: 0, commentsCount: 0 }
   }
 }

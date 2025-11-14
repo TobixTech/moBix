@@ -98,21 +98,24 @@ export default function AdminSignupPage() {
       })
 
       if (completeSignUp.status === "complete") {
-        const userId = completeSignUp.createdUserId
-        
-        // Set the active session FIRST
         await setActive({ session: completeSignUp.createdSessionId })
 
-        // Then assign admin role
+        const userId = completeSignUp.createdUserId
+
         if (userId) {
-          await assignAdminRole(userId)
+          const result = await assignAdminRole(userId)
+          
+          if (!result.success) {
+            setError(result.error || "Failed to assign admin role")
+            setIsLoading(false)
+            return
+          }
         }
 
-        // Finally redirect
         window.location.href = "/admin/dashboard"
       }
     } catch (err: any) {
-      console.log("[v0] Verification error:", err)
+      console.error("[v0] Verification error:", err)
       setError(err.errors?.[0]?.message || "Verification failed")
       setIsLoading(false)
     }

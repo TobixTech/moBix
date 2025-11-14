@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Geist, Geist_Mono } from 'next/font/google'
 import { ClerkProvider } from "@clerk/nextjs"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: "Premium streaming platform for movies and shows",
   generator: "v0.app",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/favicon.svg", // Updated to use SVG favicon
   },
 }
 
