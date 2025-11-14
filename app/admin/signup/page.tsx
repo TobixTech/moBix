@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React, { useState } from "react"
 import { motion } from "framer-motion"
 import { Mail, Lock, Eye, EyeOff, Loader, Key, ArrowLeft, AlertTriangle } from 'lucide-react'
 import { useSignUp, useClerk } from "@clerk/nextjs"
@@ -195,7 +195,7 @@ export default function AdminSignupPage() {
           {/* Original blurred content */}
           <div className="opacity-30 blur-sm pointer-events-none">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-black bg-gradient-to-r from-[#00FFFF] via-[#00CCCC] to-[#00FFFF] bg-clip-text text-transparent mb-2">
+              <h1 className="text-4xl font-black bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] bg-clip-text text-transparent mb-2">
                 moBix Admin
               </h1>
               <p className="text-[#888888] text-sm">Create your admin account</p>
