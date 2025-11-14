@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { LogOut, LayoutDashboard, Film, Upload, Users, Settings, Search, Filter, Edit, Trash2, Eye, RotateCcw, Menu, X } from 'lucide-react'
+import { LogOut, LayoutDashboard, Film, Upload, Users, Settings, Search, Filter, Edit, Trash2, Eye, RotateCcw, Menu, X, MessageSquare } from 'lucide-react'
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import {
   getAdminMetrics,
@@ -11,9 +11,12 @@ import {
   getAdminMovies,
   getAdminUsers,
   uploadMovie,
+  updateMovie,
+  deleteMovie,
+  saveAdSettings,
 } from "@/lib/server-actions"
 
-type AdminTab = "overview" | "movies" | "upload" | "users" | "ads"
+type AdminTab = "overview" | "movies" | "upload" | "users" | "ads" | "comments"
 
 interface Metric {
   label: string
@@ -43,6 +46,16 @@ interface User {
   role: string
 }
 
+interface Comment {
+  id: string
+  text: string
+  rating: number
+  movieTitle: string
+  userEmail: string
+  createdAt: string
+  movieId: string
+}
+
 export default function AdminDashboard() {
   const { signOut } = useAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
@@ -55,7 +68,11 @@ export default function AdminDashboard() {
   const [recentSignups, setRecentSignups] = useState<Signup[]>([])
   const [movies, setMovies] = useState<Movie[]>([])
   const [users, setUsers] = useState<User[]>([])
+  const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
+
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -65,6 +82,14 @@ export default function AdminDashboard() {
     genre: "Action",
     releaseDate: "",
     status: "draft",
+  })
+
+  const [adSettings, setAdSettings] = useState({
+    horizontalAdCode: "",
+    verticalAdCode: "",
+    homepageEnabled: true,
+    movieDetailEnabled: true,
+    dashboardEnabled: false,
   })
 
   useEffect(() => {
@@ -82,6 +107,10 @@ export default function AdminDashboard() {
         setRecentSignups(signupsData)
         setMovies(moviesData)
         setUsers(usersData)
+        
+        const commentsResponse = await fetch("/api/admin/comments")
+        const commentsData = await commentsResponse.json()
+        setComments(commentsData)
       } catch (error) {
         console.error("Error fetching admin data:", error)
       } finally {
@@ -137,6 +166,89 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  const handleEdit = (movie: Movie) => {
+    setEditingMovie(movie)
+    setEditModalOpen(true)
+  }
+
+  const handleDelete = async (movieId: number) => {
+    if (!confirm("Are you sure you want to delete this movie? This action cannot be undone.")) {
+      return
+    }
+
+    setLoading(true)
+    const result = await deleteMovie(String(movieId))
+    
+    if (result.success) {
+      const moviesData = await getAdminMovies()
+      setMovies(moviesData)
+    } else {
+      alert(`Delete failed: ${result.error}`)
+    }
+    
+    setLoading(false)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingMovie) return
+
+    setLoading(true)
+    const result = await updateMovie(String(editingMovie.id), {
+      title: editingMovie.title,
+      description: "",
+      year: 2024,
+      genre: editingMovie.genre || "Action",
+      posterUrl: "",
+      videoUrl: "",
+      isFeatured: editingMovie.status === "Published",
+    })
+
+    if (result.success) {
+      const moviesData = await getAdminMovies()
+      setMovies(moviesData)
+      setEditModalOpen(false)
+      setEditingMovie(null)
+    } else {
+      alert(`Update failed: ${result.error}`)
+    }
+    
+    setLoading(false)
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Are you sure you want to delete this comment?")) {
+      return
+    }
+
+    setLoading(true)
+    const response = await fetch(`/api/admin/comments/${commentId}`, {
+      method: "DELETE",
+    })
+
+    if (response.ok) {
+      const commentsResponse = await fetch("/api/admin/comments")
+      const commentsData = await commentsResponse.json()
+      setComments(commentsData)
+    } else {
+      alert("Failed to delete comment")
+    }
+    
+    setLoading(false)
+  }
+
+  const handleSaveAdSettings = async () => {
+    setLoading(true)
+    const result = await saveAdSettings(adSettings)
+    
+    if (result.success) {
+      alert("Ad settings saved successfully!")
+    } else {
+      alert(`Failed to save ad settings: ${result.error}`)
+    }
+    
+    setLoading(false)
+  }
+
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
   const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
@@ -153,6 +265,70 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex flex-col lg:flex-row">
+      {editModalOpen && editingMovie && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0F1018] border border-white/10 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Edit Movie</h2>
+              <button
+                onClick={() => {
+                  setEditModalOpen(false)
+                  setEditingMovie(null)
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white font-medium mb-2 text-sm">Movie Title</label>
+                <input
+                  type="text"
+                  value={editingMovie.title}
+                  onChange={(e) => setEditingMovie({ ...editingMovie, title: e.target.value })}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-white font-medium mb-2 text-sm">Genre</label>
+                <select
+                  value={editingMovie.genre}
+                  onChange={(e) => setEditingMovie({ ...editingMovie, genre: e.target.value })}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                >
+                  <option value="Action">Action</option>
+                  <option value="Drama">Drama</option>
+                  <option value="Sci-Fi">Sci-Fi</option>
+                  <option value="Thriller">Thriller</option>
+                  <option value="Comedy">Comedy</option>
+                </select>
+              </div>
+              
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={handleSaveEdit}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={() => {
+                    setEditModalOpen(false)
+                    setEditingMovie(null)
+                  }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-lg hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
@@ -186,6 +362,7 @@ export default function AdminDashboard() {
             { id: "movies", label: "Manage Movies", icon: Film },
             { id: "upload", label: "Upload Movie", icon: Upload },
             { id: "users", label: "Manage Users", icon: Users },
+            { id: "comments", label: "Comment Moderation", icon: MessageSquare },
             { id: "ads", label: "Ad Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -334,10 +511,18 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-6 py-4 text-cyan-400 font-bold">{movie.views}</td>
                           <td className="px-6 py-4 flex gap-2">
-                            <button className="p-2 bg-white/5 hover:bg-cyan-500/20 rounded-lg transition-all">
+                            <button
+                              onClick={() => handleEdit(movie)}
+                              className="p-2 bg-white/5 hover:bg-cyan-500/20 rounded-lg transition-all"
+                              title="Edit Movie"
+                            >
                               <Edit className="w-4 h-4 text-cyan-400" />
                             </button>
-                            <button className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all">
+                            <button
+                              onClick={() => handleDelete(movie.id)}
+                              className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
+                              title="Delete Movie"
+                            >
                               <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
                           </td>
@@ -549,6 +734,58 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeTab === "comments" && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">Comment Moderation</h1>
+                <p className="text-white/50">Review and manage user comments across all movies</p>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/5">
+                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Movie</th>
+                        <th className="px-6 py-4 text-left text-white font-bold text-sm">User</th>
+                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Comment</th>
+                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Rating</th>
+                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Date</th>
+                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comments.map((comment) => (
+                        <tr key={comment.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
+                          <td className="px-6 py-4 text-white font-medium">{comment.movieTitle}</td>
+                          <td className="px-6 py-4 text-white/70">{comment.userEmail}</td>
+                          <td className="px-6 py-4 text-white/70 max-w-xs truncate">{comment.text}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: comment.rating }).map((_, i) => (
+                                <span key={i} className="text-yellow-400">★</span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-white/70">{comment.createdAt}</td>
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
+                              title="Delete Comment"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === "ads" && (
             <div className="space-y-6">
               <div>
@@ -561,6 +798,8 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-white font-bold mb-3 text-sm">Horizontal Ad Code (728x90)</label>
                   <textarea
+                    value={adSettings.horizontalAdCode}
+                    onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
                     placeholder="Paste your AdSense code here..."
                     rows={5}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none font-mono text-xs"
@@ -571,6 +810,8 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-white font-bold mb-3 text-sm">Vertical Ad Code (300x250)</label>
                   <textarea
+                    value={adSettings.verticalAdCode}
+                    onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
                     placeholder="Paste your AdSense code here..."
                     rows={5}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none font-mono text-xs"
@@ -581,21 +822,40 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-white font-bold mb-4 text-sm">Ad Placements</label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {["Homepage Carousel", "Movie Detail Sidebar", "Movie Detail Footer", "Dashboard"].map(
-                      (placement) => (
-                        <label
-                          key={placement}
-                          className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all"
-                        >
-                          <input type="checkbox" defaultChecked className="w-4 h-4 accent-cyan-400 rounded" />
-                          <span className="text-white font-medium text-sm">{placement}</span>
-                        </label>
-                      ),
-                    )}
+                    <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all">
+                      <input
+                        type="checkbox"
+                        checked={adSettings.homepageEnabled}
+                        onChange={(e) => setAdSettings({ ...adSettings, homepageEnabled: e.target.checked })}
+                        className="w-4 h-4 accent-cyan-400 rounded"
+                      />
+                      <span className="text-white font-medium text-sm">Homepage Carousel</span>
+                    </label>
+                    <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all">
+                      <input
+                        type="checkbox"
+                        checked={adSettings.movieDetailEnabled}
+                        onChange={(e) => setAdSettings({ ...adSettings, movieDetailEnabled: e.target.checked })}
+                        className="w-4 h-4 accent-cyan-400 rounded"
+                      />
+                      <span className="text-white font-medium text-sm">Movie Detail Page</span>
+                    </label>
+                    <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all">
+                      <input
+                        type="checkbox"
+                        checked={adSettings.dashboardEnabled}
+                        onChange={(e) => setAdSettings({ ...adSettings, dashboardEnabled: e.target.checked })}
+                        className="w-4 h-4 accent-cyan-400 rounded"
+                      />
+                      <span className="text-white font-medium text-sm">Dashboard</span>
+                    </label>
                   </div>
                 </div>
 
-                <button className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all">
+                <button
+                  onClick={handleSaveAdSettings}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                >
                   Save Ad Settings
                 </button>
               </div>

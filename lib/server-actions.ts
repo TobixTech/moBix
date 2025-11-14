@@ -566,3 +566,58 @@ export async function searchMovies(query: string) {
     return []
   }
 }
+
+export async function getAllComments() {
+  try {
+    const comments = await prisma.comment.findMany({
+      include: {
+        user: true,
+        movie: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    })
+
+    return comments.map((comment) => ({
+      id: comment.id,
+      text: comment.text,
+      rating: comment.rating,
+      movieTitle: comment.movie.title,
+      movieId: comment.movie.id,
+      userEmail: comment.user.email,
+      createdAt: comment.createdAt.toISOString().split("T")[0],
+    }))
+  } catch (error) {
+    console.error("[v0] Error fetching all comments:", error)
+    return []
+  }
+}
+
+export async function deleteComment(commentId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    await prisma.comment.delete({
+      where: { id: commentId },
+    })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error deleting comment:", error)
+    return { success: false, error: error.message || "Failed to delete comment" }
+  }
+}
+
+export async function getAdSettings() {
+  try {
+    const settings = await prisma.adSettings.findFirst()
+    return settings || null
+  } catch (error) {
+    console.error("[v0] Error fetching ad settings:", error)
+    return null
+  }
+}

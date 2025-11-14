@@ -19,7 +19,12 @@ export default async function MovieDetail({ params }: { params: { id: string } }
       <Navbar />
 
       <div className="pt-20 px-4 md:px-8">
-        <MovieDetailClient movie={movie} relatedMovies={relatedMovies} />
+        <MovieDetailClient
+          movie={movie}
+          relatedMovies={relatedMovies}
+          adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
+          adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}
+        />
       </div>
 
       <Footer />

@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Play, Heart, Star, Send, Loader } from 'lucide-react'
-import AdBanner from "./ad-banner"
 import { toggleLike, addComment } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
@@ -41,9 +40,13 @@ interface RelatedMovie {
 export default function MovieDetailClient({
   movie,
   relatedMovies,
+  adBannerVertical,
+  adBannerHorizontal,
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
+  adBannerVertical?: React.ReactNode
+  adBannerHorizontal?: React.ReactNode
 }) {
   const { userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
@@ -290,8 +293,7 @@ export default function MovieDetailClient({
 
         {/* Sidebar */}
         <div className="lg:col-span-1">
-          {/* Sidebar Ad */}
-          <AdBanner type="vertical" className="mb-6" />
+          {adBannerVertical}
 
           {/* Movie Stats */}
           <motion.div
@@ -323,8 +325,7 @@ export default function MovieDetailClient({
         </div>
       </div>
 
-      {/* Footer Ad */}
-      <AdBanner type="horizontal" className="mb-12" />
+      {adBannerHorizontal}
 
       {/* Related Movies */}
       {relatedMovies.length > 0 && (
