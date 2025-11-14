@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react'
-import { useSignIn, useAuth } from "@clerk/nextjs"
+import { useSignIn, useAuth, useClerk } from "@clerk/nextjs"
 import { useRouter } from 'next/navigation'
 import { useEffect } from "react"
 
@@ -18,9 +18,10 @@ export default function AdminLoginPage() {
 
   const { signIn, setActive } = useSignIn()
   const { isLoaded, userId, sessionClaims } = useAuth()
+  const { signOut } = useClerk()
   const router = useRouter()
 
-  // <CHANGE> Redirect if already authenticated as admin
+  // Redirect if already authenticated as admin
   useEffect(() => {
     if (isLoaded && userId) {
       const userRole = sessionClaims?.metadata?.role
@@ -36,28 +37,47 @@ export default function AdminLoginPage() {
     setIsLoading(true)
 
     try {
+      console.log("[v0] Starting admin login process...")
+      
       if (!signIn) {
         setError("Sign in is not available")
         setIsLoading(false)
         return
       }
 
+      console.log("[v0] Attempting sign in...")
       const result = await signIn.create({
         identifier: email,
         password,
       })
 
+      console.log("[v0] Sign in result:", result.status)
+
       if (result.status === "complete") {
+        console.log("[v0] Setting active session...")
         await setActive({ session: result.createdSessionId })
-        router.push("/admin/dashboard")
+        
+        console.log("[v0] Redirecting to admin dashboard...")
+        window.location.href = "/admin/dashboard"
       } else {
         setError("Sign in incomplete. Please try again.")
       }
     } catch (err: any) {
-      console.log("[v0] Login error:", err)
+      console.error("[v0] Login error:", err)
       setError(err.errors?.[0]?.message || "Invalid email or password")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      setError("")
+      console.log("[v0] User signed out successfully")
+    } catch (err: any) {
+      console.error("[v0] Sign out error:", err)
+      setError("Failed to sign out")
     }
   }
 
@@ -185,8 +205,19 @@ export default function AdminLoginPage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
             >
-              <p className="text-[#00FFFF] text-xs">
+              <p className="text-[#00FFFF] text-xs mb-2">
                 <strong>Admin Access:</strong> This is a private admin portal. Only authorized administrators can access this area.
+              </p>
+              <p className="text-[#888888] text-xs">
+                <strong>Testing Multiple Accounts?</strong> If you're already logged in, please{" "}
+                <button 
+                  onClick={handleSignOut}
+                  className="text-[#00FFFF] hover:underline"
+                  type="button"
+                >
+                  sign out first
+                </button>
+                {" "}before logging in with a different account.
               </p>
             </motion.div>
           </div>

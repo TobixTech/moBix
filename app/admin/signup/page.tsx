@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Mail, Lock, Eye, EyeOff, Loader, Key, ArrowLeft } from 'lucide-react'
-import { useSignUp } from "@clerk/nextjs"
+import { useSignUp, useClerk } from "@clerk/nextjs"
 import { useRouter } from 'next/navigation'
 import EmailVerification from "@/components/email-verification"
 import { verifyAdminInvitationCode, checkAdminCount, assignAdminRole } from "@/lib/server-actions"
@@ -21,6 +21,7 @@ export default function AdminSignupPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   const { signUp, setActive } = useSignUp()
+  const { signOut } = useClerk()
   const router = useRouter()
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -29,6 +30,8 @@ export default function AdminSignupPage() {
     setIsLoading(true)
 
     try {
+      console.log("[v0] Starting admin signup process...")
+      
       // Validate passwords match
       if (password !== confirmPassword) {
         setError("Passwords do not match")
@@ -43,6 +46,7 @@ export default function AdminSignupPage() {
         return
       }
 
+      console.log("[v0] Verifying invitation code...")
       const isValidCode = await verifyAdminInvitationCode(invitationCode)
       if (!isValidCode) {
         setError("Invalid invitation code")
@@ -50,6 +54,7 @@ export default function AdminSignupPage() {
         return
       }
 
+      console.log("[v0] Checking admin count...")
       // Check admin count
       const canRegister = await checkAdminCount()
       if (!canRegister) {
@@ -64,20 +69,23 @@ export default function AdminSignupPage() {
         return
       }
 
+      console.log("[v0] Creating user account...")
       // Create the user
       const result = await signUp.create({
         emailAddress: email,
         password,
       })
 
+      console.log("[v0] User created, preparing email verification...")
       // Prepare email verification
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
 
+      console.log("[v0] Moving to verification step...")
       // Move to verification step
       setStep("verification")
       setIsLoading(false)
     } catch (err: any) {
-      console.log("[v0] Signup error:", err)
+      console.error("[v0] Signup error:", err)
       setError(err.errors?.[0]?.message || "Sign up failed. Please try again.")
       setIsLoading(false)
     }
@@ -86,6 +94,7 @@ export default function AdminSignupPage() {
   const handleVerificationComplete = async (code: string) => {
     try {
       setIsLoading(true)
+      console.log("[v0] Starting verification process...")
 
       if (!signUp) {
         setError("Sign up is not available")
@@ -93,31 +102,51 @@ export default function AdminSignupPage() {
         return
       }
 
+      console.log("[v0] Attempting email verification...")
       const completeSignUp = await signUp.attemptEmailAddressVerification({
         code: code,
       })
 
+      console.log("[v0] Verification result:", completeSignUp.status)
+
       if (completeSignUp.status === "complete") {
+        console.log("[v0] Setting active session...")
         await setActive({ session: completeSignUp.createdSessionId })
 
         const userId = completeSignUp.createdUserId
+        console.log("[v0] User ID:", userId)
 
         if (userId) {
+          console.log("[v0] Assigning admin role...")
           const result = await assignAdminRole(userId)
           
           if (!result.success) {
+            console.error("[v0] Failed to assign admin role:", result.error)
             setError(result.error || "Failed to assign admin role")
             setIsLoading(false)
             return
           }
+          console.log("[v0] Admin role assigned successfully")
         }
 
+        console.log("[v0] Redirecting to admin dashboard...")
         window.location.href = "/admin/dashboard"
       }
     } catch (err: any) {
       console.error("[v0] Verification error:", err)
       setError(err.errors?.[0]?.message || "Verification failed")
       setIsLoading(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      setError("")
+      console.log("[v0] User signed out successfully")
+    } catch (err: any) {
+      console.error("[v0] Sign out error:", err)
+      setError("Failed to sign out")
     }
   }
 
@@ -290,8 +319,19 @@ export default function AdminSignupPage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
             >
-              <p className="text-[#00FFFF] text-xs">
+              <p className="text-[#00FFFF] text-xs mb-2">
                 <strong>Note:</strong> Only 2 admin accounts can be created. An invitation code is required to register.
+              </p>
+              <p className="text-[#888888] text-xs">
+                <strong>Testing Multiple Accounts?</strong> If you're already logged in, please{" "}
+                <button 
+                  onClick={handleSignOut}
+                  className="text-[#00FFFF] hover:underline"
+                  type="button"
+                >
+                  sign out first
+                </button>
+                {" "}before creating a new account.
               </p>
             </motion.div>
           </div>
