@@ -757,11 +757,6 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
 
     const client = await clerkClient()
     
-    // Check if user already exists in database
-    let user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    })
-
     // Get user email from Clerk
     const clerkUser = await client.users.getUser(userId)
     const email = clerkUser.emailAddresses?.[0]?.emailAddress
@@ -770,28 +765,36 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
       return { success: false, error: "User email not found" }
     }
 
-    // Update Clerk metadata
+    // Update Clerk metadata first (this always works)
     await client.users.updateUser(userId, {
       publicMetadata: {
         role: "admin",
       },
     })
 
-    if (user) {
-      // Update existing user
-      await prisma.user.update({
+    // Try to sync with database, but don't fail if table doesn't exist
+    try {
+      const user = await prisma.user.findUnique({
         where: { clerkId: userId },
-        data: { role: "ADMIN" },
       })
-    } else {
-      // Create new user with ADMIN role
-      await prisma.user.create({
-        data: {
-          clerkId: userId,
-          email: email,
-          role: "ADMIN",
-        },
-      })
+
+      if (user) {
+        await prisma.user.update({
+          where: { clerkId: userId },
+          data: { role: "ADMIN" },
+        })
+      } else {
+        await prisma.user.create({
+          data: {
+            clerkId: userId,
+            email: email,
+            role: "ADMIN",
+          },
+        })
+      }
+    } catch (dbError: any) {
+      console.log("[v0] Database sync skipped (tables may not exist yet):", dbError.message)
+      // Continue anyway - Clerk metadata is updated
     }
 
     return { success: true }
