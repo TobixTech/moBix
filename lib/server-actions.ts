@@ -741,3 +741,62 @@ export async function getUserStats(userId: string) {
     return { likesCount: 0, commentsCount: 0 }
   }
 }
+
+export async function grantAdminAccessWithKey(secretKey: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Please sign in first" }
+    }
+
+    const validKey = process.env.ADMIN_SECRET_KEY || "MOBIX_SECRET_2024"
+    
+    if (secretKey !== validKey) {
+      return { success: false, error: "Invalid access key" }
+    }
+
+    const client = await clerkClient()
+    
+    // Check if user already exists in database
+    let user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
+
+    // Get user email from Clerk
+    const clerkUser = await client.users.getUser(userId)
+    const email = clerkUser.emailAddresses?.[0]?.emailAddress
+
+    if (!email) {
+      return { success: false, error: "User email not found" }
+    }
+
+    // Update Clerk metadata
+    await client.users.updateUser(userId, {
+      publicMetadata: {
+        role: "admin",
+      },
+    })
+
+    if (user) {
+      // Update existing user
+      await prisma.user.update({
+        where: { clerkId: userId },
+        data: { role: "ADMIN" },
+      })
+    } else {
+      // Create new user with ADMIN role
+      await prisma.user.create({
+        data: {
+          clerkId: userId,
+          email: email,
+          role: "ADMIN",
+        },
+      })
+    }
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error granting admin access:", error)
+    return { success: false, error: error.message || "Failed to grant admin access" }
+  }
+}

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 
 const isAdminRoute = createRouteMatcher(["/admin/dashboard(.*)"])
 const isAdminAuthRoute = createRouteMatcher(["/admin/login", "/admin/signup"])
+const isAdminAccessKeyRoute = createRouteMatcher(["/admin/access-key"])
 const isPublicRoute = createRouteMatcher(["/", "/api/webhooks(.*)", "/sso-callback", "/login", "/signup"])
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"])
 const isHomeRoute = createRouteMatcher(["/home(.*)"])
@@ -18,12 +19,22 @@ export default clerkMiddleware(async (auth, req) => {
 
   if (isAdminRoute(req)) {
     if (!userId) {
-      return NextResponse.redirect(new URL("/admin/login", req.url))
+      return NextResponse.redirect(new URL("/admin/access-key", req.url))
     }
 
     const userRole = sessionClaims?.metadata?.role
     if (userRole !== "admin") {
-      return NextResponse.redirect(new URL("/admin/login", req.url))
+      return NextResponse.redirect(new URL("/", req.url))
+    }
+  }
+
+  if (isAdminAccessKeyRoute(req)) {
+    if (!userId) {
+      return NextResponse.redirect(new URL("/", req.url))
+    }
+    // If already admin, redirect to dashboard
+    if (sessionClaims?.metadata?.role === "admin") {
+      return NextResponse.redirect(new URL("/admin/dashboard", req.url))
     }
   }
 
@@ -34,9 +45,8 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isAdminAuthRoute(req)) {
-    if (userId && sessionClaims?.metadata?.role === "admin") {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url))
-    }
+    // Allow access to show "UNDER DEVELOPMENT" message
+    return NextResponse.next()
   }
 })
 
