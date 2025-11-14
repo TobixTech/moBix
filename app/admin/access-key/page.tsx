@@ -10,11 +10,13 @@ export default function AdminAccessKeyPage() {
   const [accessKey, setAccessKey] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState("")
   const { isSignedIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setSuccessMessage("")
     setIsLoading(true)
 
     try {
@@ -35,12 +37,13 @@ export default function AdminAccessKeyPage() {
       }
 
       console.log("[v0] Admin access granted successfully!")
+      setSuccessMessage("Admin access granted! Redirecting...")
       
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 3000))
       
-      console.log("[v0] Redirecting to admin dashboard...")
+      console.log("[v0] Performing hard redirect to admin dashboard...")
       
-      window.location.href = "/admin/dashboard"
+      window.location.replace("/admin/dashboard")
     } catch (err: any) {
       console.error("[v0] Access key error:", err)
       setError("An error occurred. Please try again.")
@@ -97,6 +100,16 @@ export default function AdminAccessKeyPage() {
               </motion.div>
             )}
 
+            {successMessage && (
+              <motion.div
+                className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {successMessage}
+              </motion.div>
+            )}
+
             <motion.form
               className="space-y-4 mb-6"
               initial={{ opacity: 0 }}
@@ -117,7 +130,8 @@ export default function AdminAccessKeyPage() {
                   value={accessKey}
                   onChange={(e) => setAccessKey(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all disabled:opacity-50"
                 />
               </motion.div>
 
@@ -131,7 +145,7 @@ export default function AdminAccessKeyPage() {
                 {isLoading ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" />
-                    <span>Verifying and syncing session...</span>
+                    <span>Syncing session...</span>
                   </>
                 ) : (
                   <>
@@ -152,7 +166,7 @@ export default function AdminAccessKeyPage() {
                 <strong>Secure Access:</strong> This is a temporary bypass mechanism for admin access.
               </p>
               <p className="text-[#888888] text-xs">
-                If you don't have the secret key, please contact the system administrator.
+                Default key: <code className="bg-white/10 px-1 rounded">MOBIX_SECRET_2024</code>
               </p>
             </motion.div>
           </div>

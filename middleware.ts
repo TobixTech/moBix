@@ -13,7 +13,7 @@ export default clerkMiddleware(async (auth, req) => {
 
   console.log("[v0] Middleware checking route:", req.nextUrl.pathname)
   console.log("[v0] User ID:", userId)
-  console.log("[v0] User role:", sessionClaims?.metadata?.role)
+  console.log("[v0] User role:", sessionClaims?.publicMetadata?.role)
 
   if (isHomeRoute(req)) {
     if (!userId) {
@@ -27,7 +27,7 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(new URL("/admin/access-key", req.url))
     }
 
-    const userRole = sessionClaims?.metadata?.role
+    const userRole = sessionClaims?.publicMetadata?.role
     if (userRole !== "admin") {
       console.log("[v0] User is not admin, redirecting to home")
       return NextResponse.redirect(new URL("/", req.url))

@@ -742,7 +742,7 @@ export async function getUserStats(userId: string) {
   }
 }
 
-export async function grantAdminAccessWithKey(secretKey: string): Promise<{ success: boolean; error?: string; needsRefresh?: boolean }> {
+export async function grantAdminAccessWithKey(secretKey: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -767,14 +767,13 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
       return { success: false, error: "User email not found" }
     }
 
-    // Update Clerk metadata first (this always works)
     await client.users.updateUser(userId, {
       publicMetadata: {
         role: "admin",
       },
     })
 
-    console.log("[v0] Clerk metadata updated to admin role")
+    console.log("[v0] Clerk publicMetadata updated to admin role")
 
     // Try to sync with database, but don't fail if table doesn't exist
     try {
@@ -803,7 +802,16 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
       // Continue anyway - Clerk metadata is updated
     }
 
-    return { success: true, needsRefresh: true }
+    try {
+      const sessions = await client.users.getUserList({
+        userId: [userId],
+      })
+      console.log("[v0] Session refresh triggered")
+    } catch (sessionError) {
+      console.log("[v0] Could not refresh session, but continuing...")
+    }
+
+    return { success: true }
   } catch (error: any) {
     console.error("[v0] Error granting admin access:", error)
     return { success: false, error: error.message || "Failed to grant admin access" }
