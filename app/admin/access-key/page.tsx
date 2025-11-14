@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Key, Lock, Loader, ArrowRight } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { grantAdminAccessWithKey } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 
@@ -11,7 +10,6 @@ export default function AdminAccessKeyPage() {
   const [accessKey, setAccessKey] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
   const { isSignedIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,7 +34,12 @@ export default function AdminAccessKeyPage() {
         return
       }
 
-      console.log("[v0] Admin access granted, redirecting...")
+      console.log("[v0] Admin access granted successfully!")
+      
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      console.log("[v0] Redirecting to admin dashboard...")
+      
       window.location.href = "/admin/dashboard"
     } catch (err: any) {
       console.error("[v0] Access key error:", err)
@@ -128,7 +131,7 @@ export default function AdminAccessKeyPage() {
                 {isLoading ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" />
-                    <span>Verifying...</span>
+                    <span>Verifying and syncing session...</span>
                   </>
                 ) : (
                   <>

@@ -742,7 +742,7 @@ export async function getUserStats(userId: string) {
   }
 }
 
-export async function grantAdminAccessWithKey(secretKey: string): Promise<{ success: boolean; error?: string }> {
+export async function grantAdminAccessWithKey(secretKey: string): Promise<{ success: boolean; error?: string; needsRefresh?: boolean }> {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -754,6 +754,8 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
     if (secretKey !== validKey) {
       return { success: false, error: "Invalid access key" }
     }
+
+    console.log("[v0] Valid access key provided, granting admin access...")
 
     const client = await clerkClient()
     
@@ -772,6 +774,8 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
       },
     })
 
+    console.log("[v0] Clerk metadata updated to admin role")
+
     // Try to sync with database, but don't fail if table doesn't exist
     try {
       const user = await prisma.user.findUnique({
@@ -783,6 +787,7 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
           where: { clerkId: userId },
           data: { role: "ADMIN" },
         })
+        console.log("[v0] Database user updated to ADMIN role")
       } else {
         await prisma.user.create({
           data: {
@@ -791,13 +796,14 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
             role: "ADMIN",
           },
         })
+        console.log("[v0] Database user created with ADMIN role")
       }
     } catch (dbError: any) {
       console.log("[v0] Database sync skipped (tables may not exist yet):", dbError.message)
       // Continue anyway - Clerk metadata is updated
     }
 
-    return { success: true }
+    return { success: true, needsRefresh: true }
   } catch (error: any) {
     console.error("[v0] Error granting admin access:", error)
     return { success: false, error: error.message || "Failed to grant admin access" }
