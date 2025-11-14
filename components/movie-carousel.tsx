@@ -1,40 +1,44 @@
 "use client"
 
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import MovieCard from "./movie-card"
 import { getPublicMovies } from "@/lib/server-actions"
 
 interface Movie {
-  id: number
+  id: string
   title: string
-  rating: number
+  posterUrl: string
+  genre: string
 }
 
 interface MovieCarouselProps {
   title: string
+  movies?: Movie[]
 }
 
-export default function MovieCarousel({ title }: MovieCarouselProps) {
+export default function MovieCarousel({ title, movies: initialMovies }: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
-  const [movies, setMovies] = useState<Movie[]>([])
-  const [loading, setLoading] = useState(true)
+  const [movies, setMovies] = useState<Movie[]>(initialMovies || [])
+  const [loading, setLoading] = useState(!initialMovies)
 
   useEffect(() => {
-    const fetchMovies = async () => {
-      try {
-        const data = await getPublicMovies()
-        setMovies(data)
-      } catch (error) {
-        console.error("Error fetching movies:", error)
-      } finally {
-        setLoading(false)
+    if (!initialMovies) {
+      const fetchMovies = async () => {
+        try {
+          const data = await getPublicMovies()
+          setMovies(data)
+        } catch (error) {
+          console.error("Error fetching movies:", error)
+        } finally {
+          setLoading(false)
+        }
       }
-    }
 
-    fetchMovies()
-  }, [])
+      fetchMovies()
+    }
+  }, [initialMovies])
 
   const scroll = (direction: "left" | "right") => {
     const container = document.getElementById(`carousel-${title}`)
@@ -69,6 +73,10 @@ export default function MovieCarousel({ title }: MovieCarouselProps) {
     )
   }
 
+  if (movies.length === 0) {
+    return null
+  }
+
   return (
     <motion.div
       className="space-y-4"
@@ -101,7 +109,7 @@ export default function MovieCarousel({ title }: MovieCarouselProps) {
         {/* Carousel */}
         <div
           id={`carousel-${title}`}
-          className="flex gap-4 overflow-x-auto scroll-smooth pb-4"
+          className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
           style={{ scrollBehavior: "smooth" }}
         >
           {movies.map((movie, index) => (

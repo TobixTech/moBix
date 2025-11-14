@@ -1,15 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { Heart, Play } from "lucide-react"
+import { Heart, Play } from 'lucide-react'
 import { useState } from "react"
 import { motion } from "framer-motion"
 
 interface MovieCardProps {
   movie: {
-    id: number
+    id: string
     title: string
-    rating: number
+    posterUrl?: string
+    genre?: string
+    year?: number
   }
 }
 
@@ -31,7 +33,7 @@ export default function MovieCard({ movie }: MovieCardProps) {
           <div className="absolute inset-0 bg-gradient-to-r from-[#1A1B23] via-[#2A2B33] to-[#1A1B23] animate-pulse" />
         )}
         <motion.img
-          src={`/placeholder.svg?height=288&width=192&query=movie poster ${movie.title}`}
+          src={movie.posterUrl || `/placeholder.svg?height=288&width=192&query=movie poster ${movie.title}`}
           alt={movie.title}
           className="w-full h-full object-cover"
           animate={{ scale: isHovered ? 1.1 : 1 }}
@@ -81,19 +83,13 @@ export default function MovieCard({ movie }: MovieCardProps) {
               transition={{ delay: 0.1 }}
             >
               <h3 className="text-white font-bold text-sm line-clamp-2">{movie.title}</h3>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <span
-                      key={i}
-                      className={`text-xs ${i < Math.floor(movie.rating / 2) ? "text-[#00FFFF]" : "text-[#2A2B33]"}`}
-                    >
-                      ★
-                    </span>
-                  ))}
+              {(movie.genre || movie.year) && (
+                <div className="flex items-center gap-2 text-xs text-[#888888]">
+                  {movie.genre && <span>{movie.genre}</span>}
+                  {movie.genre && movie.year && <span>•</span>}
+                  {movie.year && <span>{movie.year}</span>}
                 </div>
-                <span className="text-xs text-[#888888]">{movie.rating}</span>
-              </div>
+              )}
               <motion.button
                 className="w-full flex items-center justify-center gap-2 bg-[#00FFFF] text-[#0B0C10] py-2 rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
                 whileHover={{ scale: 1.05 }}

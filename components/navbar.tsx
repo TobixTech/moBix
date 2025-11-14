@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { Search, User, LogOut } from "lucide-react"
-import { useState } from "react"
-import { motion } from "framer-motion"
+import { Search, User, LogOut, X } from 'lucide-react'
+import { useState, useEffect, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { searchMovies } from "@/lib/server-actions"
+import { useAuth, useClerk } from "@clerk/nextjs"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -12,6 +14,52 @@ interface NavbarProps {
 
 export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const { userId } = useAuth()
+  const { signOut } = useClerk()
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.trim().length >= 2) {
+        setIsSearching(true)
+        const results = await searchMovies(searchQuery)
+        setSearchResults(results)
+        setShowSearchResults(true)
+        setIsSearching(false)
+      } else {
+        setSearchResults([])
+        setShowSearchResults(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [searchQuery])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  const handleResultClick = () => {
+    setShowSearchResults(false)
+    setSearchQuery("")
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    window.location.href = "/"
+  }
 
   return (
     <motion.nav
@@ -24,7 +72,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
         {/* Logo */}
         <Link href={showAuthButtons ? "/" : "/home"} className="flex-shrink-0">
           <motion.div
-            className="text-2xl font-bold bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] bg-clip-text text-transparent"
+            className="text-2xl font-bold bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] bg-clip-text text-transparent heartbeat"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -57,9 +105,9 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           ))}
         </div>
 
-        {/* Search Bar */}
         <motion.div
-          className="flex-1 max-w-xs hidden sm:flex"
+          ref={searchRef}
+          className="flex-1 max-w-xs hidden sm:flex relative"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
@@ -70,9 +118,67 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
               placeholder="Search movies..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
               className="w-full px-4 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded text-white placeholder-[#888888] focus:outline-none focus:border-[#00FFFF] focus:ring-1 focus:ring-[#00FFFF] transition"
             />
-            <Search className="absolute right-3 top-2.5 w-5 h-5 text-[#888888]" />
+            {searchQuery ? (
+              <button
+                onClick={() => {
+                  setSearchQuery("")
+                  setShowSearchResults(false)
+                }}
+                className="absolute right-3 top-2.5 text-[#888888] hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            ) : (
+              <Search className="absolute right-3 top-2.5 w-5 h-5 text-[#888888]" />
+            )}
+
+            <AnimatePresence>
+              {showSearchResults && (
+                <motion.div
+                  className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {isSearching ? (
+                    <div className="p-4 text-center text-[#888888]">
+                      <div className="w-6 h-6 border-2 border-[#00FFFF]/20 border-t-[#00FFFF] rounded-full animate-spin mx-auto" />
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <div className="py-2">
+                      {searchResults.map((movie) => (
+                        <Link
+                          key={movie.id}
+                          href={`/movie/${movie.id}`}
+                          onClick={handleResultClick}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-[#2A2B33] transition-colors"
+                        >
+                          <img
+                            src={movie.posterUrl || "/placeholder.svg"}
+                            alt={movie.title}
+                            className="w-12 h-16 object-cover rounded"
+                          />
+                          <div className="flex-1">
+                            <h4 className="text-white font-medium">{movie.title}</h4>
+                            <p className="text-[#888888] text-sm">
+                              {movie.year} • {movie.genre}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-[#888888]">
+                      No results found for "{searchQuery}"
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
 
@@ -109,6 +215,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                 </Link>
               </motion.div>
               <motion.button
+                onClick={handleSignOut}
                 className="p-2 hover:bg-[#1A1B23] rounded transition"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
@@ -118,6 +225,78 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             </>
           )}
         </motion.div>
+      </div>
+
+      <div className="sm:hidden px-4 pb-4">
+        <div className="relative" ref={searchRef}>
+          <input
+            type="text"
+            placeholder="Search movies..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+            className="w-full px-4 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded text-white placeholder-[#888888] focus:outline-none focus:border-[#00FFFF] focus:ring-1 focus:ring-[#00FFFF] transition"
+          />
+          {searchQuery ? (
+            <button
+              onClick={() => {
+                setSearchQuery("")
+                setShowSearchResults(false)
+              }}
+              className="absolute right-3 top-2.5 text-[#888888] hover:text-white transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          ) : (
+            <Search className="absolute right-3 top-2.5 w-5 h-5 text-[#888888]" />
+          )}
+
+          {/* Mobile Search Results */}
+          <AnimatePresence>
+            {showSearchResults && (
+              <motion.div
+                className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {isSearching ? (
+                  <div className="p-4 text-center text-[#888888]">
+                    <div className="w-6 h-6 border-2 border-[#00FFFF]/20 border-t-[#00FFFF] rounded-full animate-spin mx-auto" />
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="py-2">
+                    {searchResults.map((movie) => (
+                      <Link
+                        key={movie.id}
+                        href={`/movie/${movie.id}`}
+                        onClick={handleResultClick}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-[#2A2B33] transition-colors"
+                      >
+                        <img
+                          src={movie.posterUrl || "/placeholder.svg"}
+                          alt={movie.title}
+                          className="w-12 h-16 object-cover rounded"
+                        />
+                        <div className="flex-1">
+                          <h4 className="text-white font-medium">{movie.title}</h4>
+                          <p className="text-[#888888] text-sm">
+                            {movie.year} • {movie.genre}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-[#888888]">
+                    No results found for "{searchQuery}"
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </motion.nav>
   )

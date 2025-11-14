@@ -1,11 +1,30 @@
 "use client"
 
-import { Play, Info } from "lucide-react"
+import { Play, Info } from 'lucide-react'
 import { motion } from "framer-motion"
 import { useState } from "react"
+import Link from "next/link"
 
-export default function HeroBanner() {
+interface Movie {
+  id: string
+  title: string
+  description: string
+  posterUrl: string
+}
+
+interface HeroBannerProps {
+  movie: Movie | null
+}
+
+export default function HeroBanner({ movie }: HeroBannerProps) {
   const [isLoading, setIsLoading] = useState(true)
+
+  const displayMovie = movie || {
+    id: "",
+    title: "Welcome to moBix",
+    description: "Discover thousands of movies and shows. Stream your favorites anytime, anywhere.",
+    posterUrl: "/cinematic-hero-banner.jpg",
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -33,7 +52,6 @@ export default function HeroBanner() {
         <div className="absolute inset-0 bg-gradient-to-r from-[#1A1B23] via-[#2A2B33] to-[#1A1B23] animate-pulse" />
       )}
 
-      {/* Animated Background */}
       <motion.div
         className="absolute inset-0 bg-gradient-to-r from-[#0B0C10] via-[#1A1B23] to-[#0B0C10]"
         initial={{ opacity: 0 }}
@@ -41,8 +59,8 @@ export default function HeroBanner() {
         transition={{ duration: 1 }}
       >
         <img
-          src="/cinematic-movie-hero-banner.jpg"
-          alt="Featured Movie"
+          src={displayMovie.posterUrl || "/placeholder.svg"}
+          alt={displayMovie.title}
           className="w-full h-full object-cover opacity-40"
           loading="lazy"
           onLoad={() => setIsLoading(false)}
@@ -67,7 +85,6 @@ export default function HeroBanner() {
         transition={{ duration: 6, repeat: Number.POSITIVE_INFINITY }}
       />
 
-      {/* Content */}
       <motion.div
         className="absolute inset-0 flex flex-col justify-center px-4 md:px-12 py-8"
         variants={containerVariants}
@@ -76,31 +93,37 @@ export default function HeroBanner() {
       >
         <div className="max-w-2xl">
           <motion.h1 variants={itemVariants} className="text-4xl md:text-6xl font-bold text-white mb-4">
-            The Last Horizon
+            {displayMovie.title}
           </motion.h1>
           <motion.p variants={itemVariants} className="text-lg md:text-xl text-[#CCCCCC] mb-8 line-clamp-3">
-            An epic journey across distant worlds. Experience breathtaking visuals and an unforgettable story that will
-            keep you on the edge of your seat.
+            {displayMovie.description}
           </motion.p>
 
-          {/* Action Buttons */}
           <motion.div variants={itemVariants} className="flex gap-4">
-            <motion.button
-              className="flex items-center gap-2 px-8 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
-              whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(0, 255, 255, 0.6)" }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Play className="w-5 h-5" />
-              Watch Now
-            </motion.button>
-            <motion.button
-              className="flex items-center gap-2 px-8 py-3 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition"
-              whileHover={{ scale: 1.05, borderColor: "#00FFFF" }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Info className="w-5 h-5" />
-              More Info
-            </motion.button>
+            {movie && (
+              <Link href={`/movie/${movie.id}`}>
+                <motion.button
+                  className="flex items-center gap-2 px-8 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
+                  whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(0, 255, 255, 0.6)" }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Play className="w-5 h-5" />
+                  Watch Now
+                </motion.button>
+              </Link>
+            )}
+            {movie && (
+              <Link href={`/movie/${movie.id}`}>
+                <motion.button
+                  className="flex items-center gap-2 px-8 py-3 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition"
+                  whileHover={{ scale: 1.05, borderColor: "#00FFFF" }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Info className="w-5 h-5" />
+                  More Info
+                </motion.button>
+              </Link>
+            )}
           </motion.div>
         </div>
       </motion.div>

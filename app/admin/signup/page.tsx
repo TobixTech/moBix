@@ -93,28 +93,23 @@ export default function AdminSignupPage() {
         return
       }
 
-      // Complete the sign up
       const completeSignUp = await signUp.attemptEmailAddressVerification({
         code: code,
       })
 
       if (completeSignUp.status === "complete") {
-        // Set the session
+        const userId = completeSignUp.createdUserId
+        
+        // Set the active session FIRST
         await setActive({ session: completeSignUp.createdSessionId })
 
-        const userId = completeSignUp.createdUserId
+        // Then assign admin role
         if (userId) {
-          const result = await assignAdminRole(userId)
-          
-          if (!result.success) {
-            setError(result.error || "Failed to assign admin role")
-            setIsLoading(false)
-            return
-          }
+          await assignAdminRole(userId)
         }
 
-        // Redirect to admin dashboard
-        router.push("/admin/dashboard")
+        // Finally redirect
+        window.location.href = "/admin/dashboard"
       }
     } catch (err: any) {
       console.log("[v0] Verification error:", err)

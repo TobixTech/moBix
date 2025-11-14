@@ -269,9 +269,300 @@ export async function assignAdminRole(userId: string): Promise<{ success: boolea
       },
     })
 
+    // Also create user in database
+    const { user: clerkUser } = await auth()
+    if (clerkUser) {
+      await prisma.user.upsert({
+        where: { clerkId: userId },
+        update: { role: "ADMIN" },
+        create: {
+          clerkId: userId,
+          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+          role: "ADMIN",
+        },
+      })
+    }
+
     return { success: true }
   } catch (error: any) {
     console.error("[v0] Error assigning admin role:", error)
     return { success: false, error: error.message || "Failed to assign admin role" }
+  }
+}
+
+export async function updateMovie(
+  id: string,
+  formData: {
+    title: string
+    description: string
+    year: number
+    genre: string
+    posterUrl: string
+    videoUrl: string
+    isTrending?: boolean
+    isFeatured?: boolean
+  },
+) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const movie = await prisma.movie.update({
+      where: { id },
+      data: {
+        title: formData.title,
+        description: formData.description,
+        year: formData.year,
+        genre: formData.genre,
+        posterUrl: formData.posterUrl,
+        videoUrl: formData.videoUrl,
+        isTrending: formData.isTrending || false,
+        isFeatured: formData.isFeatured || false,
+      },
+    })
+
+    revalidatePath("/admin/dashboard")
+    revalidatePath(`/movie/${id}`)
+    return { success: true, movie }
+  } catch (error: any) {
+    console.error("[v0] Error updating movie:", error)
+    return { success: false, error: error.message || "Failed to update movie" }
+  }
+}
+
+export async function deleteMovie(id: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    await prisma.movie.delete({
+      where: { id },
+    })
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error deleting movie:", error)
+    return { success: false, error: error.message || "Failed to delete movie" }
+  }
+}
+
+export async function toggleLike(movieId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Please sign in to like movies" }
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
+
+    if (!user) {
+      // Create user if doesn't exist
+      const { user: clerkUser } = await auth()
+      if (!clerkUser) {
+        return { success: false, error: "User not found" }
+      }
+
+      const newUser = await prisma.user.create({
+        data: {
+          clerkId: userId,
+          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+          role: "USER",
+        },
+      })
+
+      // Create like
+      await prisma.like.create({
+        data: {
+          userId: newUser.id,
+          movieId,
+        },
+      })
+
+      revalidatePath(`/movie/${movieId}`)
+      return { success: true, liked: true }
+    }
+
+    // Check if already liked
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_movieId: {
+          userId: user.id,
+          movieId,
+        },
+      },
+    })
+
+    if (existingLike) {
+      // Unlike
+      await prisma.like.delete({
+        where: { id: existingLike.id },
+      })
+
+      revalidatePath(`/movie/${movieId}`)
+      return { success: true, liked: false }
+    } else {
+      // Like
+      await prisma.like.create({
+        data: {
+          userId: user.id,
+          movieId,
+        },
+      })
+
+      revalidatePath(`/movie/${movieId}`)
+      return { success: true, liked: true }
+    }
+  } catch (error: any) {
+    console.error("[v0] Error toggling like:", error)
+    return { success: false, error: error.message || "Failed to toggle like" }
+  }
+}
+
+export async function addComment(movieId: string, text: string, rating: number) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Please sign in to comment" }
+    }
+
+    // Get or create user
+    let user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
+
+    if (!user) {
+      const { user: clerkUser } = await auth()
+      if (!clerkUser) {
+        return { success: false, error: "User not found" }
+      }
+
+      user = await prisma.user.create({
+        data: {
+          clerkId: userId,
+          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+          role: "USER",
+        },
+      })
+    }
+
+    const comment = await prisma.comment.create({
+      data: {
+        userId: user.id,
+        movieId,
+        text,
+        rating,
+      },
+    })
+
+    revalidatePath(`/movie/${movieId}`)
+    return { success: true, comment }
+  } catch (error: any) {
+    console.error("[v0] Error adding comment:", error)
+    return { success: false, error: error.message || "Failed to add comment" }
+  }
+}
+
+export async function saveAdSettings(settings: {
+  horizontalAdCode: string
+  verticalAdCode: string
+  homepageEnabled: boolean
+  movieDetailEnabled: boolean
+  dashboardEnabled: boolean
+}) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    // Get or create ad settings
+    const existing = await prisma.adSettings.findFirst()
+
+    if (existing) {
+      await prisma.adSettings.update({
+        where: { id: existing.id },
+        data: settings,
+      })
+    } else {
+      await prisma.adSettings.create({
+        data: settings,
+      })
+    }
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error saving ad settings:", error)
+    return { success: false, error: error.message || "Failed to save ad settings" }
+  }
+}
+
+export async function getMoviesByGenre(genre: string) {
+  try {
+    const movies = await prisma.movie.findMany({
+      where: {
+        genre,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 12,
+    })
+    return movies
+  } catch (error) {
+    console.error("[v0] Error fetching movies by genre:", error)
+    return []
+  }
+}
+
+export async function getFeaturedMovie() {
+  try {
+    const movie = await prisma.movie.findFirst({
+      where: {
+        isFeatured: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    })
+    return movie
+  } catch (error) {
+    console.error("[v0] Error fetching featured movie:", error)
+    return null
+  }
+}
+
+export async function searchMovies(query: string) {
+  try {
+    if (!query || query.trim().length < 2) {
+      return []
+    }
+
+    const movies = await prisma.movie.findMany({
+      where: {
+        OR: [
+          { title: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+          { genre: { contains: query, mode: "insensitive" } },
+        ],
+      },
+      take: 10,
+      orderBy: {
+        createdAt: "desc",
+      },
+    })
+
+    return movies
+  } catch (error) {
+    console.error("[v0] Error searching movies:", error)
+    return []
   }
 }

@@ -1,42 +1,54 @@
-"use client"
-import { useState } from "react"
 import Navbar from "@/components/navbar"
 import HeroBanner from "@/components/hero-banner"
 import MovieCarousel from "@/components/movie-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
 import AuthModal from "@/components/auth-modal"
+import { getMoviesByGenre, getFeaturedMovie, getTrendingMovies } from "@/lib/server-actions"
 
-export default function PublicHomePage() {
-  const [showAuthModal, setShowAuthModal] = useState(false)
+export default async function PublicHomePage() {
+  const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies] = await Promise.all([
+    getFeaturedMovie(),
+    getTrendingMovies(),
+    getMoviesByGenre("Action"),
+    getMoviesByGenre("Drama"),
+    getMoviesByGenre("Sci-Fi"),
+    getMoviesByGenre("Comedy"),
+  ])
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
-      <Navbar showAuthButtons={true} onAuthClick={() => setShowAuthModal(true)} />
-      <HeroBanner />
+      <Navbar showAuthButtons={true} />
+      
+      <HeroBanner movie={featuredMovie} />
 
       <div className="px-4 md:px-8 py-8 space-y-12">
         <div>
-          <MovieCarousel title="Trending Now" />
+          <MovieCarousel title="Trending Now" movies={trendingMovies} />
           <AdBanner type="horizontal" className="my-8" />
         </div>
 
         <div>
-          <MovieCarousel title="Recently Added" />
+          <MovieCarousel title="Action & Adventure" movies={actionMovies} />
           <AdBanner type="horizontal" className="my-8" />
         </div>
 
         <div>
-          <MovieCarousel title="Action & Adventure" />
-          <AdBanner type="horizontal" className="my-8" />
+          <MovieCarousel title="Drama" movies={dramaMovies} />
         </div>
 
-        <div>
-          <MovieCarousel title="Drama & Romance" />
-        </div>
+        {sciFiMovies.length > 0 && (
+          <div>
+            <MovieCarousel title="Sci-Fi" movies={sciFiMovies} />
+          </div>
+        )}
+
+        {comedyMovies.length > 0 && (
+          <div>
+            <MovieCarousel title="Comedy" movies={comedyMovies} />
+          </div>
+        )}
       </div>
-
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
       <Footer />
     </main>

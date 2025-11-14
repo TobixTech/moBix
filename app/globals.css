@@ -149,3 +149,15 @@
 .glow-cyan-hover:hover {
   box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
 }
+
+/* Added scrollbar hiding for carousels */
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
