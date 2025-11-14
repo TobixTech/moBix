@@ -6,7 +6,8 @@
     "build": "prisma generate && next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "vercel-build": "prisma generate && prisma db push --skip-generate && next build"
   },
   "dependencies": {
     "@clerk/nextjs": "latest",
