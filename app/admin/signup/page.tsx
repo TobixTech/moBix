@@ -8,7 +8,7 @@ import { Mail, Lock, Eye, EyeOff, Loader, Key, ArrowLeft } from 'lucide-react'
 import { useSignUp } from "@clerk/nextjs"
 import { useRouter } from 'next/navigation'
 import EmailVerification from "@/components/email-verification"
-import { verifyAdminInvitationCode, checkAdminCount } from "@/lib/server-actions"
+import { verifyAdminInvitationCode, checkAdminCount, assignAdminRole } from "@/lib/server-actions"
 
 export default function AdminSignupPage() {
   const [step, setStep] = useState<"form" | "verification">("form")
@@ -83,7 +83,7 @@ export default function AdminSignupPage() {
     }
   }
 
-  const handleVerificationComplete = async () => {
+  const handleVerificationComplete = async (code: string) => {
     try {
       setIsLoading(true)
 
@@ -95,12 +95,23 @@ export default function AdminSignupPage() {
 
       // Complete the sign up
       const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code: "", // This will be handled by the verification component
+        code: code,
       })
 
       if (completeSignUp.status === "complete") {
         // Set the session
         await setActive({ session: completeSignUp.createdSessionId })
+
+        const userId = completeSignUp.createdUserId
+        if (userId) {
+          const result = await assignAdminRole(userId)
+          
+          if (!result.success) {
+            setError(result.error || "Failed to assign admin role")
+            setIsLoading(false)
+            return
+          }
+        }
 
         // Redirect to admin dashboard
         router.push("/admin/dashboard")

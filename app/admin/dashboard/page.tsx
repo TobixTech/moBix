@@ -2,22 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import {
-  LogOut,
-  LayoutDashboard,
-  Film,
-  Upload,
-  Users,
-  Settings,
-  Search,
-  Filter,
-  Edit,
-  Trash2,
-  Eye,
-  RotateCcw,
-  Menu,
-  X,
-} from "lucide-react"
+import { LogOut, LayoutDashboard, Film, Upload, Users, Settings, Search, Filter, Edit, Trash2, Eye, RotateCcw, Menu, X } from 'lucide-react'
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import {
   getAdminMetrics,
@@ -25,6 +10,7 @@ import {
   getRecentSignups,
   getAdminMovies,
   getAdminUsers,
+  uploadMovie,
 } from "@/lib/server-actions"
 
 type AdminTab = "overview" | "movies" | "upload" | "users" | "ads"
@@ -111,18 +97,44 @@ export default function AdminDashboard() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleUpload = (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Movie upload:", formData)
-    setFormData({
-      title: "",
-      thumbnail: "",
-      videoLink: "",
-      description: "",
-      genre: "Action",
-      releaseDate: "",
-      status: "draft",
+    setLoading(true)
+    
+    const result = await uploadMovie({
+      title: formData.title,
+      description: formData.description,
+      year: parseInt(formData.releaseDate.split("-")[0]),
+      genre: formData.genre,
+      posterUrl: formData.thumbnail,
+      videoUrl: formData.videoLink,
+      isFeatured: formData.status === "published",
     })
+
+    if (result.success) {
+      // Reset form
+      setFormData({
+        title: "",
+        thumbnail: "",
+        videoLink: "",
+        description: "",
+        genre: "Action",
+        releaseDate: "",
+        status: "draft",
+      })
+      
+      // Refresh movies list
+      const moviesData = await getAdminMovies()
+      setMovies(moviesData)
+      
+      // Switch to movies tab to see the result
+      setActiveTab("movies")
+    } else {
+      console.error("Upload error:", result.error)
+      alert(`Upload failed: ${result.error}`)
+    }
+    
+    setLoading(false)
   }
 
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))

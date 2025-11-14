@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Mail, Loader, ArrowLeft } from "lucide-react"
+import { Mail, Loader, ArrowLeft, Clock } from 'lucide-react'
 import { useSignUp } from "@clerk/nextjs"
 
 interface EmailVerificationProps {
@@ -18,7 +18,47 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
+  const [countdown, setCountdown] = useState(120) // 2 minutes in seconds
+  const [canResend, setCanResend] = useState(false)
   const { signUp } = useSignUp()
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else {
+      setCanResend(true)
+    }
+  }, [countdown])
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const handleResend = async () => {
+    if (!canResend) return
+
+    try {
+      setError("")
+      if (!signUp) {
+        setError("Sign up is not available")
+        return
+      }
+
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+      
+      // Reset countdown
+      setCountdown(120)
+      setCanResend(false)
+    } catch (err: any) {
+      console.log("[v0] Resend error:", err)
+      setError(err.errors?.[0]?.message || "Failed to resend code. Please try again.")
+    }
+  }
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -128,9 +168,30 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
         <span>Back to Sign Up</span>
       </motion.button>
 
-      <p className="text-center text-[#666666] text-xs">
-        Didn't receive the code? <button className="text-[#00FFFF] hover:text-[#00CCCC]">Resend</button>
-      </p>
+      <div className="text-center space-y-2">
+        {!canResend ? (
+          <div className="flex items-center justify-center gap-2 text-[#666666] text-xs">
+            <Clock className="w-3 h-3" />
+            <span>Resend code in {formatTime(countdown)}</span>
+          </div>
+        ) : null}
+        
+        <p className="text-[#666666] text-xs">
+          Didn't receive the code?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={!canResend}
+            className={`${
+              canResend
+                ? "text-[#00FFFF] hover:text-[#00CCCC] cursor-pointer"
+                : "text-[#444444] cursor-not-allowed"
+            } transition`}
+          >
+            Resend
+          </button>
+        </p>
+      </div>
     </motion.div>
   )
 }
