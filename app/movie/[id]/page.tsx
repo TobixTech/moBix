@@ -7,18 +7,25 @@ import MovieDetailClient from "@/components/movie-detail-client"
 
 export const dynamic = 'force-dynamic'
 
-export default async function MovieDetail({ params }: { params: { id: string } }) {
-  console.log("[v0] Loading movie detail page for ID:", params.id)
+export default async function MovieDetail({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
+  const resolvedParams = await params
+  const movieId = resolvedParams.id
+
+  console.log("[v0] Loading movie detail page for ID:", movieId)
   
-  const movie = await getMovieById(params.id)
+  const movie = await getMovieById(movieId)
   
   if (!movie) {
-    console.log("[v0] Movie not found, showing 404")
+    console.log("[v0] Movie not found, showing 404 for ID:", movieId)
     notFound()
   }
 
   console.log("[v0] Movie loaded successfully:", movie.title)
-  const relatedMovies = await getRelatedMovies(movie.id, movie.genre)
+  const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">

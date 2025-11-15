@@ -74,7 +74,7 @@ export async function getTrendingMovies() {
       where: {
         isTrending: true,
       },
-      take: 5,
+      take: 10,
       include: {
         _count: {
           select: { likes: true },
@@ -84,11 +84,22 @@ export async function getTrendingMovies() {
         views: "desc",
       },
     })
-    return movies.map((movie) => ({
-      id: movie.id,
-      title: movie.title,
-      views: movie.views.toLocaleString(),
-    }))
+
+    if (movies.length === 0) {
+      console.log("[v0] No trending movies found, fetching recent movies instead")
+      const recentMovies = await prisma.movie.findMany({
+        take: 10,
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: { likes: true },
+          },
+        },
+      })
+      return recentMovies
+    }
+
+    return movies
   } catch (error) {
     console.error("[v0] Error fetching trending movies:", error)
     return []
@@ -99,6 +110,11 @@ export async function getMovieById(id: string) {
   try {
     console.log("[v0] Fetching movie by ID:", id)
     
+    if (!id || id.trim() === '') {
+      console.log("[v0] Invalid movie ID provided")
+      return null
+    }
+
     const movie = await prisma.movie.findUnique({
       where: { id },
       include: {
@@ -117,17 +133,27 @@ export async function getMovieById(id: string) {
     })
 
     if (!movie) {
-      console.log("[v0] Movie not found:", id)
+      console.log("[v0] Movie not found with ID:", id)
+      const allMovies = await prisma.movie.findMany({ select: { id: true, title: true } })
+      console.log("[v0] Available movies in database:", allMovies.length, "movies")
+      if (allMovies.length > 0) {
+        console.log("[v0] First few movie IDs:", allMovies.slice(0, 3).map(m => ({ id: m.id, title: m.title })))
+      }
       return null
     }
 
-    console.log("[v0] Movie found:", movie.title)
+    console.log("[v0] Movie found successfully:", movie.title, "| ID:", movie.id, "| Video URL:", movie.videoUrl)
 
     // Calculate average rating
     const avgRating =
       movie.comments.length > 0
         ? movie.comments.reduce((acc, comment) => acc + comment.rating, 0) / movie.comments.length
         : 0
+
+    await prisma.movie.update({
+      where: { id },
+      data: { views: { increment: 1 } },
+    })
 
     return {
       ...movie,
@@ -136,6 +162,7 @@ export async function getMovieById(id: string) {
     }
   } catch (error: any) {
     console.error("[v0] Error fetching movie by ID:", error)
+    console.error("[v0] Error details:", error.message)
     
     if (error.message?.includes("does not exist")) {
       console.error("[v0] Database tables not initialized. Run: npx prisma db push")
@@ -147,6 +174,20 @@ export async function getMovieById(id: string) {
 
 export async function getRelatedMovies(movieId: string, genre: string) {
   try {
+    if (!genre) {
+      console.log("[v0] No genre provided for related movies, fetching recent movies")
+      const movies = await prisma.movie.findMany({
+        where: {
+          id: { not: movieId },
+        },
+        take: 4,
+        orderBy: {
+          createdAt: "desc",
+        },
+      })
+      return movies
+    }
+
     const movies = await prisma.movie.findMany({
       where: {
         genre,
@@ -157,6 +198,20 @@ export async function getRelatedMovies(movieId: string, genre: string) {
         createdAt: "desc",
       },
     })
+
+    if (movies.length === 0) {
+      console.log("[v0] No related movies in genre:", genre, "- fetching recent movies instead")
+      return await prisma.movie.findMany({
+        where: {
+          id: { not: movieId },
+        },
+        take: 4,
+        orderBy: {
+          createdAt: "desc",
+        },
+      })
+    }
+
     return movies
   } catch (error) {
     console.error("[v0] Error fetching related movies:", error)

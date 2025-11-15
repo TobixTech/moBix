@@ -20,10 +20,10 @@ export default function MovieCard({ movie }: MovieCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  console.log("[v0] Movie card rendered for:", movie.title, "ID:", movie.id)
+  console.log("[v0] Movie card rendered - Title:", movie.title, "ID:", movie.id, "Link:", `/movie/${movie.id}`)
 
   return (
-    <Link href={`/movie/${movie.id}`}>
+    <Link href={`/movie/${movie.id}`} prefetch={false}>
       <motion.div
         className="flex-shrink-0 w-48 h-72 rounded overflow-hidden cursor-pointer group relative"
         onMouseEnter={() => setIsHovered(true)}

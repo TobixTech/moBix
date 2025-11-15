@@ -58,6 +58,33 @@ export default function MovieDetailClient({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
 
+  const isEmbedUrl = (url: string) => {
+    return url.includes('youtube.com/embed') || 
+           url.includes('youtu.be') ||
+           url.includes('vimeo.com') ||
+           url.includes('dailymotion.com') ||
+           url.includes('drive.google.com')
+  }
+
+  const getEmbedUrl = (url: string) => {
+    // YouTube watch URL to embed
+    if (url.includes('youtube.com/watch')) {
+      const videoId = new URL(url).searchParams.get('v')
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    // YouTube short URL to embed
+    if (url.includes('youtu.be/')) {
+      const videoId = url.split('youtu.be/')[1].split('?')[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    // Vimeo URL to embed
+    if (url.includes('vimeo.com/') && !url.includes('/video/')) {
+      const videoId = url.split('vimeo.com/')[1].split('?')[0]
+      return `https://player.vimeo.com/video/${videoId}`
+    }
+    return url
+  }
+
   const handleLike = async () => {
     if (!userId) {
       alert("Please sign in to like movies")
@@ -119,16 +146,27 @@ export default function MovieDetailClient({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <video 
-              src={movie.videoUrl} 
-              poster={movie.posterUrl}
-              controls
-              controlsList="nodownload"
-              className="w-full h-full object-contain"
-              style={{ backgroundColor: '#000' }}
-            >
-              Your browser does not support the video tag.
-            </video>
+            {isEmbedUrl(movie.videoUrl) ? (
+              <iframe
+                src={getEmbedUrl(movie.videoUrl)}
+                title={movie.title}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ border: 'none' }}
+              />
+            ) : (
+              <video 
+                src={movie.videoUrl} 
+                poster={movie.posterUrl}
+                controls
+                controlsList="nodownload"
+                className="w-full h-full object-contain"
+                style={{ backgroundColor: '#000' }}
+              >
+                Your browser does not support the video tag.
+              </video>
+            )}
             
             {/* Hover overlay for better UX */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
