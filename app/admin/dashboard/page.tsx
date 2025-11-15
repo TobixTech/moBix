@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { LogOut, LayoutDashboard, Film, Upload, Users, Settings, Search, Filter, Edit, Trash2, Eye, RotateCcw, Menu, X, MessageSquare, Lock, Loader } from 'lucide-react'
+import { LogOut, LayoutDashboard, Film, Upload, Users, Search, Filter, Edit, Trash2, Menu, X, MessageSquare, Lock, Loader } from 'lucide-react'
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
 import {
@@ -14,10 +14,9 @@ import {
   uploadMovie,
   updateMovie,
   deleteMovie,
-  saveAdSettings,
 } from "@/lib/server-actions"
 
-type AdminTab = "overview" | "movies" | "upload" | "users" | "ads" | "comments"
+type AdminTab = "overview" | "movies" | "upload" | "users" | "comments"
 
 interface Metric {
   label: string
@@ -88,14 +87,6 @@ export default function AdminDashboard() {
     genre: "Action",
     releaseDate: "",
     status: "draft",
-  })
-
-  const [adSettings, setAdSettings] = useState({
-    horizontalAdCode: "",
-    verticalAdCode: "",
-    homepageEnabled: true,
-    movieDetailEnabled: true,
-    dashboardEnabled: false,
   })
 
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -263,19 +254,6 @@ export default function AdminDashboard() {
       setComments(commentsData)
     } else {
       alert("Failed to delete comment")
-    }
-    
-    setLoading(false)
-  }
-
-  const handleSaveAdSettings = async () => {
-    setLoading(true)
-    const result = await saveAdSettings(adSettings)
-    
-    if (result.success) {
-      alert("Ad settings saved successfully!")
-    } else {
-      alert(`Failed to save ad settings: ${result.error}`)
     }
     
     setLoading(false)
@@ -468,7 +446,6 @@ export default function AdminDashboard() {
             { id: "upload", label: "Upload Movie", icon: Upload },
             { id: "users", label: "Manage Users", icon: Users },
             { id: "comments", label: "Comment Moderation", icon: MessageSquare },
-            { id: "ads", label: "Ad Settings", icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -821,13 +798,13 @@ export default function AdminDashboard() {
                               className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
                               title="Ban User"
                             >
-                              <Eye className="w-4 h-4 text-red-400" />
+                              <X className="w-4 h-4 text-red-400" />
                             </button>
                             <button
                               className="p-2 bg-white/5 hover:bg-yellow-500/20 rounded-lg transition-all"
                               title="Reset Password"
                             >
-                              <RotateCcw className="w-4 h-4 text-yellow-400" />
+                              <X className="w-4 h-4 text-yellow-400" />
                             </button>
                           </td>
                         </tr>
@@ -887,82 +864,6 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "ads" && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Ad Settings</h1>
-                <p className="text-white/50">Manage ad placements and codes</p>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8 space-y-8">
-                {/* Horizontal Ad */}
-                <div>
-                  <label className="block text-white font-bold mb-3 text-sm">Horizontal Ad Code (728x90)</label>
-                  <textarea
-                    value={adSettings.horizontalAdCode}
-                    onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
-                    placeholder="Paste your AdSense code here..."
-                    rows={5}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none font-mono text-xs"
-                  />
-                </div>
-
-                {/* Vertical Ad */}
-                <div>
-                  <label className="block text-white font-bold mb-3 text-sm">Vertical Ad Code (300x250)</label>
-                  <textarea
-                    value={adSettings.verticalAdCode}
-                    onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
-                    placeholder="Paste your AdSense code here..."
-                    rows={5}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none font-mono text-xs"
-                  />
-                </div>
-
-                {/* Ad Placements */}
-                <div>
-                  <label className="block text-white font-bold mb-4 text-sm">Ad Placements</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all">
-                      <input
-                        type="checkbox"
-                        checked={adSettings.homepageEnabled}
-                        onChange={(e) => setAdSettings({ ...adSettings, homepageEnabled: e.target.checked })}
-                        className="w-4 h-4 accent-cyan-400 rounded"
-                      />
-                      <span className="text-white font-medium text-sm">Homepage Carousel</span>
-                    </label>
-                    <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all">
-                      <input
-                        type="checkbox"
-                        checked={adSettings.movieDetailEnabled}
-                        onChange={(e) => setAdSettings({ ...adSettings, movieDetailEnabled: e.target.checked })}
-                        className="w-4 h-4 accent-cyan-400 rounded"
-                      />
-                      <span className="text-white font-medium text-sm">Movie Detail Page</span>
-                    </label>
-                    <label className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 cursor-pointer transition-all">
-                      <input
-                        type="checkbox"
-                        checked={adSettings.dashboardEnabled}
-                        onChange={(e) => setAdSettings({ ...adSettings, dashboardEnabled: e.target.checked })}
-                        className="w-4 h-4 accent-cyan-400 rounded"
-                      />
-                      <span className="text-white font-medium text-sm">Dashboard</span>
-                    </label>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSaveAdSettings}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
-                >
-                  Save Ad Settings
-                </button>
               </div>
             </div>
           )}
