@@ -53,6 +53,36 @@ export default function AdminAccessKeyPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center p-4">
+      <div className="fixed inset-0 backdrop-blur-md bg-black/60 z-40 flex items-center justify-center">
+        <motion.div
+          className="bg-[#0F1018] border border-yellow-500/50 rounded-2xl p-8 max-w-md mx-4 text-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-yellow-400" />
+          </div>
+          <h2 className="text-3xl font-bold text-yellow-400 mb-3">UNDER DEVELOPMENT</h2>
+          <p className="text-white/70 mb-6">
+            This admin access method is currently being fixed. Please use the admin dashboard directly.
+          </p>
+          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mb-4">
+            <p className="text-cyan-400 text-sm font-medium">Alternative Access:</p>
+            <p className="text-white/60 text-xs mt-2">
+              Visit <code className="bg-white/10 px-2 py-1 rounded text-cyan-400">/admin/dashboard</code> and enter your 4-digit PIN
+            </p>
+          </div>
+          <a
+            href="/admin/dashboard"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+          >
+            Go to Dashboard
+            <ArrowRight className="w-4 h-4" />
+          </a>
+        </motion.div>
+      </div>
+      {/* End blur overlay */}
+
       <motion.div
         className="w-full max-w-md"
         initial={{ opacity: 0, y: 20 }}

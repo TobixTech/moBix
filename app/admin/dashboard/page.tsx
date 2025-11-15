@@ -2,8 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { LogOut, LayoutDashboard, Film, Upload, Users, Settings, Search, Filter, Edit, Trash2, Eye, RotateCcw, Menu, X, MessageSquare } from 'lucide-react'
+import { LogOut, LayoutDashboard, Film, Upload, Users, Settings, Search, Filter, Edit, Trash2, Eye, RotateCcw, Menu, X, MessageSquare, Lock, Loader } from 'lucide-react'
 import { useAuth, SignOutButton } from "@clerk/nextjs"
+import { motion } from "framer-motion"
 import {
   getAdminMetrics,
   getTrendingMovies,
@@ -57,6 +58,11 @@ interface Comment {
 }
 
 export default function AdminDashboard() {
+  const [pinVerified, setPinVerified] = useState(false)
+  const [pinInput, setPinInput] = useState("")
+  const [pinError, setPinError] = useState("")
+  const [pinLoading, setPinLoading] = useState(false)
+
   const { signOut } = useAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
   const [movieSearch, setMovieSearch] = useState("")
@@ -92,6 +98,33 @@ export default function AdminDashboard() {
     dashboardEnabled: false,
   })
 
+  const handlePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPinError("")
+    setPinLoading(true)
+
+    try {
+      const response = await fetch("/api/admin/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinInput }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setPinVerified(true)
+        setPinInput("")
+      } else {
+        setPinError("Invalid PIN. Please try again.")
+      }
+    } catch (error) {
+      setPinError("An error occurred. Please try again.")
+    } finally {
+      setPinLoading(false)
+    }
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -118,8 +151,10 @@ export default function AdminDashboard() {
       }
     }
 
-    fetchData()
-  }, [])
+    if (pinVerified) {
+      fetchData()
+    }
+  }, [pinVerified])
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -141,7 +176,6 @@ export default function AdminDashboard() {
     })
 
     if (result.success) {
-      // Reset form
       setFormData({
         title: "",
         thumbnail: "",
@@ -152,11 +186,9 @@ export default function AdminDashboard() {
         status: "draft",
       })
       
-      // Refresh movies list
       const moviesData = await getAdminMovies()
       setMovies(moviesData)
       
-      // Switch to movies tab to see the result
       setActiveTab("movies")
     } else {
       console.error("Upload error:", result.error)
@@ -251,6 +283,79 @@ export default function AdminDashboard() {
 
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
   const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
+
+  if (!pinVerified) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center p-4">
+        <motion.div
+          className="w-full max-w-md"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl">
+            <div className="text-center mb-8">
+              <div className="flex justify-center mb-4">
+                <div className="p-4 bg-[#00FFFF]/10 rounded-full">
+                  <Lock className="w-12 h-12 text-[#00FFFF]" />
+                </div>
+              </div>
+              <h1 className="text-4xl font-black bg-gradient-to-r from-[#00FFFF] via-[#00CCCC] to-[#00FFFF] bg-clip-text text-transparent mb-2">
+                Admin Dashboard
+              </h1>
+              <p className="text-[#888888] text-sm">Enter your 4-digit PIN to continue</p>
+            </div>
+
+            {pinError && (
+              <motion.div
+                className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {pinError}
+              </motion.div>
+            )}
+
+            <form onSubmit={handlePinSubmit} className="space-y-6">
+              <div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Enter 4-digit PIN"
+                  disabled={pinLoading}
+                  className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white text-center text-2xl tracking-widest placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all disabled:opacity-50"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={pinLoading || pinInput.length !== 4}
+                className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {pinLoading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  <span>Unlock Dashboard</span>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 p-4 bg-[#00FFFF]/10 border border-[#00FFFF]/20 rounded-lg">
+              <p className="text-[#888888] text-xs text-center">
+                PIN is stored in <code className="bg-white/10 px-1 rounded text-cyan-400">ADMIN_PIN</code> environment variable
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
