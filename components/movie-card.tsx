@@ -20,6 +20,8 @@ export default function MovieCard({ movie }: MovieCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  console.log("[v0] Movie card rendered for:", movie.title, "ID:", movie.id)
+
   return (
     <Link href={`/movie/${movie.id}`}>
       <motion.div

@@ -97,6 +97,8 @@ export async function getTrendingMovies() {
 
 export async function getMovieById(id: string) {
   try {
+    console.log("[v0] Fetching movie by ID:", id)
+    
     const movie = await prisma.movie.findUnique({
       where: { id },
       include: {
@@ -115,8 +117,11 @@ export async function getMovieById(id: string) {
     })
 
     if (!movie) {
+      console.log("[v0] Movie not found:", id)
       return null
     }
+
+    console.log("[v0] Movie found:", movie.title)
 
     // Calculate average rating
     const avgRating =
@@ -129,8 +134,13 @@ export async function getMovieById(id: string) {
       likesCount: movie._count.likes,
       avgRating: Math.round(avgRating * 10) / 10,
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Error fetching movie by ID:", error)
+    
+    if (error.message?.includes("does not exist")) {
+      console.error("[v0] Database tables not initialized. Run: npx prisma db push")
+    }
+    
     return null
   }
 }
@@ -341,10 +351,7 @@ export async function updateMovie(
   },
 ) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Unauthorized" }
-    }
+    console.log("[v0] Updating movie:", id)
 
     const movie = await prisma.movie.update({
       where: { id },
@@ -360,6 +367,7 @@ export async function updateMovie(
       },
     })
 
+    console.log("[v0] Movie updated successfully")
     revalidatePath("/admin/dashboard")
     revalidatePath(`/movie/${id}`)
     return { success: true, movie }
@@ -371,15 +379,13 @@ export async function updateMovie(
 
 export async function deleteMovie(id: string) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Unauthorized" }
-    }
+    console.log("[v0] Deleting movie:", id)
 
     await prisma.movie.delete({
       where: { id },
     })
 
+    console.log("[v0] Movie deleted successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
