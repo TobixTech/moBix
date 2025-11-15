@@ -15,26 +15,38 @@ export async function uploadMovie(formData: {
   isFeatured?: boolean
 }) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Unauthorized" }
+    console.log("[v0] Uploading movie:", formData.title)
+
+    try {
+      const movie = await prisma.movie.create({
+        data: {
+          title: formData.title,
+          description: formData.description,
+          year: formData.year,
+          genre: formData.genre,
+          posterUrl: formData.posterUrl,
+          videoUrl: formData.videoUrl,
+          isTrending: formData.isTrending || false,
+          isFeatured: formData.isFeatured || false,
+        },
+      })
+
+      console.log("[v0] Movie uploaded successfully:", movie.id)
+      revalidatePath("/admin/dashboard")
+      revalidatePath("/")
+      return { success: true, movie }
+    } catch (dbError: any) {
+      console.error("[v0] Database error uploading movie:", dbError)
+      
+      if (dbError.message?.includes("does not exist")) {
+        return { 
+          success: false, 
+          error: "Database tables not initialized. Please run: npx prisma db push" 
+        }
+      }
+      
+      throw dbError
     }
-
-    const movie = await prisma.movie.create({
-      data: {
-        title: formData.title,
-        description: formData.description,
-        year: formData.year,
-        genre: formData.genre,
-        posterUrl: formData.posterUrl,
-        videoUrl: formData.videoUrl,
-        isTrending: formData.isTrending || false,
-        isFeatured: formData.isFeatured || false,
-      },
-    })
-
-    revalidatePath("/admin/dashboard")
-    return { success: true, movie }
   } catch (error: any) {
     console.error("[v0] Error uploading movie:", error)
     return { success: false, error: error.message || "Failed to upload movie" }
