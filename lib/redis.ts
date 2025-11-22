@@ -1,9 +1,43 @@
 import { Redis } from "@upstash/redis"
 
-export const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+let redisClient: Redis | null = null
+
+export function getRedis(): Redis | null {
+  // Skip Redis during build time if env vars are not available
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    console.warn("[v0] Redis environment variables not available, skipping cache")
+    return null
+  }
+
+  if (!redisClient) {
+    redisClient = new Redis({
+      url: process.env.KV_REST_API_URL,
+      token: process.env.KV_REST_API_TOKEN,
+    })
+  }
+
+  return redisClient
+}
+
+// Export a getter function instead of direct instance
+export const redis = {
+  get: () => getRedis(),
+  set: async (key: string, value: any, opts?: { ex?: number }) => {
+    const client = getRedis()
+    if (!client) return null
+    return client.set(key, value, opts)
+  },
+  get: async (key: string) => {
+    const client = getRedis()
+    if (!client) return null
+    return client.get(key)
+  },
+  del: async (...keys: string[]) => {
+    const client = getRedis()
+    if (!client) return null
+    return client.del(...keys)
+  },
+}
 
 export const cacheKeys = {
   movie: (id: string) => `movie:${id}`,
