@@ -6,7 +6,6 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
 import { useAuth, useClerk } from "@clerk/nextjs"
-import { useAuthModal } from "./auth-modal-wrapper"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -22,7 +21,6 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
   const searchRef = useRef<HTMLDivElement>(null)
   const { userId } = useAuth()
   const { signOut } = useClerk()
-  const authModal = useAuthModal()
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
