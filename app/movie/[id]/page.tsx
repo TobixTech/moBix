@@ -2,33 +2,16 @@ import { notFound } from "next/navigation"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import AdBanner from "@/components/ad-banner"
-import { getMovieById, getSmartRecommendations, getAdSettings } from "@/lib/server-actions"
+import { getMovieById, getRelatedMovies, getAdSettings } from "@/lib/server-actions"
 import MovieDetailClient from "@/components/movie-detail-client"
-import { generateOpenGraph, generateMovieSchema } from "@/lib/seo"
 
 export const dynamic = "force-dynamic"
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params
-  const movie = await getMovieById(resolvedParams.id)
-
-  if (!movie) {
-    return {
-      title: "Movie Not Found | moBix",
-      description: "The requested movie could not be found.",
-    }
-  }
-
-  return generateOpenGraph({
-    title: `${movie.title} (${movie.year}) | moBix`,
-    description: movie.description,
-    image: movie.posterUrl,
-    url: `https://mobix.vercel.app/movie/${movie.id}`,
-    type: "video.movie",
-  })
-}
-
-export default async function MovieDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function MovieDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const resolvedParams = await params
   const movieId = resolvedParams.id
 
@@ -41,22 +24,22 @@ export default async function MovieDetail({ params }: { params: Promise<{ id: st
     notFound()
   }
 
-  const relatedMovies = await getSmartRecommendations(movie.id, 10)
+  console.log("[v0] Movie loaded successfully:", movie.title)
+  console.log("[v0] Ad settings loaded, VAST URL:", adSettings?.vastUrl || "Not configured")
+  console.log("[v0] Smart Link URL:", adSettings?.smartLinkUrl || "Not configured")
 
-  const movieSchema = generateMovieSchema(movie)
+  const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
       <Navbar />
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(movieSchema) }} />
-
       <div className="pt-20 px-4 md:px-8">
         <MovieDetailClient
           movie={movie}
           relatedMovies={relatedMovies}
-          vastUrl={adSettings?.vastUrl}
-          smartLinkUrl={adSettings?.smartLinkUrl}
+          vastUrl={adSettings?.vastUrl} // Updated from vastPrerollUrl to vastUrl
+          smartLinkUrl={adSettings?.smartLinkUrl} // Added Smart Link URL prop
           adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
           adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}
         />
