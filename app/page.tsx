@@ -11,14 +11,16 @@ import LoadingSpinner from "@/components/loading-spinner"
 
 async function HomepageContent() {
   try {
-    const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies] = await Promise.all([
-      getFeaturedMovie(),
-      getTrendingMovies(),
-      getMoviesByGenre("Action"),
-      getMoviesByGenre("Drama"),
-      getMoviesByGenre("Sci-Fi"),
-      getMoviesByGenre("Comedy"),
-    ])
+    const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies, nollywoodMovies] =
+      await Promise.all([
+        getFeaturedMovie(),
+        getTrendingMovies(),
+        getMoviesByGenre("Action"),
+        getMoviesByGenre("Drama"),
+        getMoviesByGenre("Sci-Fi"),
+        getMoviesByGenre("Comedy"),
+        getMoviesByGenre("Nollywood"),
+      ])
 
     return (
       <>
@@ -37,17 +39,27 @@ async function HomepageContent() {
 
           <div>
             <MovieCarousel title="Drama" movies={dramaMovies} />
+            <AdBanner type="horizontal" placement="homepage" className="my-8" />
           </div>
 
           {sciFiMovies.length > 0 && (
             <div>
               <MovieCarousel title="Sci-Fi" movies={sciFiMovies} />
+              <AdBanner type="horizontal" placement="homepage" className="my-8" />
             </div>
           )}
 
           {comedyMovies.length > 0 && (
             <div>
               <MovieCarousel title="Comedy" movies={comedyMovies} />
+              <AdBanner type="horizontal" placement="homepage" className="my-8" />
+            </div>
+          )}
+
+          {nollywoodMovies.length > 0 && (
+            <div>
+              <MovieCarousel title="Nollywood" movies={nollywoodMovies} />
+              <AdBanner type="horizontal" placement="homepage" className="my-8" />
             </div>
           )}
         </div>
@@ -71,7 +83,7 @@ export default async function PublicHomePage() {
     <AuthModalWrapper>
       <main className="min-h-screen bg-[#0B0C10]">
         <Navbar showAuthButtons={true} />
-        
+
         <Suspense fallback={<LoadingSpinner size="lg" message="Loading movies..." />}>
           <HomepageContent />
         </Suspense>

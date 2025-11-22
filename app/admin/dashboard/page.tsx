@@ -181,9 +181,9 @@ export default function AdminDashboard() {
           setAdSettings({
             horizontalAdCode: adSettingsData.horizontalAdCode || "",
             verticalAdCode: adSettingsData.verticalAdCode || "",
-            vastUrl: adSettingsData.vastPrerollUrl || "", // Corrected from vastUrl to vastPrerollUrl
-            adTimeout: adSettingsData.adTimeout || 20, // Corrected from adTimeoutSeconds to adTimeout
-            showPrerollAds: adSettingsData.adsEnabled ?? true, // Assuming adsEnabled controls preroll
+            vastUrl: adSettingsData.vastUrl || "",
+            adTimeout: adSettingsData.adTimeoutSeconds || 20,
+            showPrerollAds: adSettingsData.showPrerollAds ?? true,
             showHomepageAds: adSettingsData.homepageEnabled ?? true,
             showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
           })
@@ -307,9 +307,9 @@ export default function AdminDashboard() {
     const result = await updateAdSettings({
       horizontalAdCode: adSettings.horizontalAdCode,
       verticalAdCode: adSettings.verticalAdCode,
-      vastPrerollUrl: adSettings.vastUrl,
-      adTimeout: adSettings.adTimeout,
-      adsEnabled: adSettings.showPrerollAds || adSettings.showHomepageAds || adSettings.showMovieDetailAds,
+      vastUrl: adSettings.vastUrl,
+      adTimeoutSeconds: adSettings.adTimeout,
+      showPrerollAds: adSettings.showPrerollAds,
       homepageEnabled: adSettings.showHomepageAds,
       movieDetailEnabled: adSettings.showMovieDetailAds,
     })

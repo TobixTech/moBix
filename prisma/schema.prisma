@@ -85,11 +85,12 @@ model AdminInvite {
 // Ad Settings Model
 model AdSettings {
   id                 String   @id @default(uuid())
-  horizontalAdCode   String?
-  verticalAdCode     String?
-  vastPrerollUrl     String?  // Added VAST URL for pre-roll ads
-  adTimeout          Int      @default(20)  // Ad timeout in seconds
-  adsEnabled         Boolean  @default(true)  // Global ad toggle
+  horizontalAdCode   String?  // For banner ads in carousels
+  verticalAdCode     String?  // For sidebar ads
+  vastUrl            String?  // Changed from vastPrerollUrl to match database
+  adTimeoutSeconds   Int      @default(20)
+  showPrerollAds     Boolean  @default(true)
+  showDownloadPageAds Boolean @default(true)
   homepageEnabled    Boolean  @default(true)
   movieDetailEnabled Boolean  @default(true)
   dashboardEnabled   Boolean  @default(true)

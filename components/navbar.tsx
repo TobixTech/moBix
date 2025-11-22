@@ -79,11 +79,11 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      <div className="px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+      <div className="px-4 md:px-8 py-2.5 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link href={showAuthButtons ? "/" : "/home"} className="flex-shrink-0">
           <motion.div
-            className="text-2xl font-bold bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] bg-clip-text text-transparent heartbeat"
+            className="text-xl font-bold bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] bg-clip-text text-transparent heartbeat"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -92,7 +92,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
         </Link>
 
         {/* Menu */}
-        <div className="hidden md:flex gap-8 flex-1 ml-8">
+        <div className="hidden md:flex gap-6 flex-1 ml-8">
           {["Home", "Movies", "Dashboard"].map((item, i) => (
             <motion.div
               key={item}
@@ -102,7 +102,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             >
               <Link
                 href={item === "Home" ? (showAuthButtons ? "/" : "/home") : "/"}
-                className="text-white hover:text-[#00FFFF] transition relative group"
+                className="text-white hover:text-[#00FFFF] transition relative group text-sm"
               >
                 {item}
                 <motion.div
@@ -116,7 +116,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           ))}
           {!showAuthButtons && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Link href="/profile" className="text-white hover:text-[#00FFFF] transition relative group">
+              <Link href="/profile" className="text-white hover:text-[#00FFFF] transition relative group text-sm">
                 Profile
                 <motion.div
                   className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"

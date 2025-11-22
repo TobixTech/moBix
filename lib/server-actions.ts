@@ -670,9 +670,9 @@ export async function getAdSettings() {
 }
 
 export async function updateAdSettings(settings: {
-  vastPrerollUrl?: string
-  adTimeout?: number
-  adsEnabled?: boolean
+  vastUrl?: string
+  adTimeoutSeconds?: number
+  showPrerollAds?: boolean
   horizontalAdCode?: string
   verticalAdCode?: string
   homepageEnabled?: boolean
@@ -680,14 +680,8 @@ export async function updateAdSettings(settings: {
   dashboardEnabled?: boolean
 }) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Unauthorized" }
-    }
-
     console.log("[v0] Updating ad settings:", settings)
 
-    // Get or create ad settings
     const existing = await prisma.adSettings.findFirst()
 
     if (existing) {
@@ -697,19 +691,21 @@ export async function updateAdSettings(settings: {
       })
       console.log("[v0] Ad settings updated successfully")
       revalidatePath("/admin/dashboard")
+      revalidatePath("/")
       revalidatePath("/movie/[id]")
       return { success: true, settings: updated }
     } else {
       const created = await prisma.adSettings.create({
         data: {
           ...settings,
-          vastPrerollUrl: settings.vastPrerollUrl || "",
-          adTimeout: settings.adTimeout || 20,
-          adsEnabled: settings.adsEnabled ?? true,
+          vastUrl: settings.vastUrl || "",
+          adTimeoutSeconds: settings.adTimeoutSeconds || 20,
+          showPrerollAds: settings.showPrerollAds ?? true,
         },
       })
       console.log("[v0] Ad settings created successfully")
       revalidatePath("/admin/dashboard")
+      revalidatePath("/")
       return { success: true, settings: created }
     }
   } catch (error: any) {
