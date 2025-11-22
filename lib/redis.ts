@@ -5,37 +5,58 @@ let redisClient: Redis | null = null
 export function getRedis(): Redis | null {
   // Skip Redis during build time if env vars are not available
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-    console.warn("[v0] Redis environment variables not available, skipping cache")
     return null
   }
 
   if (!redisClient) {
-    redisClient = new Redis({
-      url: process.env.KV_REST_API_URL,
-      token: process.env.KV_REST_API_TOKEN,
-    })
+    try {
+      redisClient = new Redis({
+        url: process.env.KV_REST_API_URL,
+        token: process.env.KV_REST_API_TOKEN,
+      })
+    } catch (error) {
+      console.error("[v0] Failed to initialize Redis client:", error)
+      return null
+    }
   }
 
   return redisClient
 }
 
-// Export a getter function instead of direct instance
 export const redis = {
-  get: () => getRedis(),
+  getInstance: () => getRedis(),
+
   set: async (key: string, value: any, opts?: { ex?: number }) => {
-    const client = getRedis()
-    if (!client) return null
-    return client.set(key, value, opts)
+    try {
+      const client = getRedis()
+      if (!client) return null
+      return await client.set(key, value, opts)
+    } catch (error) {
+      console.error("[v0] Redis set error:", error)
+      return null
+    }
   },
+
   get: async (key: string) => {
-    const client = getRedis()
-    if (!client) return null
-    return client.get(key)
+    try {
+      const client = getRedis()
+      if (!client) return null
+      return await client.get(key)
+    } catch (error) {
+      console.error("[v0] Redis get error:", error)
+      return null
+    }
   },
+
   del: async (...keys: string[]) => {
-    const client = getRedis()
-    if (!client) return null
-    return client.del(...keys)
+    try {
+      const client = getRedis()
+      if (!client) return null
+      return await client.del(...keys)
+    } catch (error) {
+      console.error("[v0] Redis del error:", error)
+      return null
+    }
   },
 }
 
