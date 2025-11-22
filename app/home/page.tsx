@@ -8,7 +8,7 @@ import { getMoviesByGenre, getFeaturedMovie, getTrendingMovies } from "@/lib/ser
 import { Suspense } from "react"
 import LoadingSpinner from "@/components/loading-spinner"
 
-async function HomepageContent() {
+async function AuthenticatedHomeContent() {
   try {
     const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies, nollywoodMovies] =
       await Promise.all([
@@ -21,7 +21,7 @@ async function HomepageContent() {
         getMoviesByGenre("Nollywood"),
       ])
 
-    console.log("[v0] Movies fetched for /home:", {
+    console.log("[v0] /home page movies fetched:", {
       trending: trendingMovies.length,
       action: actionMovies.length,
       drama: dramaMovies.length,
@@ -91,7 +91,7 @@ async function HomepageContent() {
       </>
     )
   } catch (error) {
-    console.error("[v0] Error loading /home content:", error)
+    console.error("[v0] Error loading /home page content:", error)
     return (
       <div className="px-4 md:px-8 py-24">
         <ErrorMessage
@@ -109,7 +109,7 @@ export default async function AuthenticatedHomePage() {
       <Navbar showAuthButtons={false} />
 
       <Suspense fallback={<LoadingSpinner size="lg" message="Loading movies..." />}>
-        <HomepageContent />
+        <AuthenticatedHomeContent />
       </Suspense>
 
       <Footer />

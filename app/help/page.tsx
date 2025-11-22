@@ -1,98 +1,95 @@
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import { HelpCircle, Search } from "lucide-react"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Search, HelpCircle, BookOpen, MessageCircle } from "lucide-react"
+import Link from "next/link"
 
-export default function HelpCenterPage() {
+export const metadata = {
+  title: "Help Center - moBix Support",
+  description: "Get help and support for using moBix. Find answers to common questions and troubleshooting guides.",
+}
+
+export default function HelpPage() {
+  const categories = [
+    {
+      icon: <BookOpen className="w-8 h-8" />,
+      title: "Getting Started",
+      description: "Learn the basics of using moBix",
+      articles: 12,
+    },
+    {
+      icon: <HelpCircle className="w-8 h-8" />,
+      title: "Account & Billing",
+      description: "Manage your account and subscription",
+      articles: 8,
+    },
+    {
+      icon: <MessageCircle className="w-8 h-8" />,
+      title: "Streaming Issues",
+      description: "Troubleshoot playback problems",
+      articles: 15,
+    },
+    {
+      icon: <Search className="w-8 h-8" />,
+      title: "Features",
+      description: "Explore moBix features and tools",
+      articles: 10,
+    },
+  ]
+
   return (
     <main className="min-h-screen bg-[#0B0C10]">
-      <Navbar showAuthButtons={true} />
+      <Navbar />
 
-      <div className="px-4 md:px-8 py-16 max-w-4xl mx-auto">
-        <div className="flex items-center justify-center mb-6">
-          <HelpCircle className="w-12 h-12 text-[#00FFFF] mr-4" />
-          <h1 className="text-4xl md:text-5xl font-bold text-white">
-            Help <span className="text-[#00FFFF] glow-cyan">Center</span>
-          </h1>
-        </div>
+      <div className="pt-24 pb-16 px-4 md:px-8 max-w-6xl mx-auto">
+        <h1 className="text-5xl font-bold text-white mb-6 text-center">Help Center</h1>
+        <p className="text-xl text-[#CCCCCC] text-center mb-12">
+          Find answers and get support for your moBix experience.
+        </p>
 
-        <p className="text-lg text-white/80 text-center mb-8">Find answers to common questions about moBix.</p>
-
-        <div className="mb-12">
+        <div className="max-w-2xl mx-auto mb-16">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/40 w-5 h-5" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#888888]" />
             <input
-              type="search"
+              type="text"
               placeholder="Search for help..."
-              className="w-full bg-[#1A1B23] border border-[#2A2B33] text-white pl-12 pr-4 py-3 rounded-lg focus:outline-none focus:border-[#00FFFF]"
+              className="w-full pl-12 pr-4 py-4 bg-[#1A1B23] border border-[#2A2B33] rounded-lg text-white placeholder-[#888888] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
             />
           </div>
         </div>
 
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">Frequently Asked Questions</h2>
+        <h2 className="text-2xl font-bold text-white mb-8">Browse by Category</h2>
+        <div className="grid md:grid-cols-2 gap-6 mb-16">
+          {categories.map((category, index) => (
+            <div
+              key={index}
+              className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 hover:border-[#00FFFF] transition-all cursor-pointer"
+            >
+              <div className="text-[#00FFFF] mb-4">{category.icon}</div>
+              <h3 className="text-xl font-bold text-white mb-2">{category.title}</h3>
+              <p className="text-[#CCCCCC] mb-3">{category.description}</p>
+              <p className="text-[#888888] text-sm">{category.articles} articles</p>
+            </div>
+          ))}
+        </div>
 
-          <Accordion type="single" collapsible className="space-y-4">
-            <AccordionItem value="item-1" className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg px-6">
-              <AccordionTrigger className="text-white hover:text-[#00FFFF]">
-                How do I create an account?
-              </AccordionTrigger>
-              <AccordionContent className="text-white/70">
-                Click the "Sign Up" button in the top right corner, enter your email address and create a password.
-                You'll receive a verification email to activate your account.
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="item-2" className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg px-6">
-              <AccordionTrigger className="text-white hover:text-[#00FFFF]">
-                What devices can I watch on?
-              </AccordionTrigger>
-              <AccordionContent className="text-white/70">
-                moBix works on desktop computers, laptops, tablets, and smartphones. Simply visit our website from any
-                modern web browser to start watching.
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="item-3" className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg px-6">
-              <AccordionTrigger className="text-white hover:text-[#00FFFF]">How do I download movies?</AccordionTrigger>
-              <AccordionContent className="text-white/70">
-                On the movie detail page, look for the "Download" button below the video player. Click it to access
-                download options (available for select titles only).
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="item-4" className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg px-6">
-              <AccordionTrigger className="text-white hover:text-[#00FFFF]">
-                How do I save my favorite movies?
-              </AccordionTrigger>
-              <AccordionContent className="text-white/70">
-                Click the heart icon on any movie card or detail page to add it to your favorites. Access your saved
-                movies anytime from your profile dashboard.
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="item-5" className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg px-6">
-              <AccordionTrigger className="text-white hover:text-[#00FFFF]">
-                Why is my video buffering?
-              </AccordionTrigger>
-              <AccordionContent className="text-white/70">
-                Buffering can occur due to slow internet connection. We recommend a minimum of 5 Mbps for standard
-                quality and 25 Mbps for HD quality. Try refreshing the page or checking your internet connection.
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </section>
-
-        <section className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
+        <div className="bg-gradient-to-r from-[#00FFFF]/10 to-[#00CCCC]/10 border border-[#00FFFF]/30 rounded-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-white mb-4">Still Need Help?</h2>
-          <p className="text-white/80 mb-4">Our support team is here to assist you 24/7.</p>
-          <a
-            href="/contact"
-            className="inline-block bg-[#00FFFF] text-[#0B0C10] px-6 py-3 rounded-lg font-bold hover:bg-[#00CCCC] transition"
-          >
-            Contact Support
-          </a>
-        </section>
+          <p className="text-[#CCCCCC] mb-6">Can't find what you're looking for? Our support team is here to help.</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/contact"
+              className="px-8 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all"
+            >
+              Contact Support
+            </Link>
+            <Link
+              href="/faq"
+              className="px-8 py-3 bg-[#1A1B23] text-white border border-[#2A2B33] rounded-lg font-bold hover:border-[#00FFFF] transition-all"
+            >
+              View FAQ
+            </Link>
+          </div>
+        </div>
       </div>
 
       <Footer />

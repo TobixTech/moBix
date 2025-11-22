@@ -1,82 +1,83 @@
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import { Newspaper } from "lucide-react"
+import { Newspaper, Download, Mail } from "lucide-react"
+
+export const metadata = {
+  title: "Press & Media - moBix",
+  description: "Press releases, media kit, and contact information for journalists and media professionals.",
+}
 
 export default function PressPage() {
   return (
     <main className="min-h-screen bg-[#0B0C10]">
-      <Navbar showAuthButtons={true} />
+      <Navbar />
 
-      <div className="px-4 md:px-8 py-16 max-w-4xl mx-auto">
-        <div className="flex items-center justify-center mb-6">
-          <Newspaper className="w-12 h-12 text-[#00FFFF] mr-4" />
-          <h1 className="text-4xl md:text-5xl font-bold text-white">
-            Press & <span className="text-[#00FFFF] glow-cyan">Media</span>
-          </h1>
-        </div>
-
-        <p className="text-lg text-white/80 text-center mb-12">
-          Latest news, announcements, and media resources from moBix.
+      <div className="pt-24 pb-16 px-4 md:px-8 max-w-4xl mx-auto">
+        <h1 className="text-5xl font-bold text-white mb-6 text-center">Press & Media</h1>
+        <p className="text-xl text-[#CCCCCC] text-center mb-16">
+          Resources and information for journalists and media professionals.
         </p>
 
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">Recent News</h2>
-
-          <div className="space-y-6">
-            <article className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
-              <time className="text-[#00FFFF] text-sm">January 15, 2025</time>
-              <h3 className="text-xl font-bold text-white mt-2 mb-3">moBix Launches Advanced Caching System</h3>
-              <p className="text-white/70">
-                We're excited to announce the launch of our new Redis-powered caching system, delivering lightning-fast
-                content delivery and improved user experience for millions of viewers worldwide.
-              </p>
-            </article>
-
-            <article className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
-              <time className="text-[#00FFFF] text-sm">December 20, 2024</time>
-              <h3 className="text-xl font-bold text-white mt-2 mb-3">Expanding Nollywood Content Library</h3>
-              <p className="text-white/70">
-                moBix continues to grow its Nollywood collection, adding 100+ new titles from Nigeria's thriving film
-                industry, celebrating African storytelling and culture.
-              </p>
-            </article>
-
-            <article className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
-              <time className="text-[#00FFFF] text-sm">November 10, 2024</time>
-              <h3 className="text-xl font-bold text-white mt-2 mb-3">moBix Platform Launch</h3>
-              <p className="text-white/70">
-                Today marks the official launch of moBix, bringing premium streaming entertainment to audiences
-                everywhere with a focus on quality, speed, and user experience.
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <section className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8 mb-12">
-          <h2 className="text-2xl font-bold text-white mb-4">Media Contact</h2>
-          <p className="text-white/80 mb-4">
-            For press inquiries, interviews, or media resources, please contact our communications team:
+        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8 mb-12">
+          <Newspaper className="w-12 h-12 text-[#00FFFF] mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-4">Latest Press Release</h2>
+          <h3 className="text-xl text-white mb-2">moBix Launches Smart Recommendation Engine</h3>
+          <p className="text-[#888888] mb-4">December 15, 2024</p>
+          <p className="text-[#CCCCCC] leading-relaxed mb-4">
+            moBix today announced the launch of its revolutionary Smart Recommendation Engine, powered by collaborative
+            filtering technology. This new feature analyzes user viewing patterns and preferences to deliver
+            personalized movie recommendations that get smarter over time.
           </p>
-          <div className="space-y-2 text-white/80">
-            <p>
-              Email:{" "}
-              <a href="mailto:press@mobix.com" className="text-[#00FFFF] hover:underline">
-                press@mobix.com
-              </a>
-            </p>
-            <p>Phone: +1 (555) 123-4567</p>
-          </div>
-        </section>
-
-        <section className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Brand Assets</h2>
-          <p className="text-white/80 mb-4">
-            Download our official logos, brand guidelines, and media kit for use in your publications.
+          <p className="text-[#CCCCCC] leading-relaxed">
+            "We're committed to helping users discover their next favorite movie," said the moBix team. "Our Smart
+            Recommendation Engine represents a major leap forward in personalized streaming experiences."
           </p>
-          <button className="bg-[#00FFFF] text-[#0B0C10] px-6 py-2 rounded-lg font-bold hover:bg-[#00CCCC] transition">
-            Download Media Kit
-          </button>
-        </section>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-12">
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
+            <Download className="w-10 h-10 text-[#00FFFF] mb-3" />
+            <h3 className="text-xl font-bold text-white mb-2">Media Kit</h3>
+            <p className="text-[#CCCCCC] mb-4">Download our official logos, brand guidelines, and press materials.</p>
+            <button className="px-6 py-2 bg-[#00FFFF]/20 text-[#00FFFF] border border-[#00FFFF] rounded-lg font-bold hover:bg-[#00FFFF]/30 transition-all">
+              Download Kit
+            </button>
+          </div>
+
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
+            <Mail className="w-10 h-10 text-[#00FFFF] mb-3" />
+            <h3 className="text-xl font-bold text-white mb-2">Media Inquiries</h3>
+            <p className="text-[#CCCCCC] mb-4">Get in touch with our press team for interviews and information.</p>
+            <a
+              href="mailto:press@mobix.com"
+              className="inline-block px-6 py-2 bg-[#00FFFF]/20 text-[#00FFFF] border border-[#00FFFF] rounded-lg font-bold hover:bg-[#00FFFF]/30 transition-all"
+            >
+              Contact Press Team
+            </a>
+          </div>
+        </div>
+
+        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
+          <h2 className="text-2xl font-bold text-white mb-6">Company Facts</h2>
+          <div className="grid md:grid-cols-2 gap-6 text-[#CCCCCC]">
+            <div>
+              <h4 className="font-bold text-white mb-2">Founded</h4>
+              <p>2024</p>
+            </div>
+            <div>
+              <h4 className="font-bold text-white mb-2">Headquarters</h4>
+              <p>Global (Remote-first)</p>
+            </div>
+            <div>
+              <h4 className="font-bold text-white mb-2">Industry</h4>
+              <p>Entertainment & Media Streaming</p>
+            </div>
+            <div>
+              <h4 className="font-bold text-white mb-2">Platform</h4>
+              <p>Web, Mobile, Progressive Web App</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <Footer />

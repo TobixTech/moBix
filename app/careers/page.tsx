@@ -1,81 +1,110 @@
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import { Briefcase, Users, TrendingUp } from "lucide-react"
+import { Briefcase, Heart, Code, Rocket } from "lucide-react"
+
+export const metadata = {
+  title: "Careers at moBix - Join Our Team",
+  description: "Join the moBix team and help shape the future of movie streaming.",
+}
 
 export default function CareersPage() {
+  const openings = [
+    {
+      title: "Senior Full-Stack Developer",
+      department: "Engineering",
+      location: "Remote",
+      type: "Full-time",
+    },
+    {
+      title: "Product Designer",
+      department: "Design",
+      location: "Remote",
+      type: "Full-time",
+    },
+    {
+      title: "Content Curator",
+      department: "Content",
+      location: "Hybrid",
+      type: "Full-time",
+    },
+    {
+      title: "Marketing Manager",
+      department: "Marketing",
+      location: "Remote",
+      type: "Full-time",
+    },
+  ]
+
   return (
     <main className="min-h-screen bg-[#0B0C10]">
-      <Navbar showAuthButtons={true} />
+      <Navbar />
 
-      <div className="px-4 md:px-8 py-16 max-w-6xl mx-auto">
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 text-center">
-          Careers at <span className="text-[#00FFFF] glow-cyan">moBix</span>
-        </h1>
-
-        <p className="text-lg text-white/80 text-center mb-12">
-          Join our team and help shape the future of entertainment streaming.
+      <div className="pt-24 pb-16 px-4 md:px-8 max-w-6xl mx-auto">
+        <h1 className="text-5xl font-bold text-white mb-6 text-center">Join Our Team</h1>
+        <p className="text-xl text-[#CCCCCC] text-center mb-16 max-w-3xl mx-auto">
+          Help us build the future of movie streaming. We're looking for passionate individuals to join our growing
+          team.
         </p>
 
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
+        <div className="grid md:grid-cols-4 gap-6 mb-16">
           <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 text-center">
-            <Briefcase className="w-12 h-12 text-[#00FFFF] mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Challenging Work</h3>
-            <p className="text-white/70">Work on cutting-edge streaming technology and solve complex problems.</p>
+            <Briefcase className="w-10 h-10 text-[#00FFFF] mx-auto mb-3" />
+            <h4 className="text-lg font-bold text-white mb-2">Remote First</h4>
+            <p className="text-[#CCCCCC] text-sm">Work from anywhere</p>
           </div>
-
           <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 text-center">
-            <Users className="w-12 h-12 text-[#00FFFF] mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Great Team</h3>
-            <p className="text-white/70">
-              Collaborate with talented individuals who are passionate about entertainment.
-            </p>
+            <Heart className="w-10 h-10 text-[#00FFFF] mx-auto mb-3" />
+            <h4 className="text-lg font-bold text-white mb-2">Health Benefits</h4>
+            <p className="text-[#CCCCCC] text-sm">Comprehensive coverage</p>
           </div>
-
           <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 text-center">
-            <TrendingUp className="w-12 h-12 text-[#00FFFF] mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Growth Opportunities</h3>
-            <p className="text-white/70">
-              Advance your career with mentorship, training, and leadership opportunities.
-            </p>
+            <Code className="w-10 h-10 text-[#00FFFF] mx-auto mb-3" />
+            <h4 className="text-lg font-bold text-white mb-2">Latest Tech</h4>
+            <p className="text-[#CCCCCC] text-sm">Modern tech stack</p>
+          </div>
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 text-center">
+            <Rocket className="w-10 h-10 text-[#00FFFF] mx-auto mb-3" />
+            <h4 className="text-lg font-bold text-white mb-2">Growth</h4>
+            <p className="text-[#CCCCCC] text-sm">Career development</p>
           </div>
         </div>
 
-        <section className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8 mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6">Open Positions</h2>
-          <div className="space-y-4">
-            <div className="border-b border-[#2A2B33] pb-4">
-              <h3 className="text-xl font-bold text-white mb-2">Full-Stack Engineer</h3>
-              <p className="text-white/70 mb-2">
-                Help build and scale our streaming platform with Next.js and Node.js.
-              </p>
-              <span className="text-[#00FFFF] text-sm">Remote • Full-time</span>
+        <h2 className="text-3xl font-bold text-white mb-8">Open Positions</h2>
+        <div className="space-y-4">
+          {openings.map((job, index) => (
+            <div
+              key={index}
+              className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 hover:border-[#00FFFF] transition-all"
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-2">{job.title}</h3>
+                  <div className="flex flex-wrap gap-3 text-sm text-[#CCCCCC]">
+                    <span>{job.department}</span>
+                    <span>•</span>
+                    <span>{job.location}</span>
+                    <span>•</span>
+                    <span>{job.type}</span>
+                  </div>
+                </div>
+                <button className="mt-4 md:mt-0 px-6 py-2 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all">
+                  Apply Now
+                </button>
+              </div>
             </div>
+          ))}
+        </div>
 
-            <div className="border-b border-[#2A2B33] pb-4">
-              <h3 className="text-xl font-bold text-white mb-2">DevOps Engineer</h3>
-              <p className="text-white/70 mb-2">
-                Optimize our infrastructure and ensure 99.9% uptime for millions of users.
-              </p>
-              <span className="text-[#00FFFF] text-sm">Remote • Full-time</span>
-            </div>
-
-            <div className="pb-4">
-              <h3 className="text-xl font-bold text-white mb-2">Content Manager</h3>
-              <p className="text-white/70 mb-2">Curate and manage our growing library of movies and shows.</p>
-              <span className="text-[#00FFFF] text-sm">Hybrid • Full-time</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Interested in Joining?</h2>
-          <p className="text-white/80 mb-6">
-            Send your resume and portfolio to{" "}
-            <a href="mailto:careers@mobix.com" className="text-[#00FFFF] hover:underline">
-              careers@mobix.com
-            </a>
+        <div className="mt-16 bg-gradient-to-r from-[#00FFFF]/10 to-[#00CCCC]/10 border border-[#00FFFF]/30 rounded-lg p-8 text-center">
+          <h3 className="text-2xl font-bold text-white mb-4">Don't see your role?</h3>
+          <p className="text-[#CCCCCC] mb-6">
+            We're always looking for talented individuals. Send us your resume and we'll keep you in mind for future
+            opportunities.
           </p>
-        </section>
+          <button className="px-8 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all">
+            Send Resume
+          </button>
+        </div>
       </div>
 
       <Footer />

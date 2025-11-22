@@ -2,10 +2,17 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Heart, Star, Send, Loader, Download } from "lucide-react"
-import { toggleLike, addComment } from "@/lib/server-actions"
+import { Heart, Star, Send, Loader, Download, Bookmark } from "lucide-react"
+import {
+  toggleLike,
+  addComment,
+  addToWatchlist,
+  removeFromWatchlist,
+  isInWatchlist,
+  trackView,
+} from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
@@ -50,19 +57,22 @@ export default function MovieDetailClient({
   adBannerVertical,
   adBannerHorizontal,
   vastUrl,
-  smartLinkUrl, // Added smartLinkUrl prop
+  smartLinkUrl,
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
   adBannerVertical?: React.ReactNode
   adBannerHorizontal?: React.ReactNode
   vastUrl?: string
-  smartLinkUrl?: string // Added smartLinkUrl type
+  smartLinkUrl?: string
 }) {
   const { userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(movie.likesCount)
   const [isLiking, setIsLiking] = useState(false)
+
+  const [inWatchlist, setInWatchlist] = useState(false)
+  const [isWatchlistLoading, setIsWatchlistLoading] = useState(false)
 
   const [commentText, setCommentText] = useState("")
   const [commentRating, setCommentRating] = useState(5)
@@ -172,6 +182,43 @@ export default function MovieDetailClient({
     }
   }
 
+  useEffect(() => {
+    async function checkWatchlist() {
+      if (userId) {
+        const inList = await isInWatchlist(movie.id)
+        setInWatchlist(inList)
+      }
+    }
+    checkWatchlist()
+
+    if (userId) {
+      trackView(movie.id, 0)
+    }
+  }, [userId, movie.id])
+
+  const handleWatchlistToggle = async () => {
+    if (!userId) {
+      alert("Please sign in to add to watchlist")
+      return
+    }
+
+    setIsWatchlistLoading(true)
+
+    if (inWatchlist) {
+      const result = await removeFromWatchlist(movie.id)
+      if (result.success) {
+        setInWatchlist(false)
+      }
+    } else {
+      const result = await addToWatchlist(movie.id)
+      if (result.success) {
+        setInWatchlist(true)
+      }
+    }
+
+    setIsWatchlistLoading(false)
+  }
+
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
@@ -235,6 +282,23 @@ export default function MovieDetailClient({
                   <Heart className={`w-5 h-5 ${isLiked ? "fill-[#00FFFF]" : ""}`} />
                 )}
                 <span>{likesCount}</span>
+              </button>
+
+              <button
+                onClick={handleWatchlistToggle}
+                disabled={isWatchlistLoading}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-all ${
+                  inWatchlist
+                    ? "bg-[#00FFFF]/20 border-[#00FFFF] text-[#00FFFF]"
+                    : "bg-[#1A1B23] text-white border-[#2A2B33] hover:border-[#00FFFF]"
+                }`}
+              >
+                {isWatchlistLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Bookmark className={`w-5 h-5 ${inWatchlist ? "fill-[#00FFFF]" : ""}`} />
+                )}
+                <span>{inWatchlist ? "In Watchlist" : "Add to Watchlist"}</span>
               </button>
             </div>
 

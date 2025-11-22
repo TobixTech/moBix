@@ -55,33 +55,12 @@ export async function uploadMovie(formData: {
 
 export async function getPublicMovies() {
   try {
-    // Step 1: Check cache
-    const cacheKey = "publicMovies"
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Public movies found in cache")
-      return JSON.parse(cached.value) as any[]
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Public movies not in cache, fetching from DB")
     const movies = await prisma.movie.findMany({
       orderBy: {
         createdAt: "desc",
       },
       take: 12,
     })
-
-    // Step 3: Store in cache
-    await prisma.cache.create({
-      data: {
-        key: cacheKey,
-        value: JSON.stringify(movies),
-        ttl: 3600, // 1 hour
-      },
-    })
-
     return movies
   } catch (error) {
     console.error("[v0] Error fetching public movies:", error)
@@ -91,17 +70,6 @@ export async function getPublicMovies() {
 
 export async function getTrendingMovies() {
   try {
-    // Step 1: Check cache
-    const cacheKey = "trendingMovies"
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Trending movies found in cache")
-      return JSON.parse(cached.value) as any[]
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Trending movies not in cache, fetching from DB")
     const allMovies = await prisma.movie.findMany({
       include: {
         _count: {
@@ -117,16 +85,9 @@ export async function getTrendingMovies() {
 
     // Randomize the movies array
     const shuffled = allMovies.sort(() => 0.5 - Math.random())
-    const randomMovies = shuffled.slice(0, 10)
 
-    // Step 3: Store in cache
-    await prisma.cache.create({
-      data: {
-        key: cacheKey,
-        value: JSON.stringify(randomMovies),
-        ttl: 1800, // 30 minutes
-      },
-    })
+    // Take the first 10 random movies
+    const randomMovies = shuffled.slice(0, 10)
 
     console.log(`[v0] Returning ${randomMovies.length} random movies for trending`)
     return randomMovies
@@ -145,25 +106,6 @@ export async function getMovieById(id: string) {
       return null
     }
 
-    // Step 1: Check cache
-    const cacheKey = `movie:${id}`
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Movie found in cache:", id)
-      // Increment views without waiting
-      prisma.movie
-        .update({
-          where: { id },
-          data: { views: { increment: 1 } },
-        })
-        .catch((err) => console.error("[v0] Error updating views:", err))
-
-      return JSON.parse(cached.value) as any
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Movie not in cache, fetching from DB:", id)
     const movie = await prisma.movie.findUnique({
       where: { id },
       include: {
@@ -202,30 +144,16 @@ export async function getMovieById(id: string) {
         ? movie.comments.reduce((acc, comment) => acc + comment.rating, 0) / movie.comments.length
         : 0
 
-    const enrichedMovie = {
+    await prisma.movie.update({
+      where: { id },
+      data: { views: { increment: 1 } },
+    })
+
+    return {
       ...movie,
       likesCount: movie._count.likes,
       avgRating: Math.round(avgRating * 10) / 10,
     }
-
-    // Step 3: Store in cache
-    await prisma.cache.create({
-      data: {
-        key: cacheKey,
-        value: JSON.stringify(enrichedMovie),
-        ttl: 7200, // 2 hours
-      },
-    })
-
-    // Increment views without waiting
-    prisma.movie
-      .update({
-        where: { id },
-        data: { views: { increment: 1 } },
-      })
-      .catch((err) => console.error("[v0] Error updating views:", err))
-
-    return enrichedMovie
   } catch (error: any) {
     console.error("[v0] Error fetching movie by ID:", error)
     console.error("[v0] Error details:", error.message)
@@ -287,17 +215,6 @@ export async function getRelatedMovies(movieId: string, genre: string) {
 
 export async function getAdminMetrics() {
   try {
-    // Step 1: Check cache
-    const cacheKey = "adminMetrics"
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Admin metrics found in cache")
-      return JSON.parse(cached.value) as any[]
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Admin metrics not in cache, fetching from DB")
     const [totalUsers, totalMovies, recentUsersCount] = await Promise.all([
       prisma.user.count(),
       prisma.movie.count(),
@@ -316,23 +233,12 @@ export async function getAdminMetrics() {
       },
     })
 
-    const metrics = [
+    return [
       { label: "Total Users", value: totalUsers.toLocaleString(), change: "+5.2%" },
       { label: "New Users (30d)", value: `+${recentUsersCount.toLocaleString()}`, change: "+8.1%" },
       { label: "Total Movies", value: totalMovies.toLocaleString(), change: `+${totalMovies}` },
       { label: "Total Watch Hours", value: `${Math.floor((totalViews._sum.views || 0) / 60)}h`, change: "+15.3%" },
     ]
-
-    // Step 3: Store in cache
-    await prisma.cache.create({
-      data: {
-        key: cacheKey,
-        value: JSON.stringify(metrics),
-        ttl: 3600, // 1 hour
-      },
-    })
-
-    return metrics
   } catch (error) {
     console.error("[v0] Error fetching admin metrics:", error)
     return [
@@ -532,8 +438,6 @@ export async function deleteMovie(id: string) {
   try {
     console.log("[v0] Deleting movie:", id)
 
-    const movie = await prisma.movie.findUnique({ where: { id } })
-
     await prisma.movie.delete({
       where: { id },
     })
@@ -649,17 +553,6 @@ export async function addComment(movieId: string, text: string, rating: number) 
 
 export async function getMoviesByGenre(genre: string) {
   try {
-    // Step 1: Check cache
-    const cacheKey = `moviesByGenre:${genre}`
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Genre movies found in cache:", genre)
-      return JSON.parse(cached.value) as any[]
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Genre movies not in cache, fetching from DB:", genre)
     const movies = await prisma.movie.findMany({
       where: {
         genre: {
@@ -678,15 +571,6 @@ export async function getMoviesByGenre(genre: string) {
       },
     })
 
-    // Step 3: Store in cache
-    await prisma.cache.create({
-      data: {
-        key: cacheKey,
-        value: JSON.stringify(movies),
-        ttl: 3600, // 1 hour
-      },
-    })
-
     console.log(`[v0] Found ${movies.length} movies for genre: ${genre}`)
     console.log(
       `[v0] Sample genres from DB:`,
@@ -701,17 +585,6 @@ export async function getMoviesByGenre(genre: string) {
 
 export async function getFeaturedMovie() {
   try {
-    // Step 1: Check cache
-    const cacheKey = "featuredMovie"
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Featured movie found in cache")
-      return JSON.parse(cached.value) as any
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Featured movie not in cache, fetching from DB")
     const movie = await prisma.movie.findFirst({
       where: {
         isFeatured: true,
@@ -720,18 +593,6 @@ export async function getFeaturedMovie() {
         createdAt: "desc",
       },
     })
-
-    // Step 3: Store in cache
-    if (movie) {
-      await prisma.cache.create({
-        data: {
-          key: cacheKey,
-          value: JSON.stringify(movie),
-          ttl: 3600, // 1 hour
-        },
-      })
-    }
-
     return movie
   } catch (error) {
     console.error("[v0] Error fetching featured movie:", error)
@@ -745,17 +606,6 @@ export async function searchMovies(query: string) {
       return []
     }
 
-    // Step 1: Check cache
-    const cacheKey = `searchMovies:${query}`
-    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
-
-    if (cached) {
-      console.log("[Cache] Search results found in cache:", query)
-      return JSON.parse(cached.value) as any[]
-    }
-
-    // Step 2: Cache miss - fetch from database
-    console.log("[Cache] Search results not in cache, fetching from DB:", query)
     const movies = await prisma.movie.findMany({
       where: {
         OR: [
@@ -767,15 +617,6 @@ export async function searchMovies(query: string) {
       take: 10,
       orderBy: {
         createdAt: "desc",
-      },
-    })
-
-    // Step 3: Store in cache
-    await prisma.cache.create({
-      data: {
-        key: cacheKey,
-        value: JSON.stringify(movies),
-        ttl: 1800, // 30 minutes
       },
     })
 
@@ -1202,5 +1043,213 @@ export async function updateMovieWithAds(
   } catch (error: any) {
     console.error("[v0] Error updating movie:", error)
     return { success: false, error: error.message || "Failed to update movie" }
+  }
+}
+
+export async function addToWatchlist(movieId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Please sign in to add to watchlist" }
+    }
+
+    const user = await ensureUserExists(userId)
+
+    await prisma.watchlist.create({
+      data: {
+        userId: user.id,
+        movieId,
+      },
+    })
+
+    revalidatePath("/dashboard")
+    revalidatePath(`/movie/${movieId}`)
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error adding to watchlist:", error)
+    return { success: false, error: "Failed to add to watchlist" }
+  }
+}
+
+export async function removeFromWatchlist(movieId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const user = await ensureUserExists(userId)
+
+    await prisma.watchlist.deleteMany({
+      where: {
+        userId: user.id,
+        movieId,
+      },
+    })
+
+    revalidatePath("/dashboard")
+    revalidatePath(`/movie/${movieId}`)
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error removing from watchlist:", error)
+    return { success: false, error: "Failed to remove from watchlist" }
+  }
+}
+
+export async function getWatchlist() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return []
+    }
+
+    const user = await ensureUserExists(userId)
+
+    const watchlist = await prisma.watchlist.findMany({
+      where: { userId: user.id },
+      include: { movie: true },
+      orderBy: { createdAt: "desc" },
+    })
+
+    return watchlist.map((item) => item.movie)
+  } catch (error) {
+    console.error("[v0] Error fetching watchlist:", error)
+    return []
+  }
+}
+
+export async function isInWatchlist(movieId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return false
+    }
+
+    const user = await ensureUserExists(userId)
+
+    const item = await prisma.watchlist.findUnique({
+      where: {
+        userId_movieId: {
+          userId: user.id,
+          movieId,
+        },
+      },
+    })
+
+    return !!item
+  } catch (error) {
+    console.error("[v0] Error checking watchlist:", error)
+    return false
+  }
+}
+
+export async function trackView(movieId: string, watchTime = 0) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false }
+    }
+
+    const user = await ensureUserExists(userId)
+
+    const existingView = await prisma.viewHistory.findFirst({
+      where: {
+        userId: user.id,
+        movieId,
+      },
+    })
+
+    if (existingView) {
+      await prisma.viewHistory.update({
+        where: { id: existingView.id },
+        data: {
+          watchTime: existingView.watchTime + watchTime,
+          updatedAt: new Date(),
+        },
+      })
+    } else {
+      await prisma.viewHistory.create({
+        data: {
+          userId: user.id,
+          movieId,
+          watchTime,
+        },
+      })
+    }
+
+    await prisma.movie.update({
+      where: { id: movieId },
+      data: { views: { increment: 1 } },
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("[v0] Error tracking view:", error)
+    return { success: false }
+  }
+}
+
+export async function getSmartRecommendations(movieId: string, limit = 10) {
+  try {
+    const { userId } = await auth()
+
+    // Get current movie details
+    const currentMovie = await prisma.movie.findUnique({
+      where: { id: movieId },
+    })
+
+    if (!currentMovie) {
+      return []
+    }
+
+    if (userId) {
+      // Authenticated user: Use collaborative filtering
+      const user = await ensureUserExists(userId)
+
+      // Find users who watched/liked this movie
+      const similarUsers = await prisma.viewHistory.findMany({
+        where: { movieId },
+        select: { userId: true },
+        distinct: ["userId"],
+        take: 50,
+      })
+
+      const similarUserIds = similarUsers.map((u) => u.userId).filter((id) => id !== user.id)
+
+      if (similarUserIds.length > 0) {
+        // Get movies watched by similar users
+        const recommendations = await prisma.viewHistory.findMany({
+          where: {
+            userId: { in: similarUserIds },
+            movieId: { not: movieId },
+          },
+          include: { movie: true },
+          orderBy: { watchTime: "desc" },
+          take: limit,
+        })
+
+        // Return unique movies
+        const uniqueMovies = Array.from(new Map(recommendations.map((r) => [r.movie.id, r.movie])).values())
+
+        if (uniqueMovies.length > 0) {
+          return uniqueMovies
+        }
+      }
+    }
+
+    // Fallback: Genre-based recommendations
+    const genreMovies = await prisma.movie.findMany({
+      where: {
+        genre: { contains: currentMovie.genre, mode: "insensitive" },
+        id: { not: movieId },
+      },
+      orderBy: { views: "desc" },
+      take: limit,
+    })
+
+    return genreMovies
+  } catch (error) {
+    console.error("[v0] Error getting smart recommendations:", error)
+    return []
   }
 }

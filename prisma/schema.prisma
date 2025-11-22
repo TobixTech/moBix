@@ -13,11 +13,13 @@ model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique
   email     String   @unique
-  role      String   @default("USER")
+  role      String   @default("USER") // Changed from enum to String to match DB
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   likes     Like[]
   comments  Comment[]
+  watchlist Watchlist[]
+  viewHistory ViewHistory[]
 }
 
 // User Roles
@@ -35,10 +37,10 @@ model Movie {
   genre         String
   posterUrl     String
   videoUrl      String
-  customVastUrl String?
-  useGlobalAd   Boolean   @default(true)
-  downloadUrl   String?
-  downloadEnabled Boolean @default(false)
+  customVastUrl String?   // Optional custom VAST URL per movie
+  useGlobalAd   Boolean   @default(true)  // Toggle for global vs custom ad
+  downloadUrl   String?   // Optional download link
+  downloadEnabled Boolean @default(false)  // Toggle for download button
   isTrending    Boolean   @default(false)
   isFeatured    Boolean   @default(false)
   views         Int       @default(0)
@@ -46,6 +48,8 @@ model Movie {
   updatedAt     DateTime  @updatedAt
   likes         Like[]
   comments      Comment[]
+  watchlist     Watchlist[]
+  viewHistory   ViewHistory[]
 }
 
 // Like Model (User likes for movies)
@@ -85,10 +89,10 @@ model AdminInvite {
 // Ad Settings Model
 model AdSettings {
   id                 String   @id @default(uuid())
-  horizontalAdCode   String?
-  verticalAdCode     String?
-  vastUrl            String?
-  smartLinkUrl       String?
+  horizontalAdCode   String?  // For banner ads in carousels
+  verticalAdCode     String?  // For sidebar ads
+  vastUrl            String?  // VAST URL for pre-roll video ads
+  smartLinkUrl       String?  // Added Smart Link URL for download button ads
   adTimeoutSeconds   Int      @default(20)
   showPrerollAds     Boolean  @default(true)
   showDownloadPageAds Boolean @default(true)
@@ -99,11 +103,28 @@ model AdSettings {
   updatedAt          DateTime @updatedAt
 }
 
-model Cache {
+// Watchlist Model (User watchlist for smart recommendations)
+model Watchlist {
   id        String   @id @default(uuid())
-  key       String   @unique
-  value     String
-  ttl       Int      @default(3600)
+  userId    String
+  movieId   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, movieId])
+}
+
+// View History Model (User view history for smart recommendations)
+model ViewHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  movieId   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  watchTime Int      @default(0) // in seconds
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId, movieId])
 }
