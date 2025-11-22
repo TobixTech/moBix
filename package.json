@@ -9,6 +9,7 @@
     "db:setup": "prisma db push && tsx scripts/seed-database.ts",
     "db:studio": "prisma studio",
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "lint": "eslint .",
     "start": "next start"
   },
