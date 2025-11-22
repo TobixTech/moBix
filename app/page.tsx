@@ -3,7 +3,6 @@ import HeroBanner from "@/components/hero-banner"
 import MovieCarousel from "@/components/movie-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
-import AuthModalWrapper from "@/components/auth-modal-wrapper"
 import ErrorMessage from "@/components/error-message"
 import { getMoviesByGenre, getFeaturedMovie, getTrendingMovies } from "@/lib/server-actions"
 import { Suspense } from "react"
@@ -84,16 +83,14 @@ async function HomepageContent() {
 
 export default async function PublicHomePage() {
   return (
-    <AuthModalWrapper>
-      <main className="min-h-screen bg-[#0B0C10]">
-        <Navbar showAuthButtons={true} />
+    <main className="min-h-screen bg-[#0B0C10]">
+      <Navbar showAuthButtons={true} />
 
-        <Suspense fallback={<LoadingSpinner size="lg" message="Loading movies..." />}>
-          <HomepageContent />
-        </Suspense>
+      <Suspense fallback={<LoadingSpinner size="lg" message="Loading movies..." />}>
+        <HomepageContent />
+      </Suspense>
 
-        <Footer />
-      </main>
-    </AuthModalWrapper>
+      <Footer />
+    </main>
   )
 }

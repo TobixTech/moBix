@@ -75,11 +75,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
   }
 
   const handleAuthClick = () => {
-    if (showAuthButtons && authModal) {
-      authModal.openAuthModal()
-    } else if (onAuthClick) {
-      onAuthClick()
-    }
+    window.location.href = "/auth"
   }
 
   return (
