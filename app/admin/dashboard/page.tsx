@@ -17,7 +17,7 @@ import {
   MessageSquare,
   Lock,
   Loader,
-  DollarSign,
+  Settings,
 } from "lucide-react"
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
@@ -30,10 +30,9 @@ import {
   uploadMovie,
   updateMovie,
   deleteMovie,
-  saveAdSettings, // Import saveAdSettings
 } from "@/lib/server-actions"
 
-type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" // Add ads tab
+type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads"
 
 interface Metric {
   label: string
@@ -48,11 +47,6 @@ interface Movie {
   genre?: string
   uploadDate?: string
   status?: string
-  description?: string // Added for edit modal
-  posterUrl?: string // Added for edit modal
-  videoUrl?: string // Added for edit modal
-  downloadUrl?: string // Added for edit modal
-  year?: number // Added for edit modal
 }
 
 interface Signup {
@@ -76,16 +70,6 @@ interface Comment {
   userEmail: string
   createdAt: string
   movieId: string
-}
-
-interface AdSettings {
-  horizontalAdCode: string
-  verticalAdCode: string
-  nativeAdCode: string
-  buttonClickAdCode: string
-  homepageEnabled: boolean
-  movieDetailEnabled: boolean
-  dashboardEnabled: boolean
 }
 
 export default function AdminDashboard() {
@@ -115,21 +99,10 @@ export default function AdminDashboard() {
     title: "",
     thumbnail: "",
     videoLink: "",
-    downloadLink: "", // Added download link field
     description: "",
     genre: "Action",
     releaseDate: "",
     status: "draft",
-  })
-
-  const [adSettings, setAdSettings] = useState<AdSettings>({
-    horizontalAdCode: "",
-    verticalAdCode: "",
-    nativeAdCode: "",
-    buttonClickAdCode: "",
-    homepageEnabled: true,
-    movieDetailEnabled: true,
-    dashboardEnabled: true,
   })
 
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -178,11 +151,6 @@ export default function AdminDashboard() {
         const commentsResponse = await fetch("/api/admin/comments")
         const commentsData = await commentsResponse.json()
         setComments(commentsData)
-
-        // Fetch ad settings
-        const adSettingsResponse = await fetch("/api/admin/ad-settings")
-        const adSettingsData = await adSettingsResponse.json()
-        setAdSettings(adSettingsData)
       } catch (error) {
         console.error("Error fetching admin data:", error)
       } finally {
@@ -211,7 +179,6 @@ export default function AdminDashboard() {
       genre: formData.genre,
       posterUrl: formData.thumbnail,
       videoUrl: formData.videoLink,
-      downloadUrl: formData.downloadLink, // Include download URL
       isFeatured: formData.status === "published",
     })
 
@@ -220,7 +187,6 @@ export default function AdminDashboard() {
         title: "",
         thumbnail: "",
         videoLink: "",
-        downloadLink: "", // Reset download link
         description: "",
         genre: "Action",
         releaseDate: "",
@@ -240,14 +206,7 @@ export default function AdminDashboard() {
   }
 
   const handleEdit = (movie: Movie) => {
-    setEditingMovie({
-      ...movie,
-      description: movie.description || "",
-      posterUrl: movie.posterUrl || "",
-      videoUrl: movie.videoUrl || "",
-      downloadUrl: movie.downloadUrl || "",
-      year: movie.year || 2024,
-    })
+    setEditingMovie(movie)
     setEditModalOpen(true)
   }
 
@@ -273,15 +232,13 @@ export default function AdminDashboard() {
     if (!editingMovie) return
 
     setLoading(true)
-
     const result = await updateMovie(String(editingMovie.id), {
       title: editingMovie.title,
-      description: editingMovie.description || "",
-      year: editingMovie.year || 2024,
+      description: "",
+      year: 2024,
       genre: editingMovie.genre || "Action",
-      posterUrl: editingMovie.posterUrl || "",
-      videoUrl: editingMovie.videoUrl || "",
-      downloadUrl: editingMovie.downloadUrl || "",
+      posterUrl: "",
+      videoUrl: "",
       isFeatured: editingMovie.status === "Published",
     })
 
@@ -292,19 +249,6 @@ export default function AdminDashboard() {
       setEditingMovie(null)
     } else {
       alert(`Update failed: ${result.error}`)
-    }
-
-    setLoading(false)
-  }
-
-  const handleSaveAdSettings = async () => {
-    setLoading(true)
-    const result = await saveAdSettings(adSettings)
-
-    if (result.success) {
-      alert("Ad settings saved successfully!")
-    } else {
-      alert(`Failed to save ad settings: ${result.error}`)
     }
 
     setLoading(false)
@@ -445,71 +389,18 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-white font-medium mb-2 text-sm">Description</label>
-                <textarea
-                  value={editingMovie.description}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, description: e.target.value })}
-                  rows={3}
+                <label className="block text-white font-medium mb-2 text-sm">Genre</label>
+                <select
+                  value={editingMovie.genre}
+                  onChange={(e) => setEditingMovie({ ...editingMovie, genre: e.target.value })}
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Poster URL</label>
-                <input
-                  type="url"
-                  value={editingMovie.posterUrl}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, posterUrl: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Video URL</label>
-                <input
-                  type="url"
-                  value={editingMovie.videoUrl}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, videoUrl: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Download URL (Optional)</label>
-                <input
-                  type="url"
-                  value={editingMovie.downloadUrl || ""}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, downloadUrl: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-white font-medium mb-2 text-sm">Year</label>
-                  <input
-                    type="number"
-                    value={editingMovie.year}
-                    onChange={(e) => setEditingMovie({ ...editingMovie, year: Number.parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white font-medium mb-2 text-sm">Genre</label>
-                  <select
-                    value={editingMovie.genre}
-                    onChange={(e) => setEditingMovie({ ...editingMovie, genre: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                  >
-                    <option value="Action">Action</option>
-                    <option value="Drama">Drama</option>
-                    <option value="Sci-Fi">Sci-Fi</option>
-                    <option value="Thriller">Thriller</option>
-                    <option value="Comedy">Comedy</option>
-                    <option value="Nollywood">Nollywood</option>
-                  </select>
-                </div>
+                >
+                  <option value="Action">Action</option>
+                  <option value="Drama">Drama</option>
+                  <option value="Sci-Fi">Sci-Fi</option>
+                  <option value="Thriller">Thriller</option>
+                  <option value="Comedy">Comedy</option>
+                </select>
               </div>
 
               <div className="flex gap-4 pt-4">
@@ -568,7 +459,7 @@ export default function AdminDashboard() {
             { id: "upload", label: "Upload Movie", icon: Upload },
             { id: "users", label: "Manage Users", icon: Users },
             { id: "comments", label: "Comment Moderation", icon: MessageSquare },
-            { id: "ads", label: "Ad Settings", icon: DollarSign }, // Add ads tab
+            { id: "ads", label: "Ad Management", icon: Settings },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -749,7 +640,7 @@ export default function AdminDashboard() {
 
               <form
                 onSubmit={handleUpload}
-                className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6 space-y-4"
+                className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8"
               >
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left Column */}
@@ -800,14 +691,12 @@ export default function AdminDashboard() {
                         value={formData.genre}
                         onChange={handleFormChange}
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                        required
                       >
                         <option value="Action">Action</option>
                         <option value="Drama">Drama</option>
                         <option value="Sci-Fi">Sci-Fi</option>
-                        <option value="Comedy">Comedy</option>
                         <option value="Thriller">Thriller</option>
-                        <option value="Nollywood">Nollywood</option>
+                        <option value="Comedy">Comedy</option>
                       </select>
                     </div>
                   </div>
@@ -821,7 +710,7 @@ export default function AdminDashboard() {
                         name="releaseDate"
                         value={formData.releaseDate}
                         onChange={handleFormChange}
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
                         required
                       />
                     </div>
@@ -856,19 +745,6 @@ export default function AdminDashboard() {
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
                         required
                       />
-                    </div>
-
-                    <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Download Link (Optional)</label>
-                      <input
-                        type="url"
-                        name="downloadLink"
-                        value={formData.downloadLink}
-                        onChange={handleFormChange}
-                        placeholder="https://example.com/download/movie.mp4"
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 transition-all"
-                      />
-                      <p className="text-xs text-white/50 mt-1">For Adsterra download monetization</p>
                     </div>
                   </div>
                 </div>
@@ -1011,85 +887,13 @@ export default function AdminDashboard() {
           {activeTab === "ads" && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Ad Settings</h1>
-                <p className="text-white/50">Configure Adsterra ad placements</p>
+                <h1 className="text-4xl font-bold text-white mb-2">Ad Management</h1>
+                <p className="text-white/50">Manage ads for the platform</p>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6 space-y-6">
-                <div>
-                  <label className="block text-white font-medium mb-2">Horizontal Ad Code (Banners)</label>
-                  <textarea
-                    value={adSettings.horizontalAdCode}
-                    onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
-                    placeholder="<script>...Adsterra code...</script>"
-                    rows={4}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white font-medium mb-2">Vertical Ad Code (Sidebars)</label>
-                  <textarea
-                    value={adSettings.verticalAdCode}
-                    onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
-                    placeholder="<script>...Adsterra code...</script>"
-                    rows={4}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white font-medium mb-2">Native Ad Code (Movie Cards)</label>
-                  <textarea
-                    value={adSettings.nativeAdCode}
-                    onChange={(e) => setAdSettings({ ...adSettings, nativeAdCode: e.target.value })}
-                    placeholder="<script>...Adsterra native ad code...</script>"
-                    rows={4}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                  />
-                  <p className="text-xs text-white/50 mt-1">Displays as movie cards (after every 3rd movie)</p>
-                </div>
-
-                <div>
-                  <label className="block text-white font-medium mb-2">Button Click Ad Code (Download Buttons)</label>
-                  <textarea
-                    value={adSettings.buttonClickAdCode}
-                    onChange={(e) => setAdSettings({ ...adSettings, buttonClickAdCode: e.target.value })}
-                    placeholder="<script>...Adsterra button/pop code...</script>"
-                    rows={4}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                  />
-                  <p className="text-xs text-white/50 mt-1">Triggers before download starts</p>
-                </div>
-
-                <div className="flex gap-6">
-                  <label className="flex items-center gap-2 text-white cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={adSettings.homepageEnabled}
-                      onChange={(e) => setAdSettings({ ...adSettings, homepageEnabled: e.target.checked })}
-                      className="w-4 h-4 accent-cyan-500"
-                    />
-                    <span className="text-sm">Enable on Homepage</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-white cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={adSettings.movieDetailEnabled}
-                      onChange={(e) => setAdSettings({ ...adSettings, movieDetailEnabled: e.target.checked })}
-                      className="w-4 h-4 accent-cyan-500"
-                    />
-                    <span className="text-sm">Enable on Movie Pages</span>
-                  </label>
-                </div>
-
-                <button
-                  onClick={handleSaveAdSettings}
-                  type="button"
-                  className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
-                >
-                  Save Ad Settings
-                </button>
+              {/* Ad Management Content */}
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8">
+                <p className="text-white">This is where you can manage ads.</p>
               </div>
             </div>
           )}

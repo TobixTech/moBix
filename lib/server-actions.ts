@@ -11,7 +11,6 @@ export async function uploadMovie(formData: {
   genre: string
   posterUrl: string
   videoUrl: string
-  downloadUrl?: string
   isTrending?: boolean
   isFeatured?: boolean
 }) {
@@ -27,7 +26,6 @@ export async function uploadMovie(formData: {
           genre: formData.genre,
           posterUrl: formData.posterUrl,
           videoUrl: formData.videoUrl,
-          downloadUrl: formData.downloadUrl || null,
           isTrending: formData.isTrending || false,
           isFeatured: formData.isFeatured || false,
         },
@@ -406,13 +404,12 @@ export async function updateMovie(
     genre: string
     posterUrl: string
     videoUrl: string
-    downloadUrl?: string
     isTrending?: boolean
     isFeatured?: boolean
   },
 ) {
   try {
-    console.log("[v0] Updating movie:", id, formData)
+    console.log("[v0] Updating movie:", id)
 
     const movie = await prisma.movie.update({
       where: { id },
@@ -423,16 +420,14 @@ export async function updateMovie(
         genre: formData.genre,
         posterUrl: formData.posterUrl,
         videoUrl: formData.videoUrl,
-        downloadUrl: formData.downloadUrl || null,
         isTrending: formData.isTrending || false,
         isFeatured: formData.isFeatured || false,
       },
     })
 
-    console.log("[v0] Movie updated successfully - Video URL preserved:", movie.videoUrl)
+    console.log("[v0] Movie updated successfully")
     revalidatePath("/admin/dashboard")
     revalidatePath(`/movie/${id}`)
-    revalidatePath("/")
     return { success: true, movie }
   } catch (error: any) {
     console.error("[v0] Error updating movie:", error)
@@ -577,66 +572,51 @@ export async function addComment(movieId: string, text: string, rating: number) 
 }
 
 export async function saveAdSettings(settings: {
-  horizontalAdCode?: string
-  verticalAdCode?: string
-  nativeAdCode?: string
-  buttonClickAdCode?: string
-  homepageEnabled?: boolean
-  movieDetailEnabled?: boolean
-  dashboardEnabled?: boolean
+  horizontalAdCode: string
+  verticalAdCode: string
+  homepageEnabled: boolean
+  movieDetailEnabled: boolean
+  dashboardEnabled: boolean
 }) {
   try {
-    console.log("[v0] Saving ad settings")
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
 
+    // Get or create ad settings
     const existing = await prisma.adSettings.findFirst()
 
     if (existing) {
-      const updated = await prisma.adSettings.update({
+      await prisma.adSettings.update({
         where: { id: existing.id },
         data: settings,
       })
-      revalidatePath("/")
-      revalidatePath("/admin/dashboard")
-      return { success: true, settings: updated }
     } else {
-      const created = await prisma.adSettings.create({
+      await prisma.adSettings.create({
         data: settings,
       })
-      revalidatePath("/")
-      revalidatePath("/admin/dashboard")
-      return { success: true, settings: created }
     }
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
   } catch (error: any) {
     console.error("[v0] Error saving ad settings:", error)
-    return { success: false, error: error.message }
-  }
-}
-
-export async function getAdSettings() {
-  try {
-    const settings = await prisma.adSettings.findFirst()
-    return settings
-  } catch (error) {
-    console.error("[v0] Error fetching ad settings:", error)
-    return null
+    return { success: false, error: error.message || "Failed to save ad settings" }
   }
 }
 
 export async function getMoviesByGenre(genre: string) {
   try {
-    console.log("[v0] Fetching movies for genre:", genre)
-
     const movies = await prisma.movie.findMany({
       where: {
-        genre: genre,
+        genre,
       },
       orderBy: {
         createdAt: "desc",
       },
-      take: 20,
+      take: 12,
     })
-
-    console.log(`[v0] Found ${movies.length} movies for genre: ${genre}`)
     return movies
   } catch (error) {
     console.error("[v0] Error fetching movies by genre:", error)
@@ -730,6 +710,65 @@ export async function deleteComment(commentId: string) {
   } catch (error: any) {
     console.error("[v0] Error deleting comment:", error)
     return { success: false, error: error.message || "Failed to delete comment" }
+  }
+}
+
+export async function getAdSettings() {
+  try {
+    const settings = await prisma.adSettings.findFirst()
+    return settings || null
+  } catch (error) {
+    console.error("[v0] Error fetching ad settings:", error)
+    return null
+  }
+}
+
+export async function updateAdSettings(settings: {
+  vastPrerollUrl?: string
+  adTimeout?: number
+  adsEnabled?: boolean
+  horizontalAdCode?: string
+  verticalAdCode?: string
+  homepageEnabled?: boolean
+  movieDetailEnabled?: boolean
+  dashboardEnabled?: boolean
+}) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    console.log("[v0] Updating ad settings:", settings)
+
+    // Get or create ad settings
+    const existing = await prisma.adSettings.findFirst()
+
+    if (existing) {
+      const updated = await prisma.adSettings.update({
+        where: { id: existing.id },
+        data: settings,
+      })
+      console.log("[v0] Ad settings updated successfully")
+      revalidatePath("/admin/dashboard")
+      revalidatePath("/movie/[id]")
+      return { success: true, settings: updated }
+    } else {
+      const created = await prisma.adSettings.create({
+        data: {
+          ...settings,
+          vastPrerollUrl: settings.vastPrerollUrl || "",
+          adTimeout: settings.adTimeout || 20,
+          adsEnabled: settings.adsEnabled ?? true,
+        },
+      })
+      console.log("[v0] Ad settings created successfully")
+      revalidatePath("/admin/dashboard")
+      return { success: true, settings: created }
+    }
+  } catch (error: any) {
+    console.error("[v0] Error updating ad settings:", error)
+    return { success: false, error: error.message || "Failed to update ad settings" }
   }
 }
 
@@ -901,5 +940,110 @@ export async function grantAdminAccessWithKey(secretKey: string): Promise<{ succ
   } catch (error: any) {
     console.error("[v0] Error granting admin access:", error)
     return { success: false, error: error.message || "Failed to grant admin access" }
+  }
+}
+
+export async function uploadMovieWithAds(formData: {
+  title: string
+  description: string
+  year: number
+  genre: string
+  posterUrl: string
+  videoUrl: string
+  customVastUrl?: string
+  useGlobalAd?: boolean
+  downloadUrl?: string
+  downloadEnabled?: boolean
+  isTrending?: boolean
+  isFeatured?: boolean
+}) {
+  try {
+    console.log("[v0] Uploading movie with ad settings:", formData.title)
+
+    try {
+      const movie = await prisma.movie.create({
+        data: {
+          title: formData.title,
+          description: formData.description,
+          year: formData.year,
+          genre: formData.genre,
+          posterUrl: formData.posterUrl,
+          videoUrl: formData.videoUrl,
+          customVastUrl: formData.customVastUrl || null,
+          useGlobalAd: formData.useGlobalAd ?? true,
+          downloadUrl: formData.downloadUrl || null,
+          downloadEnabled: formData.downloadEnabled ?? false,
+          isTrending: formData.isTrending || false,
+          isFeatured: formData.isFeatured || false,
+        },
+      })
+
+      console.log("[v0] Movie uploaded successfully with ad settings:", movie.id)
+      revalidatePath("/admin/dashboard")
+      revalidatePath("/")
+      return { success: true, movie }
+    } catch (dbError: any) {
+      console.error("[v0] Database error uploading movie:", dbError)
+
+      if (dbError.message?.includes("does not exist")) {
+        return {
+          success: false,
+          error: "Database tables not initialized. Please run: npx prisma db push",
+        }
+      }
+
+      throw dbError
+    }
+  } catch (error: any) {
+    console.error("[v0] Error uploading movie:", error)
+    return { success: false, error: error.message || "Failed to upload movie" }
+  }
+}
+
+export async function updateMovieWithAds(
+  id: string,
+  formData: {
+    title: string
+    description: string
+    year: number
+    genre: string
+    posterUrl: string
+    videoUrl: string
+    customVastUrl?: string
+    useGlobalAd?: boolean
+    downloadUrl?: string
+    downloadEnabled?: boolean
+    isTrending?: boolean
+    isFeatured?: boolean
+  },
+) {
+  try {
+    console.log("[v0] Updating movie with ad settings:", id)
+
+    const movie = await prisma.movie.update({
+      where: { id },
+      data: {
+        title: formData.title,
+        description: formData.description,
+        year: formData.year,
+        genre: formData.genre,
+        posterUrl: formData.posterUrl,
+        videoUrl: formData.videoUrl,
+        customVastUrl: formData.customVastUrl || null,
+        useGlobalAd: formData.useGlobalAd ?? true,
+        downloadUrl: formData.downloadUrl || null,
+        downloadEnabled: formData.downloadEnabled ?? false,
+        isTrending: formData.isTrending || false,
+        isFeatured: formData.isFeatured || false,
+      },
+    })
+
+    console.log("[v0] Movie updated successfully with ad settings")
+    revalidatePath("/admin/dashboard")
+    revalidatePath(`/movie/${id}`)
+    return { success: true, movie }
+  } catch (error: any) {
+    console.error("[v0] Error updating movie:", error)
+    return { success: false, error: error.message || "Failed to update movie" }
   }
 }
