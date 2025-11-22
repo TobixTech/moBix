@@ -452,6 +452,34 @@ export async function deleteMovie(id: string) {
   }
 }
 
+export async function ensureUserExists(userId: string) {
+  try {
+    let user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
+
+    if (!user) {
+      console.log("[v0] User not found in database, creating new user...")
+      const client = await clerkClient()
+      const clerkUser = await client.users.getUser(userId)
+
+      user = await prisma.user.create({
+        data: {
+          clerkId: userId,
+          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+          role: "user",
+        },
+      })
+      console.log("[v0] Created new user:", user.id)
+    }
+
+    return user
+  } catch (error: any) {
+    console.error("[v0] Error ensuring user exists:", error)
+    throw error
+  }
+}
+
 export async function toggleLike(movieId: string) {
   try {
     const { userId } = await auth()
@@ -461,25 +489,7 @@ export async function toggleLike(movieId: string) {
 
     console.log("[v0] Toggle like for movie:", movieId, "user:", userId)
 
-    // Get or create user
-    let user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      console.log("[v0] User not found, creating new user...")
-      const clerkClient = await import("@clerk/nextjs/server").then((m) => m.clerkClient)
-      const clerkUser = await clerkClient.users.getUser(userId)
-
-      user = await prisma.user.create({
-        data: {
-          clerkId: userId,
-          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
-          role: "USER", // String instead of enum
-        },
-      })
-      console.log("[v0] Created new user:", user.id)
-    }
+    const user = await ensureUserExists(userId)
 
     // Check if already liked
     const existingLike = await prisma.like.findUnique({
@@ -492,22 +502,18 @@ export async function toggleLike(movieId: string) {
     })
 
     if (existingLike) {
-      // Unlike
       await prisma.like.delete({
         where: { id: existingLike.id },
       })
-
       revalidatePath(`/movie/${movieId}`)
       return { success: true, liked: false }
     } else {
-      // Like
       await prisma.like.create({
         data: {
           userId: user.id,
           movieId,
         },
       })
-
       revalidatePath(`/movie/${movieId}`)
       return { success: true, liked: true }
     }
@@ -526,25 +532,7 @@ export async function addComment(movieId: string, text: string, rating: number) 
 
     console.log("[v0] Adding comment for movie:", movieId, "user:", userId)
 
-    // Get or create user
-    let user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    })
-
-    if (!user) {
-      console.log("[v0] User not found, creating new user...")
-      const clerkClient = await import("@clerk/nextjs/server").then((m) => m.clerkClient)
-      const clerkUser = await clerkClient.users.getUser(userId)
-
-      user = await prisma.user.create({
-        data: {
-          clerkId: userId,
-          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
-          role: "USER",
-        },
-      })
-      console.log("[v0] Created new user:", user.id)
-    }
+    const user = await ensureUserExists(userId)
 
     const comment = await prisma.comment.create({
       data: {
@@ -561,41 +549,6 @@ export async function addComment(movieId: string, text: string, rating: number) 
   } catch (error: any) {
     console.error("[v0] Error adding comment:", error)
     return { success: false, error: error.message || "Failed to add comment" }
-  }
-}
-
-export async function saveAdSettings(settings: {
-  horizontalAdCode: string
-  verticalAdCode: string
-  homepageEnabled: boolean
-  movieDetailEnabled: boolean
-  dashboardEnabled: boolean
-}) {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    // Get or create ad settings
-    const existing = await prisma.adSettings.findFirst()
-
-    if (existing) {
-      await prisma.adSettings.update({
-        where: { id: existing.id },
-        data: settings,
-      })
-    } else {
-      await prisma.adSettings.create({
-        data: settings,
-      })
-    }
-
-    revalidatePath("/admin/dashboard")
-    return { success: true }
-  } catch (error: any) {
-    console.error("[v0] Error saving ad settings:", error)
-    return { success: false, error: error.message || "Failed to save ad settings" }
   }
 }
 
@@ -775,41 +728,32 @@ export async function getUserProfile() {
     const client = await clerkClient()
     const clerkUser = await client.users.getUser(userId)
 
-    let dbUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    })
+    const user = await ensureUserExists(userId)
 
-    // Create user in DB if doesn't exist
-    if (!dbUser) {
-      dbUser = await prisma.user.create({
-        data: {
-          clerkId: userId,
-          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
-          role: "USER",
-        },
-      })
-    }
+    const [likesCount, commentsCount] = await Promise.all([
+      prisma.like.count({ where: { userId: user.id } }),
+      prisma.comment.count({ where: { userId: user.id } }),
+    ])
 
     return {
       success: true,
-      user: {
-        id: dbUser.id,
-        email: dbUser.email,
-        role: dbUser.role,
-        username: clerkUser.username || clerkUser.firstName || "User",
-        firstName: clerkUser.firstName,
-        lastName: clerkUser.lastName,
-        imageUrl: clerkUser.imageUrl,
-        createdAt: dbUser.createdAt.toISOString(),
+      profile: {
+        id: user.id,
+        email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+        firstName: clerkUser.firstName || "",
+        lastName: clerkUser.lastName || "",
+        createdAt: clerkUser.createdAt,
+        likesCount,
+        commentsCount,
       },
     }
   } catch (error: any) {
     console.error("[v0] Error fetching user profile:", error)
-    return { success: false, error: error.message || "Failed to fetch profile" }
+    return { success: false, error: error.message || "Failed to fetch user profile" }
   }
 }
 
-export async function updateUserProfile(data: { username?: string; firstName?: string; lastName?: string }) {
+export async function updateUserProfile(data: { firstName?: string; lastName?: string }) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -817,12 +761,12 @@ export async function updateUserProfile(data: { username?: string; firstName?: s
     }
 
     const client = await clerkClient()
-
     await client.users.updateUser(userId, {
-      username: data.username,
       firstName: data.firstName,
       lastName: data.lastName,
     })
+
+    await ensureUserExists(userId)
 
     revalidatePath("/profile")
     return { success: true }
