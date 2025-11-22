@@ -70,36 +70,27 @@ export async function getPublicMovies() {
 
 export async function getTrendingMovies() {
   try {
-    const movies = await prisma.movie.findMany({
-      where: {
-        isTrending: true,
-      },
-      take: 10,
+    const allMovies = await prisma.movie.findMany({
       include: {
         _count: {
           select: { likes: true },
         },
       },
-      orderBy: {
-        views: "desc",
-      },
     })
 
-    if (movies.length === 0) {
-      console.log("[v0] No trending movies found, fetching recent movies instead")
-      const recentMovies = await prisma.movie.findMany({
-        take: 10,
-        orderBy: { createdAt: "desc" },
-        include: {
-          _count: {
-            select: { likes: true },
-          },
-        },
-      })
-      return recentMovies
+    if (allMovies.length === 0) {
+      console.log("[v0] No movies found in database")
+      return []
     }
 
-    return movies
+    // Randomize the movies array
+    const shuffled = allMovies.sort(() => 0.5 - Math.random())
+
+    // Take the first 10 random movies
+    const randomMovies = shuffled.slice(0, 10)
+
+    console.log(`[v0] Returning ${randomMovies.length} random movies for trending`)
+    return randomMovies
   } catch (error) {
     console.error("[v0] Error fetching trending movies:", error)
     return []
@@ -565,7 +556,7 @@ export async function getMoviesByGenre(genre: string) {
     const movies = await prisma.movie.findMany({
       where: {
         genre: {
-          equals: genre,
+          contains: genre,
           mode: "insensitive",
         },
       },
@@ -573,9 +564,18 @@ export async function getMoviesByGenre(genre: string) {
         createdAt: "desc",
       },
       take: 12,
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
     })
 
     console.log(`[v0] Found ${movies.length} movies for genre: ${genre}`)
+    console.log(
+      `[v0] Sample genres from DB:`,
+      movies.slice(0, 3).map((m) => ({ title: m.title, genre: m.genre })),
+    )
     return movies
   } catch (error) {
     console.error("[v0] Error fetching movies by genre:", error)

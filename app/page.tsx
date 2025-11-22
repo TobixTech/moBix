@@ -13,7 +13,7 @@ async function HomepageContent() {
     const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies, nollywoodMovies] =
       await Promise.all([
         getFeaturedMovie(),
-        getTrendingMovies(),
+        getTrendingMovies(), // Now returns random movies
         getMoviesByGenre("Action"),
         getMoviesByGenre("Drama"),
         getMoviesByGenre("Sci-Fi"),
@@ -21,15 +21,26 @@ async function HomepageContent() {
         getMoviesByGenre("Nollywood"),
       ])
 
+    console.log("[v0] Movies fetched:", {
+      trending: trendingMovies.length,
+      action: actionMovies.length,
+      drama: dramaMovies.length,
+      scifi: sciFiMovies.length,
+      comedy: comedyMovies.length,
+      nollywood: nollywoodMovies.length,
+    })
+
     return (
       <>
         <HeroBanner movie={featuredMovie} />
 
         <div className="px-4 md:px-8 py-8 space-y-12">
-          <div>
-            <MovieCarousel title="Trending Now" movies={trendingMovies} />
-            <AdBanner type="horizontal" placement="homepage" className="my-8" />
-          </div>
+          {trendingMovies.length > 0 && (
+            <div>
+              <MovieCarousel title="Trending Now" movies={trendingMovies} />
+              <AdBanner type="horizontal" placement="homepage" className="my-8" />
+            </div>
+          )}
 
           {actionMovies.length > 0 && (
             <div>
@@ -65,6 +76,17 @@ async function HomepageContent() {
               <AdBanner type="horizontal" placement="homepage" className="my-8" />
             </div>
           )}
+
+          {trendingMovies.length === 0 &&
+            actionMovies.length === 0 &&
+            dramaMovies.length === 0 &&
+            sciFiMovies.length === 0 &&
+            comedyMovies.length === 0 &&
+            nollywoodMovies.length === 0 && (
+              <div className="text-center py-16">
+                <p className="text-white/60 text-lg">No movies available yet. Check back soon!</p>
+              </div>
+            )}
         </div>
       </>
     )
