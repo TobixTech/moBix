@@ -3,13 +3,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "./prisma"
 import { revalidatePath } from "next/cache"
-import { redis, cacheKeys, cacheTTL } from "./redis"
-import {
-  invalidateMovieCache,
-  invalidateMovieListCaches,
-  invalidateGenreCache,
-  invalidateMetricsCache,
-} from "./cache-invalidation"
 
 export async function uploadMovie(formData: {
   title: string
@@ -38,10 +31,6 @@ export async function uploadMovie(formData: {
         },
       })
 
-      await invalidateMovieListCaches()
-      await invalidateGenreCache(formData.genre)
-      await invalidateMetricsCache()
-
       console.log("[v0] Movie uploaded successfully:", movie.id)
       revalidatePath("/admin/dashboard")
       revalidatePath("/")
@@ -67,12 +56,12 @@ export async function uploadMovie(formData: {
 export async function getPublicMovies() {
   try {
     // Step 1: Check cache
-    const cacheKey = cacheKeys.publicMovies()
-    const cached = await redis.get(cacheKey)
+    const cacheKey = "publicMovies"
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Public movies found in cache")
-      return cached as any[]
+      return JSON.parse(cached.value) as any[]
     }
 
     // Step 2: Cache miss - fetch from database
@@ -85,7 +74,13 @@ export async function getPublicMovies() {
     })
 
     // Step 3: Store in cache
-    await redis.setex(cacheKey, cacheTTL.homepage, JSON.stringify(movies))
+    await prisma.cache.create({
+      data: {
+        key: cacheKey,
+        value: JSON.stringify(movies),
+        ttl: 3600, // 1 hour
+      },
+    })
 
     return movies
   } catch (error) {
@@ -97,12 +92,12 @@ export async function getPublicMovies() {
 export async function getTrendingMovies() {
   try {
     // Step 1: Check cache
-    const cacheKey = cacheKeys.trendingMovies()
-    const cached = await redis.get(cacheKey)
+    const cacheKey = "trendingMovies"
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Trending movies found in cache")
-      return cached as any[]
+      return JSON.parse(cached.value) as any[]
     }
 
     // Step 2: Cache miss - fetch from database
@@ -125,7 +120,13 @@ export async function getTrendingMovies() {
     const randomMovies = shuffled.slice(0, 10)
 
     // Step 3: Store in cache
-    await redis.setex(cacheKey, cacheTTL.trending, JSON.stringify(randomMovies))
+    await prisma.cache.create({
+      data: {
+        key: cacheKey,
+        value: JSON.stringify(randomMovies),
+        ttl: 1800, // 30 minutes
+      },
+    })
 
     console.log(`[v0] Returning ${randomMovies.length} random movies for trending`)
     return randomMovies
@@ -145,8 +146,8 @@ export async function getMovieById(id: string) {
     }
 
     // Step 1: Check cache
-    const cacheKey = cacheKeys.movie(id)
-    const cached = await redis.get(cacheKey)
+    const cacheKey = `movie:${id}`
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Movie found in cache:", id)
@@ -158,7 +159,7 @@ export async function getMovieById(id: string) {
         })
         .catch((err) => console.error("[v0] Error updating views:", err))
 
-      return cached as any
+      return JSON.parse(cached.value) as any
     }
 
     // Step 2: Cache miss - fetch from database
@@ -208,7 +209,13 @@ export async function getMovieById(id: string) {
     }
 
     // Step 3: Store in cache
-    await redis.setex(cacheKey, cacheTTL.movieDetail, JSON.stringify(enrichedMovie))
+    await prisma.cache.create({
+      data: {
+        key: cacheKey,
+        value: JSON.stringify(enrichedMovie),
+        ttl: 7200, // 2 hours
+      },
+    })
 
     // Increment views without waiting
     prisma.movie
@@ -281,12 +288,12 @@ export async function getRelatedMovies(movieId: string, genre: string) {
 export async function getAdminMetrics() {
   try {
     // Step 1: Check cache
-    const cacheKey = cacheKeys.metrics()
-    const cached = await redis.get(cacheKey)
+    const cacheKey = "adminMetrics"
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Admin metrics found in cache")
-      return cached as any[]
+      return JSON.parse(cached.value) as any[]
     }
 
     // Step 2: Cache miss - fetch from database
@@ -317,7 +324,13 @@ export async function getAdminMetrics() {
     ]
 
     // Step 3: Store in cache
-    await redis.setex(cacheKey, cacheTTL.metrics, JSON.stringify(metrics))
+    await prisma.cache.create({
+      data: {
+        key: cacheKey,
+        value: JSON.stringify(metrics),
+        ttl: 3600, // 1 hour
+      },
+    })
 
     return metrics
   } catch (error) {
@@ -505,10 +518,6 @@ export async function updateMovie(
       },
     })
 
-    await invalidateMovieCache(id)
-    await invalidateMovieListCaches()
-    await invalidateGenreCache(formData.genre)
-
     console.log("[v0] Movie updated successfully")
     revalidatePath("/admin/dashboard")
     revalidatePath(`/movie/${id}`)
@@ -528,13 +537,6 @@ export async function deleteMovie(id: string) {
     await prisma.movie.delete({
       where: { id },
     })
-
-    await invalidateMovieCache(id)
-    if (movie) {
-      await invalidateGenreCache(movie.genre)
-    }
-    await invalidateMovieListCaches()
-    await invalidateMetricsCache()
 
     console.log("[v0] Movie deleted successfully")
     revalidatePath("/admin/dashboard")
@@ -648,12 +650,12 @@ export async function addComment(movieId: string, text: string, rating: number) 
 export async function getMoviesByGenre(genre: string) {
   try {
     // Step 1: Check cache
-    const cacheKey = cacheKeys.moviesByGenre(genre)
-    const cached = await redis.get(cacheKey)
+    const cacheKey = `moviesByGenre:${genre}`
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Genre movies found in cache:", genre)
-      return cached as any[]
+      return JSON.parse(cached.value) as any[]
     }
 
     // Step 2: Cache miss - fetch from database
@@ -677,7 +679,13 @@ export async function getMoviesByGenre(genre: string) {
     })
 
     // Step 3: Store in cache
-    await redis.setex(cacheKey, cacheTTL.movies, JSON.stringify(movies))
+    await prisma.cache.create({
+      data: {
+        key: cacheKey,
+        value: JSON.stringify(movies),
+        ttl: 3600, // 1 hour
+      },
+    })
 
     console.log(`[v0] Found ${movies.length} movies for genre: ${genre}`)
     console.log(
@@ -694,12 +702,12 @@ export async function getMoviesByGenre(genre: string) {
 export async function getFeaturedMovie() {
   try {
     // Step 1: Check cache
-    const cacheKey = cacheKeys.featuredMovie()
-    const cached = await redis.get(cacheKey)
+    const cacheKey = "featuredMovie"
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Featured movie found in cache")
-      return cached as any
+      return JSON.parse(cached.value) as any
     }
 
     // Step 2: Cache miss - fetch from database
@@ -715,7 +723,13 @@ export async function getFeaturedMovie() {
 
     // Step 3: Store in cache
     if (movie) {
-      await redis.setex(cacheKey, cacheTTL.featured, JSON.stringify(movie))
+      await prisma.cache.create({
+        data: {
+          key: cacheKey,
+          value: JSON.stringify(movie),
+          ttl: 3600, // 1 hour
+        },
+      })
     }
 
     return movie
@@ -732,12 +746,12 @@ export async function searchMovies(query: string) {
     }
 
     // Step 1: Check cache
-    const cacheKey = cacheKeys.searchMovies(query)
-    const cached = await redis.get(cacheKey)
+    const cacheKey = `searchMovies:${query}`
+    const cached = await prisma.cache.findUnique({ where: { key: cacheKey } })
 
     if (cached) {
       console.log("[Cache] Search results found in cache:", query)
-      return cached as any[]
+      return JSON.parse(cached.value) as any[]
     }
 
     // Step 2: Cache miss - fetch from database
@@ -757,7 +771,13 @@ export async function searchMovies(query: string) {
     })
 
     // Step 3: Store in cache
-    await redis.setex(cacheKey, cacheTTL.search, JSON.stringify(movies))
+    await prisma.cache.create({
+      data: {
+        key: cacheKey,
+        value: JSON.stringify(movies),
+        ttl: 1800, // 30 minutes
+      },
+    })
 
     return movies
   } catch (error) {
