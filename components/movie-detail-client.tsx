@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Play, Heart, Star, Send, Loader, Download } from "lucide-react"
 import { toggleLike, addComment } from "@/lib/server-actions"
@@ -64,6 +64,13 @@ export default function MovieDetailClient({
   const [commentError, setCommentError] = useState("")
 
   const [isDownloading, setIsDownloading] = useState(false)
+
+  useEffect(() => {
+    if (!userId) {
+      const likedMovies = JSON.parse(localStorage.getItem("likedMovies") || "[]")
+      setIsLiked(likedMovies.includes(movie.id))
+    }
+  }, [userId, movie.id])
 
   const isEmbedUrl = (url: string) => {
     return (

@@ -63,6 +63,14 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
     window.location.href = "/"
   }
 
+  const handleAuthButtonClick = () => {
+    if (authModal) {
+      authModal.openAuthModal()
+    } else if (onAuthClick) {
+      onAuthClick()
+    }
+  }
+
   return (
     <motion.nav
       className="fixed top-0 w-full bg-[#0B0C10]/95 backdrop-blur border-b border-[#2A2B33] z-50"
@@ -205,7 +213,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           {showAuthButtons ? (
             <>
               <motion.button
-                onClick={() => authModal?.openAuthModal()}
+                onClick={handleAuthButtonClick}
                 className="px-4 py-2 text-[#00FFFF] hover:text-[#00CCCC] font-semibold transition"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -213,7 +221,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                 Login
               </motion.button>
               <motion.button
-                onClick={() => authModal?.openAuthModal()}
+                onClick={handleAuthButtonClick}
                 className="px-4 py-2 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -269,7 +277,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           <AnimatePresence>
             {showSearchResults && (
               <motion.div
-                className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto"
+                className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto z-50"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -294,8 +302,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                           className="w-12 h-16 object-cover rounded"
                         />
                         <div className="flex-1">
-                          <h4 className="text-white font-medium">{movie.title}</h4>
-                          <p className="text-[#888888] text-sm">
+                          <h4 className="text-white font-medium text-sm">{movie.title}</h4>
+                          <p className="text-[#888888] text-xs">
                             {movie.year} • {movie.genre}
                           </p>
                         </div>
@@ -303,7 +311,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-[#888888]">No results found for "{searchQuery}"</div>
+                  <div className="p-4 text-center text-[#888888] text-sm">No results found</div>
                 )}
               </motion.div>
             )}
