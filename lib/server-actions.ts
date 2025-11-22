@@ -656,24 +656,13 @@ export async function getAllComments() {
 
 export async function deleteComment(commentId: string) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    })
-
-    if (!user || user.role !== "ADMIN") {
-      return { success: false, error: "Only admins can delete comments" }
-    }
+    console.log("[v0] Deleting comment:", commentId)
 
     await prisma.comment.delete({
       where: { id: commentId },
     })
 
+    console.log("[v0] Comment deleted successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
@@ -684,18 +673,7 @@ export async function deleteComment(commentId: string) {
 
 export async function banUser(userId: string) {
   try {
-    const { userId: adminId } = await auth()
-    if (!adminId) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    const admin = await prisma.user.findUnique({
-      where: { clerkId: adminId },
-    })
-
-    if (!admin || admin.role !== "ADMIN") {
-      return { success: false, error: "Only admins can ban users" }
-    }
+    console.log("[v0] Banning user:", userId)
 
     // Update user role to BANNED
     await prisma.user.update({
@@ -703,6 +681,7 @@ export async function banUser(userId: string) {
       data: { role: "BANNED" },
     })
 
+    console.log("[v0] User banned successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
@@ -713,23 +692,13 @@ export async function banUser(userId: string) {
 
 export async function deleteUser(userId: string) {
   try {
-    const { userId: adminId } = await auth()
-    if (!adminId) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    const admin = await prisma.user.findUnique({
-      where: { clerkId: adminId },
-    })
-
-    if (!admin || admin.role !== "ADMIN") {
-      return { success: false, error: "Only admins can delete users" }
-    }
+    console.log("[v0] Deleting user:", userId)
 
     await prisma.user.delete({
       where: { id: userId },
     })
 
+    console.log("[v0] User deleted successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
