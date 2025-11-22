@@ -35,6 +35,9 @@ import {
   updateAdSettings, // Added import for updateAdSettings
 } from "@/lib/server-actions"
 
+// Import necessary shadcn/ui dialog components
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
 type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads"
 
 interface Metric {
@@ -255,18 +258,20 @@ export default function AdminDashboard() {
   }
 
   const handleEdit = (movie: Movie) => {
+    console.log("[v0] Editing movie:", movie)
     setEditingMovie({
       ...movie,
+      // Ensure all fields are properly set
+      title: movie.title || "",
+      description: movie.description || "",
+      year: movie.year || 2024,
+      genre: movie.genre || "Action",
+      posterUrl: movie.posterUrl || "",
+      videoUrl: movie.videoUrl || "",
       downloadEnabled: movie.downloadEnabled || false,
       downloadUrl: movie.downloadUrl || "",
       customVastUrl: movie.customVastUrl || "",
       useGlobalAd: movie.useGlobalAd ?? true,
-      description: movie.description || "",
-      thumbnail: movie.thumbnail || movie.posterUrl || "",
-      videoLink: movie.videoLink || movie.videoUrl || "",
-      year: movie.year || 2024,
-      posterUrl: movie.posterUrl || "",
-      videoUrl: movie.videoUrl || "",
     })
     setEditModalOpen(true)
   }
@@ -448,149 +453,187 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex flex-col lg:flex-row">
-      {editModalOpen && editingMovie && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0F1018] border border-white/10 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Edit Movie</h2>
-              <button
-                onClick={() => {
-                  setEditModalOpen(false)
-                  setEditingMovie(null)
-                }}
-                className="p-2 hover:bg-white/10 rounded-lg transition-all"
-              >
-                <X className="w-5 h-5 text-white" />
-              </button>
+      {/* Edit Movie Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-[#1A1B23] border border-[#00FFFF]/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-[#00FFFF]">Edit Movie</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-white font-medium mb-2 text-sm">Title</label>
+              <input
+                type="text"
+                value={editingMovie?.title || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, title: e.target.value })}
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Movie Title</label>
+            <div>
+              <label className="block text-white font-medium mb-2 text-sm">Year</label>
+              <input
+                type="number"
+                value={editingMovie?.year || 2024}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, year: Number.parseInt(e.target.value) })}
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-white font-medium mb-2 text-sm">Genre</label>
+              <select
+                value={editingMovie?.genre || "Action"}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, genre: e.target.value })}
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              >
+                <option value="Action">Action</option>
+                <option value="Drama">Drama</option>
+                <option value="Sci-Fi">Sci-Fi</option>
+                <option value="Thriller">Thriller</option>
+                <option value="Comedy">Comedy</option>
+                <option value="Nollywood">Nollywood</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-white font-medium mb-2 text-sm">Status</label>
+              <select
+                value={editingMovie?.status || "Published"}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, status: e.target.value })}
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              >
+                <option value="Published">Published</option>
+                <option value="Draft">Draft</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-white font-medium mb-2 text-sm">Poster/Thumbnail URL</label>
+              <input
+                type="url"
+                value={editingMovie?.posterUrl || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, posterUrl: e.target.value })}
+                placeholder="https://example.com/movie-poster.jpg"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-white font-medium mb-2 text-sm">Video URL (Embedded Link)</label>
+              <input
+                type="url"
+                value={editingMovie?.videoUrl || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, videoUrl: e.target.value })}
+                placeholder="https://youtube.com/embed/... or direct video URL"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-white font-medium mb-2 text-sm">Description</label>
+              <textarea
+                value={editingMovie?.description || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, description: e.target.value })}
+                rows={3}
+                placeholder="Movie description..."
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer mb-3">
                 <input
-                  type="text"
-                  value={editingMovie.title}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, title: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                  type="checkbox"
+                  checked={editingMovie?.downloadEnabled || false}
+                  onChange={(e) => setEditingMovie({ ...editingMovie!, downloadEnabled: e.target.checked })}
+                  className="w-4 h-4 accent-cyan-400"
                 />
-              </div>
+                <span className="text-white text-sm font-medium">Enable Download Button</span>
+              </label>
 
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Genre</label>
-                <select
-                  value={editingMovie.genre}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, genre: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                >
-                  <option value="Action">Action</option>
-                  <option value="Drama">Drama</option>
-                  <option value="Sci-Fi">Sci-Fi</option>
-                  <option value="Thriller">Thriller</option>
-                  <option value="Comedy">Comedy</option>
-                  <option value="Nollywood">Nollywood</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Thumbnail URL</label>
+              {editingMovie?.downloadEnabled && (
                 <input
                   type="url"
-                  value={editingMovie.thumbnail || editingMovie.posterUrl}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, thumbnail: e.target.value })}
+                  value={editingMovie?.downloadUrl || ""}
+                  onChange={(e) => setEditingMovie({ ...editingMovie!, downloadUrl: e.target.value })}
+                  placeholder="https://download-link.com/file.mp4"
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
                 />
-              </div>
-
-              <div>
-                <label className="block text-white font-medium mb-2 text-sm">Video URL</label>
-                <input
-                  type="url"
-                  value={editingMovie.videoLink || editingMovie.videoUrl}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, videoLink: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-white font-medium mb-2 text-sm">Description</label>
-                <textarea
-                  value={editingMovie.description || ""}
-                  onChange={(e) => setEditingMovie({ ...editingMovie, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingMovie.downloadEnabled || false}
-                    onChange={(e) => setEditingMovie({ ...editingMovie, downloadEnabled: e.target.checked })}
-                    className="w-4 h-4 accent-cyan-400"
-                  />
-                  <span className="text-white text-sm">Enable Download</span>
-                </label>
-              </div>
-
-              {editingMovie.downloadEnabled && (
-                <div>
-                  <label className="block text-white font-medium mb-2 text-sm">Download URL</label>
-                  <input
-                    type="url"
-                    value={editingMovie.downloadUrl || ""}
-                    onChange={(e) => setEditingMovie({ ...editingMovie, downloadUrl: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingMovie.useGlobalAd ?? true}
-                    onChange={(e) => setEditingMovie({ ...editingMovie, useGlobalAd: e.target.checked })}
-                    className="w-4 h-4 accent-cyan-400"
-                  />
-                  <span className="text-white text-sm">Use Global Ad</span>
-                </label>
-              </div>
-
-              {!editingMovie.useGlobalAd && (
-                <div>
-                  <label className="block text-white font-medium mb-2 text-sm">Custom VAST URL</label>
-                  <input
-                    type="url"
-                    value={editingMovie.customVastUrl || ""}
-                    onChange={(e) => setEditingMovie({ ...editingMovie, customVastUrl: e.target.value })}
-                    placeholder="https://example.com/vast.xml"
-                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                  />
-                </div>
               )}
             </div>
 
-            <div className="flex gap-4 pt-6">
-              <button
-                onClick={handleSaveEdit}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
-              >
-                Save Changes
-              </button>
-              <button
-                onClick={() => {
-                  setEditModalOpen(false)
-                  setEditingMovie(null)
-                }}
-                className="px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-lg hover:bg-white/10 transition-all"
-              >
-                Cancel
-              </button>
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer mb-3">
+                <input
+                  type="checkbox"
+                  checked={!(editingMovie?.useGlobalAd ?? true)}
+                  onChange={(e) => setEditingMovie({ ...editingMovie!, useGlobalAd: !e.target.checked })}
+                  className="w-4 h-4 accent-cyan-400"
+                />
+                <span className="text-white text-sm font-medium">Use Custom Pre-roll Ad</span>
+              </label>
+
+              {!(editingMovie?.useGlobalAd ?? true) && (
+                <input
+                  type="url"
+                  value={editingMovie?.customVastUrl || ""}
+                  onChange={(e) => setEditingMovie({ ...editingMovie!, customVastUrl: e.target.value })}
+                  placeholder="https://vast-url.com/ad.xml"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                />
+              )}
             </div>
           </div>
-        </div>
-      )}
+
+          <DialogHeader className="mt-6">
+            <DialogTitle className="text-lg font-bold text-white/80">Ad Settings for this Movie</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-white font-medium mb-2 text-sm">Custom VAST URL</label>
+              <input
+                type="url"
+                value={editingMovie?.customVastUrl || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, customVastUrl: e.target.value })}
+                placeholder="https://vast-url.com/ad.xml"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-white font-medium mb-2 text-sm">Use Global Ad</label>
+              <select
+                value={editingMovie?.useGlobalAd?.toString() || "true"}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, useGlobalAd: e.target.value === "true" })}
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              >
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-4 pt-8">
+            <button
+              onClick={handleSaveEdit}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+            >
+              Save Changes
+            </button>
+            <button
+              onClick={() => {
+                setEditModalOpen(false)
+                setEditingMovie(null)
+              }}
+              className="px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-lg hover:bg-white/10 transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}

@@ -26,15 +26,18 @@ export default function PrerollAdPlayer({
 
   useEffect(() => {
     console.log("[v0] PrerollAdPlayer mounted with VAST URL:", vastUrl)
+    console.log("[v0] Skip delay:", skipDelay, "Max duration:", maxDuration)
 
     const skipTimer = setTimeout(() => {
       setCanSkip(true)
+      console.log("[v0] Skip button now available")
     }, skipDelay * 1000)
 
     const countdownInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(countdownInterval)
+          console.log("[v0] Ad timeout reached, proceeding to video")
           onComplete()
           return 0
         }

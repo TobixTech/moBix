@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { motion } from "framer-motion"
 import { ExternalLink } from "lucide-react"
 
@@ -8,6 +9,40 @@ interface NativeAdCardProps {
 }
 
 export default function NativeAdCard({ adCode }: NativeAdCardProps) {
+  const adContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (adCode && adContainerRef.current) {
+      // Clear any existing content
+      adContainerRef.current.innerHTML = ""
+
+      // Create a temporary container to parse the HTML
+      const tempDiv = document.createElement("div")
+      tempDiv.innerHTML = adCode.trim()
+
+      // Extract scripts and other elements
+      const scripts = tempDiv.querySelectorAll("script")
+      const otherElements = Array.from(tempDiv.children).filter((el) => el.tagName !== "SCRIPT")
+
+      // Append non-script elements first
+      otherElements.forEach((el) => {
+        adContainerRef.current?.appendChild(el.cloneNode(true))
+      })
+
+      // Execute scripts
+      scripts.forEach((oldScript) => {
+        const newScript = document.createElement("script")
+        Array.from(oldScript.attributes).forEach((attr) => {
+          newScript.setAttribute(attr.name, attr.value)
+        })
+        newScript.textContent = oldScript.textContent
+        adContainerRef.current?.appendChild(newScript)
+      })
+
+      console.log("[v0] Ad script injected successfully")
+    }
+  }, [adCode])
+
   if (!adCode) return null
 
   return (
@@ -24,11 +59,8 @@ export default function NativeAdCard({ adCode }: NativeAdCardProps) {
           Ad
         </div>
 
-        {/* Ad Content */}
-        <div
-          className="w-full aspect-[2/3] flex items-center justify-center p-4"
-          dangerouslySetInnerHTML={{ __html: adCode }}
-        />
+        {/* Ad Content - Script will be injected here */}
+        <div ref={adContainerRef} className="w-full aspect-[2/3] flex items-center justify-center p-4 min-h-[360px]" />
 
         {/* Ad Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
