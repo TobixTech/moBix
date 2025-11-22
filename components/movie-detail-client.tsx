@@ -50,12 +50,14 @@ export default function MovieDetailClient({
   adBannerVertical,
   adBannerHorizontal,
   vastUrl,
+  smartLinkUrl, // Added smartLinkUrl prop
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
   adBannerVertical?: React.ReactNode
   adBannerHorizontal?: React.ReactNode
   vastUrl?: string
+  smartLinkUrl?: string // Added smartLinkUrl type
 }) {
   const { userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
@@ -154,19 +156,18 @@ export default function MovieDetailClient({
   const handleDownload = () => {
     if (!movie.downloadUrl) return
 
+    const adUrl =
+      smartLinkUrl || "https://www.profitablecreativegatetocontent.com/smartlink/?a=259210&sm=27962918&co=&mt=8"
+
     if (adClickCount < 2) {
-      // Show ad and increment counter
       setAdClickCount((prev) => prev + 1)
       console.log(`[v0] Ad shown ${adClickCount + 1} of 2 times`)
-
-      // Open ad in new tab (Adsterra Smart Link)
-      window.open("https://www.profitablecreativegatetocontent.com/smartlink/?a=259210&sm=27962918&co=&mt=8", "_blank")
+      window.open(adUrl, "_blank")
 
       if (adClickCount + 1 >= 2) {
         setShowDownloadLink(true)
       }
     } else {
-      // After 2 ad clicks, allow download
       window.open(movie.downloadUrl, "_blank")
     }
   }

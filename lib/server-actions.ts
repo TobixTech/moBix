@@ -661,14 +661,80 @@ export async function deleteComment(commentId: string) {
       return { success: false, error: "Unauthorized" }
     }
 
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    })
+
+    if (!user || user.role !== "ADMIN") {
+      return { success: false, error: "Only admins can delete comments" }
+    }
+
     await prisma.comment.delete({
       where: { id: commentId },
     })
 
+    revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
     console.error("[v0] Error deleting comment:", error)
     return { success: false, error: error.message || "Failed to delete comment" }
+  }
+}
+
+export async function banUser(userId: string) {
+  try {
+    const { userId: adminId } = await auth()
+    if (!adminId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const admin = await prisma.user.findUnique({
+      where: { clerkId: adminId },
+    })
+
+    if (!admin || admin.role !== "ADMIN") {
+      return { success: false, error: "Only admins can ban users" }
+    }
+
+    // Update user role to BANNED
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role: "BANNED" },
+    })
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error banning user:", error)
+    return { success: false, error: error.message || "Failed to ban user" }
+  }
+}
+
+export async function deleteUser(userId: string) {
+  try {
+    const { userId: adminId } = await auth()
+    if (!adminId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const admin = await prisma.user.findUnique({
+      where: { clerkId: adminId },
+    })
+
+    if (!admin || admin.role !== "ADMIN") {
+      return { success: false, error: "Only admins can delete users" }
+    }
+
+    await prisma.user.delete({
+      where: { id: userId },
+    })
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error deleting user:", error)
+    return { success: false, error: error.message || "Failed to delete user" }
   }
 }
 
@@ -683,44 +749,60 @@ export async function getAdSettings() {
 }
 
 export async function updateAdSettings(settings: {
-  vastUrl?: string
-  adTimeoutSeconds?: number
-  showPrerollAds?: boolean
   horizontalAdCode?: string
   verticalAdCode?: string
+  vastUrl?: string
+  smartLinkUrl?: string
+  adTimeoutSeconds?: number
+  showPrerollAds?: boolean
   homepageEnabled?: boolean
   movieDetailEnabled?: boolean
-  dashboardEnabled?: boolean
 }) {
   try {
+    const { userId } = await auth()
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
     console.log("[v0] Updating ad settings:", settings)
 
-    const existing = await prisma.adSettings.findFirst()
+    // Get or create ad settings
+    let adSettings = await prisma.adSettings.findFirst()
 
-    if (existing) {
-      const updated = await prisma.adSettings.update({
-        where: { id: existing.id },
-        data: settings,
-      })
-      console.log("[v0] Ad settings updated successfully")
-      revalidatePath("/admin/dashboard")
-      revalidatePath("/")
-      revalidatePath("/movie/[id]")
-      return { success: true, settings: updated }
-    } else {
-      const created = await prisma.adSettings.create({
+    if (!adSettings) {
+      adSettings = await prisma.adSettings.create({
         data: {
-          ...settings,
+          horizontalAdCode: settings.horizontalAdCode || "",
+          verticalAdCode: settings.verticalAdCode || "",
           vastUrl: settings.vastUrl || "",
+          smartLinkUrl: settings.smartLinkUrl || "",
           adTimeoutSeconds: settings.adTimeoutSeconds || 20,
           showPrerollAds: settings.showPrerollAds ?? true,
+          homepageEnabled: settings.homepageEnabled ?? true,
+          movieDetailEnabled: settings.movieDetailEnabled ?? true,
         },
       })
-      console.log("[v0] Ad settings created successfully")
-      revalidatePath("/admin/dashboard")
-      revalidatePath("/")
-      return { success: true, settings: created }
+    } else {
+      adSettings = await prisma.adSettings.update({
+        where: { id: adSettings.id },
+        data: {
+          horizontalAdCode: settings.horizontalAdCode,
+          verticalAdCode: settings.verticalAdCode,
+          vastUrl: settings.vastUrl,
+          smartLinkUrl: settings.smartLinkUrl,
+          adTimeoutSeconds: settings.adTimeoutSeconds,
+          showPrerollAds: settings.showPrerollAds,
+          homepageEnabled: settings.homepageEnabled,
+          movieDetailEnabled: settings.movieDetailEnabled,
+        },
+      })
     }
+
+    console.log("[v0] Ad settings updated successfully:", adSettings)
+    revalidatePath("/admin/dashboard")
+
+    return { success: true, data: adSettings }
   } catch (error: any) {
     console.error("[v0] Error updating ad settings:", error)
     return { success: false, error: error.message || "Failed to update ad settings" }

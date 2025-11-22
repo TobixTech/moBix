@@ -87,7 +87,8 @@ model AdSettings {
   id                 String   @id @default(uuid())
   horizontalAdCode   String?  // For banner ads in carousels
   verticalAdCode     String?  // For sidebar ads
-  vastUrl            String?  // Changed from vastPrerollUrl to match database
+  vastUrl            String?  // VAST URL for pre-roll video ads
+  smartLinkUrl       String?  // Added Smart Link URL for download button ads
   adTimeoutSeconds   Int      @default(20)
   showPrerollAds     Boolean  @default(true)
   showDownloadPageAds Boolean @default(true)

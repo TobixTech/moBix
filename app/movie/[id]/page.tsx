@@ -25,7 +25,8 @@ export default async function MovieDetail({
   }
 
   console.log("[v0] Movie loaded successfully:", movie.title)
-  console.log("[v0] Ad settings loaded, VAST URL:", adSettings?.vastPrerollUrl || "Not configured")
+  console.log("[v0] Ad settings loaded, VAST URL:", adSettings?.vastUrl || "Not configured")
+  console.log("[v0] Smart Link URL:", adSettings?.smartLinkUrl || "Not configured")
 
   const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
@@ -37,7 +38,8 @@ export default async function MovieDetail({
         <MovieDetailClient
           movie={movie}
           relatedMovies={relatedMovies}
-          vastUrl={adSettings?.vastPrerollUrl}
+          vastUrl={adSettings?.vastUrl} // Updated from vastPrerollUrl to vastUrl
+          smartLinkUrl={adSettings?.smartLinkUrl} // Added Smart Link URL prop
           adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
           adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}
         />

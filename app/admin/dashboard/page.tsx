@@ -19,6 +19,7 @@ import {
   Loader,
   Settings,
   Save,
+  Ban,
 } from "lucide-react"
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
@@ -27,12 +28,15 @@ import {
   getTrendingMovies,
   getRecentSignups,
   getAdminMovies,
-  getAdminUsers,
+  getAdminUsers, // Fixed import from getAllUsers to getAdminUsers
   uploadMovie,
   updateMovie,
   deleteMovie,
   getAdSettings, // Added import for getAdSettings
   updateAdSettings, // Added import for updateAdSettings
+  deleteComment, // Added import for deleteComment server action
+  banUser, // Added import for banUser server action
+  deleteUser, // Added import for deleteUser server action
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -72,7 +76,7 @@ interface Signup {
 }
 
 interface User {
-  id: number
+  id: string // Changed to string to match server action return type
   email: string
   dateJoined: string
   role: string
@@ -115,6 +119,7 @@ export default function AdminDashboard() {
     horizontalAdCode: "",
     verticalAdCode: "",
     vastUrl: "",
+    smartLinkUrl: "", // Added Smart Link URL state
     adTimeout: 20,
     showPrerollAds: true,
     showHomepageAds: true,
@@ -171,7 +176,7 @@ export default function AdminDashboard() {
           getTrendingMovies(),
           getRecentSignups(),
           getAdminMovies(),
-          getAdminUsers(),
+          getAdminUsers(), // Fixed from getAllUsers to getAdminUsers
           getAdSettings(), // Added call to getAdSettings
         ])
         setMetrics(metricsData)
@@ -185,6 +190,7 @@ export default function AdminDashboard() {
             horizontalAdCode: adSettingsData.horizontalAdCode || "",
             verticalAdCode: adSettingsData.verticalAdCode || "",
             vastUrl: adSettingsData.vastUrl || "",
+            smartLinkUrl: adSettingsData.smartLinkUrl || "", // Initialize smartLinkUrl
             adTimeout: adSettingsData.adTimeoutSeconds || 20,
             showPrerollAds: adSettingsData.showPrerollAds ?? true,
             showHomepageAds: adSettingsData.homepageEnabled ?? true,
@@ -317,6 +323,7 @@ export default function AdminDashboard() {
       horizontalAdCode: adSettings.horizontalAdCode,
       verticalAdCode: adSettings.verticalAdCode,
       vastUrl: adSettings.vastUrl,
+      smartLinkUrl: adSettings.smartLinkUrl, // Include Smart Link URL
       adTimeoutSeconds: adSettings.adTimeout,
       showPrerollAds: adSettings.showPrerollAds,
       homepageEnabled: adSettings.showHomepageAds,
@@ -356,16 +363,56 @@ export default function AdminDashboard() {
     }
 
     setLoading(true)
-    const response = await fetch(`/api/admin/comments/${commentId}`, {
-      method: "DELETE",
-    })
+    const result = await deleteComment(commentId)
 
-    if (response.ok) {
+    if (result.success) {
+      // Refresh comments
       const commentsResponse = await fetch("/api/admin/comments")
       const commentsData = await commentsResponse.json()
       setComments(commentsData)
+      alert("Comment deleted successfully!")
     } else {
-      alert("Failed to delete comment")
+      alert(`Failed to delete comment: ${result.error}`)
+    }
+
+    setLoading(false)
+  }
+
+  const handleBanUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to ban this user?")) {
+      return
+    }
+
+    setLoading(true)
+    const result = await banUser(userId)
+
+    if (result.success) {
+      // Refresh users
+      const usersData = await getAdminUsers() // Fixed from getAllUsers to getAdminUsers
+      setUsers(usersData)
+      alert("User banned successfully!")
+    } else {
+      alert(`Failed to ban user: ${result.error}`)
+    }
+
+    setLoading(false)
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+      return
+    }
+
+    setLoading(true)
+    const result = await deleteUser(userId)
+
+    if (result.success) {
+      // Refresh users
+      const usersData = await getAdminUsers() // Fixed from getAllUsers to getAdminUsers
+      setUsers(usersData)
+      alert("User deleted successfully!")
+    } else {
+      alert(`Failed to delete user: ${result.error}`)
     }
 
     setLoading(false)
@@ -411,7 +458,7 @@ export default function AdminDashboard() {
                   onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
                   placeholder="Enter 4-digit PIN"
                   disabled={pinLoading}
-                  className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white text-center text-2xl tracking-widest placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all disabled:opacity-50"
+                  className="w-full px-4 py-2 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white text-center text-2xl tracking-widest placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all disabled:opacity-50"
                   required
                 />
               </div>
@@ -1073,19 +1120,23 @@ export default function AdminDashboard() {
                               {user.role}
                             </span>
                           </td>
-                          <td className="px-6 py-4 flex gap-2">
-                            <button
-                              className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
-                              title="Ban User"
-                            >
-                              <X className="w-4 h-4 text-red-400" />
-                            </button>
-                            <button
-                              className="p-2 bg-white/5 hover:bg-yellow-500/20 rounded-lg transition-all"
-                              title="Reset Password"
-                            >
-                              <X className="w-4 h-4 text-yellow-400" />
-                            </button>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleBanUser(user.id)}
+                                className="p-2 bg-white/5 hover:bg-yellow-500/20 rounded-lg transition-all"
+                                title="Ban User"
+                              >
+                                <Ban className="w-4 h-4 text-yellow-400" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
+                                title="Delete User"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-400" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1204,6 +1255,24 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="border-t border-white/10 pt-6">
+                  <h3 className="text-white font-bold text-lg mb-4">Download Button Smart Link</h3>
+                  <div>
+                    <label className="block text-white/70 text-sm mb-2">Adsterra Smart Link URL</label>
+                    <input
+                      type="url"
+                      value={adSettings.smartLinkUrl}
+                      onChange={(e) => setAdSettings({ ...adSettings, smartLinkUrl: e.target.value })}
+                      placeholder="https://www.profitablecreativegatetocontent.com/smartlink/?a=..."
+                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                    />
+                    <p className="text-white/40 text-xs mt-1">
+                      This Smart Link will be shown 2 times before users can download. Get your Smart Link from
+                      Adsterra's Smart Link campaign.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10 pt-6">
                   <h3 className="text-white font-bold text-lg mb-4">Native Ad Cards (Adsterra)</h3>
                   <div className="space-y-4">
                     <div>
@@ -1211,12 +1280,13 @@ export default function AdminDashboard() {
                       <textarea
                         value={adSettings.horizontalAdCode}
                         onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
-                        placeholder='<script type="text/javascript">...</script>'
+                        placeholder='<script async="async" data-cfasync="false" src="//pl28063417.effectivegatecpm.com/..."></script><div id="container-..."></div>'
                         rows={4}
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
                       />
                       <p className="text-white/40 text-xs mt-1">
-                        Paste your Adsterra Native Banner ad code here. Ads will appear after every 2 movies.
+                        Paste your complete Adsterra Native Banner ad code (including script and div tags). Ads will
+                        appear after every 2 movies.
                       </p>
                     </div>
 
@@ -1225,12 +1295,13 @@ export default function AdminDashboard() {
                       <textarea
                         value={adSettings.verticalAdCode}
                         onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
-                        placeholder='<script type="text/javascript">...</script>'
+                        placeholder='<script async="async" data-cfasync="false" src="//pl28063417.effectivegatecpm.com/..."></script><div id="container-..."></div>'
                         rows={4}
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
                       />
                       <p className="text-white/40 text-xs mt-1">
-                        Paste your Adsterra vertical banner ad code here for movie detail sidebars.
+                        Paste your complete Adsterra vertical banner ad code (including script and div tags) for movie
+                        detail sidebars.
                       </p>
                     </div>
 
