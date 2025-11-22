@@ -67,6 +67,9 @@ export default function MovieDetailClient({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
 
+  const [adClickCount, setAdClickCount] = useState(0)
+  const [showDownloadLink, setShowDownloadLink] = useState(false)
+
   const isEmbedUrl = (url: string) => {
     return (
       url.includes("youtube.com/embed") ||
@@ -149,13 +152,22 @@ export default function MovieDetailClient({
   const finalVastUrl = movie.useGlobalAd !== false ? vastUrl : movie.customVastUrl
 
   const handleDownload = () => {
-    if (movie.downloadUrl) {
-      // Trigger Adsterra ad click before download
-      console.log("[v0] Download initiated, showing ad...")
-      // Open download in new tab after brief delay
-      setTimeout(() => {
-        window.open(movie.downloadUrl, "_blank")
-      }, 500)
+    if (!movie.downloadUrl) return
+
+    if (adClickCount < 2) {
+      // Show ad and increment counter
+      setAdClickCount((prev) => prev + 1)
+      console.log(`[v0] Ad shown ${adClickCount + 1} of 2 times`)
+
+      // Open ad in new tab (Adsterra Smart Link)
+      window.open("https://www.profitablecreativegatetocontent.com/smartlink/?a=259210&sm=27962918&co=&mt=8", "_blank")
+
+      if (adClickCount + 1 >= 2) {
+        setShowDownloadLink(true)
+      }
+    } else {
+      // After 2 ad clicks, allow download
+      window.open(movie.downloadUrl, "_blank")
     }
   }
 
@@ -222,10 +234,10 @@ export default function MovieDetailClient({
               {movie.downloadEnabled && movie.downloadUrl && (
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-2 px-6 py-3 bg-[#1A1B23] text-white border border-[#2A2B33] rounded-lg hover:border-[#00FFFF] hover:text-[#00FFFF] transition-all"
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all"
                 >
                   <Download className="w-5 h-5" />
-                  Download
+                  {adClickCount < 2 ? `Download (Step ${adClickCount + 1}/2)` : "Download Now"}
                 </button>
               )}
             </div>

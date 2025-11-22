@@ -261,13 +261,15 @@ export default function AdminDashboard() {
     console.log("[v0] Editing movie:", movie)
     setEditingMovie({
       ...movie,
-      // Ensure all fields are properly set
       title: movie.title || "",
       description: movie.description || "",
       year: movie.year || 2024,
       genre: movie.genre || "Action",
       posterUrl: movie.posterUrl || "",
       videoUrl: movie.videoUrl || "",
+      // Use videoUrl for both videoLink and videoUrl to ensure form displays correctly
+      videoLink: movie.videoUrl || "",
+      thumbnail: movie.posterUrl || "",
       downloadEnabled: movie.downloadEnabled || false,
       downloadUrl: movie.downloadUrl || "",
       customVastUrl: movie.customVastUrl || "",
@@ -285,7 +287,9 @@ export default function AdminDashboard() {
       description: editingMovie.description || "",
       year: editingMovie.year || 2024,
       genre: editingMovie.genre || "Action",
+      // Use whichever field has a value, fallback to existing posterUrl
       posterUrl: editingMovie.thumbnail || editingMovie.posterUrl || "",
+      // Use whichever field has a value, fallback to existing videoUrl
       videoUrl: editingMovie.videoLink || editingMovie.videoUrl || "",
       isFeatured: editingMovie.status === "Published",
       downloadEnabled: editingMovie.downloadEnabled || false,
@@ -510,11 +514,13 @@ export default function AdminDashboard() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-white font-medium mb-2 text-sm">Poster/Thumbnail URL</label>
+              <label className="block text-white font-medium mb-2 text-sm">Poster URL (Thumbnail)</label>
               <input
                 type="url"
-                value={editingMovie?.posterUrl || ""}
-                onChange={(e) => setEditingMovie({ ...editingMovie!, posterUrl: e.target.value })}
+                value={editingMovie?.thumbnail || editingMovie?.posterUrl || ""}
+                onChange={(e) =>
+                  setEditingMovie({ ...editingMovie!, thumbnail: e.target.value, posterUrl: e.target.value })
+                }
                 placeholder="https://example.com/movie-poster.jpg"
                 className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
               />
@@ -524,8 +530,10 @@ export default function AdminDashboard() {
               <label className="block text-white font-medium mb-2 text-sm">Video URL (Embedded Link)</label>
               <input
                 type="url"
-                value={editingMovie?.videoUrl || ""}
-                onChange={(e) => setEditingMovie({ ...editingMovie!, videoUrl: e.target.value })}
+                value={editingMovie?.videoLink || editingMovie?.videoUrl || ""}
+                onChange={(e) =>
+                  setEditingMovie({ ...editingMovie!, videoLink: e.target.value, videoUrl: e.target.value })
+                }
                 placeholder="https://youtube.com/embed/... or direct video URL"
                 className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
               />

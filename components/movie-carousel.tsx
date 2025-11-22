@@ -96,6 +96,7 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
   const moviesWithAds: (Movie | { isAd: true; id: string })[] = []
   movies.forEach((movie, index) => {
     moviesWithAds.push(movie)
+    // Add ad after every 2nd movie (index 1, 3, 5, 7, etc.)
     if ((index + 1) % 2 === 0 && adCode) {
       moviesWithAds.push({ isAd: true, id: `ad-${index}` })
     }

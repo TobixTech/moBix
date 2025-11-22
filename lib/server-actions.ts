@@ -406,10 +406,14 @@ export async function updateMovie(
     videoUrl: string
     isTrending?: boolean
     isFeatured?: boolean
+    downloadEnabled?: boolean
+    downloadUrl?: string
+    customVastUrl?: string
+    useGlobalAd?: boolean
   },
 ) {
   try {
-    console.log("[v0] Updating movie:", id)
+    console.log("[v0] Updating movie:", id, formData)
 
     const movie = await prisma.movie.update({
       where: { id },
@@ -422,6 +426,10 @@ export async function updateMovie(
         videoUrl: formData.videoUrl,
         isTrending: formData.isTrending || false,
         isFeatured: formData.isFeatured || false,
+        downloadEnabled: formData.downloadEnabled || false,
+        downloadUrl: formData.downloadUrl || "",
+        customVastUrl: formData.customVastUrl || "",
+        useGlobalAd: formData.useGlobalAd ?? true,
       },
     })
 
