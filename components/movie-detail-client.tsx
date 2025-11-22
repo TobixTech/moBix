@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Play, Heart, Star, Send, Loader, Download } from "lucide-react"
+import { Heart, Star, Send, Loader, Download } from "lucide-react"
 import { toggleLike, addComment } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
@@ -211,10 +211,15 @@ export default function MovieDetailClient({
             </div>
 
             <div className="flex flex-wrap gap-3 mb-6">
-              <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all">
-                <Play className="w-5 h-5" />
-                Watch Now
-              </button>
+              {movie.downloadEnabled && movie.downloadUrl && (
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all"
+                >
+                  <Download className="w-5 h-5" />
+                  {adClickCount < 2 ? `Download (Step ${adClickCount + 1}/2)` : "Download Now"}
+                </button>
+              )}
               <button
                 onClick={handleLike}
                 disabled={isLiking}
@@ -231,16 +236,6 @@ export default function MovieDetailClient({
                 )}
                 <span>{likesCount}</span>
               </button>
-
-              {movie.downloadEnabled && movie.downloadUrl && (
-                <button
-                  onClick={handleDownload}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all"
-                >
-                  <Download className="w-5 h-5" />
-                  {adClickCount < 2 ? `Download (Step ${adClickCount + 1}/2)` : "Download Now"}
-                </button>
-              )}
             </div>
 
             {/* Description */}
