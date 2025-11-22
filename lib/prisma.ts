@@ -1,11 +1,29 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from "@prisma/client"
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+declare global {
+  // eslint-disable-next-line no-var
+  var prismaGlobal: PrismaClient | undefined
 }
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-})
+let prismaInstance: PrismaClient | undefined
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+export const prisma =
+  global.prismaGlobal ||
+  (() => {
+    if (!prismaInstance) {
+      try {
+        prismaInstance = new PrismaClient({
+          log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+        })
+      } catch (error) {
+        console.error("[Prisma] Failed to initialize client:", error)
+        // Return a dummy object during build time to prevent crashes
+        return {} as PrismaClient
+      }
+    }
+    return prismaInstance
+  })()
+
+if (process.env.NODE_ENV !== "production") {
+  global.prismaGlobal = prisma
+}

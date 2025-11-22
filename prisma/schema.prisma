@@ -13,17 +13,11 @@ model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique
   email     String   @unique
-  role      String   @default("USER") // Changed from enum to String to match DB
+  role      String   @default("USER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   likes     Like[]
   comments  Comment[]
-}
-
-// User Roles
-enum Role {
-  USER
-  ADMIN
 }
 
 // Movie Model (For all movie data)
@@ -88,7 +82,7 @@ model AdSettings {
   horizontalAdCode   String?  // For banner ads in carousels
   verticalAdCode     String?  // For sidebar ads
   vastUrl            String?  // VAST URL for pre-roll video ads
-  smartLinkUrl       String?  // Added Smart Link URL for download button ads
+  smartLinkUrl       String?  // Smart Link URL for download button ads
   adTimeoutSeconds   Int      @default(20)
   showPrerollAds     Boolean  @default(true)
   showDownloadPageAds Boolean @default(true)
