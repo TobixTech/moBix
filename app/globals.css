@@ -124,7 +124,6 @@
   }
 }
 
-/* Added heartbeat animation for moBix logo */
 @keyframes heartbeat {
   0%,
   100% {
@@ -141,23 +140,60 @@
   animation: heartbeat 2s ease-in-out infinite;
 }
 
-/* Cyan glow effect for primary elements */
+/* iOS/Safari cyan color fix with webkit prefixes */
 .glow-cyan {
   box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+  -webkit-box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
 }
 
 .glow-cyan-hover:hover {
   box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+  -webkit-box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
 }
 
-/* Added scrollbar hiding for carousels */
+/* Force cyan color rendering on iOS */
+.text-cyan {
+  color: #00ffff;
+  -webkit-text-fill-color: #00ffff;
+}
+
+.bg-cyan {
+  background-color: #00ffff;
+  -webkit-appearance: none;
+}
+
+.border-cyan {
+  border-color: #00ffff;
+}
+
+/* Fix gradient rendering on iOS */
+.gradient-cyan {
+  background: linear-gradient(to right, #00ffff, #00cccc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 @layer utilities {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-  
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Fix navbar z-index and positioning for search bar */
+  .navbar-fixed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+  }
+
+  .content-with-navbar {
+    padding-top: 80px;
   }
 }

@@ -1,10 +1,13 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Play, Heart, Star, Send, Loader } from 'lucide-react'
+import { Play, Heart, Star, Send, Loader, Download } from "lucide-react"
 import { toggleLike, addComment } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
+import { useAuthModal } from "./auth-modal-wrapper"
 import Link from "next/link"
 
 interface Comment {
@@ -25,6 +28,7 @@ interface Movie {
   genre: string
   posterUrl: string
   videoUrl: string
+  downloadUrl?: string
   views: number
   likesCount: number
   avgRating: number
@@ -49,66 +53,79 @@ export default function MovieDetailClient({
   adBannerHorizontal?: React.ReactNode
 }) {
   const { userId } = useAuth()
+  const authModal = useAuthModal()
   const [isLiked, setIsLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(movie.likesCount)
   const [isLiking, setIsLiking] = useState(false)
-  
+
   const [commentText, setCommentText] = useState("")
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
 
+  const [isDownloading, setIsDownloading] = useState(false)
+
   const isEmbedUrl = (url: string) => {
-    return url.includes('youtube.com/embed') || 
-           url.includes('youtu.be') ||
-           url.includes('vimeo.com') ||
-           url.includes('dailymotion.com') ||
-           url.includes('drive.google.com')
+    return (
+      url.includes("youtube.com/embed") ||
+      url.includes("youtu.be") ||
+      url.includes("vimeo.com") ||
+      url.includes("dailymotion.com") ||
+      url.includes("drive.google.com")
+    )
   }
 
   const getEmbedUrl = (url: string) => {
-    // YouTube watch URL to embed
-    if (url.includes('youtube.com/watch')) {
-      const videoId = new URL(url).searchParams.get('v')
+    if (url.includes("youtube.com/watch")) {
+      const videoId = new URL(url).searchParams.get("v")
       return `https://www.youtube.com/embed/${videoId}`
     }
-    // YouTube short URL to embed
-    if (url.includes('youtu.be/')) {
-      const videoId = url.split('youtu.be/')[1].split('?')[0]
+    if (url.includes("youtu.be/")) {
+      const videoId = url.split("youtu.be/")[1].split("?")[0]
       return `https://www.youtube.com/embed/${videoId}`
     }
-    // Vimeo URL to embed
-    if (url.includes('vimeo.com/') && !url.includes('/video/')) {
-      const videoId = url.split('vimeo.com/')[1].split('?')[0]
+    if (url.includes("vimeo.com/") && !url.includes("/video/")) {
+      const videoId = url.split("vimeo.com/")[1].split("?")[0]
       return `https://player.vimeo.com/video/${videoId}`
     }
     return url
   }
 
   const handleLike = async () => {
-    if (!userId) {
-      alert("Please sign in to like movies")
-      return
-    }
-
     setIsLiking(true)
     const result = await toggleLike(movie.id)
-    
+
     if (result.success) {
       setIsLiked(result.liked || false)
       setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
     } else {
-      alert(result.error || "Failed to like movie")
+      if (!userId) {
+        const likedMovies = JSON.parse(localStorage.getItem("likedMovies") || "[]")
+        if (likedMovies.includes(movie.id)) {
+          const updatedLikes = likedMovies.filter((id: string) => id !== movie.id)
+          localStorage.setItem("likedMovies", JSON.stringify(updatedLikes))
+          setIsLiked(false)
+          setLikesCount((prev) => prev - 1)
+        } else {
+          likedMovies.push(movie.id)
+          localStorage.setItem("likedMovies", JSON.stringify(likedMovies))
+          setIsLiked(true)
+          setLikesCount((prev) => prev + 1)
+        }
+      } else {
+        alert(result.error || "Failed to like movie")
+      }
     }
-    
+
     setIsLiking(false)
   }
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!userId) {
       setCommentError("Please sign in to comment")
+      authModal.openAuthModal()
       return
     }
 
@@ -121,24 +138,44 @@ export default function MovieDetailClient({
     setCommentError("")
 
     const result = await addComment(movie.id, commentText, commentRating)
-    
+
     if (result.success) {
-      // Reset form
       setCommentText("")
       setCommentRating(5)
-      // Refresh page to show new comment
       window.location.reload()
     } else {
       setCommentError(result.error || "Failed to post comment")
     }
-    
+
     setIsSubmitting(false)
+  }
+
+  const handleDownload = async () => {
+    if (!movie.downloadUrl) {
+      alert("Download link not available for this movie")
+      return
+    }
+
+    setIsDownloading(true)
+
+    const adScript = document.getElementById("adsterra-button-click")
+    if (adScript) {
+      try {
+        eval(adScript.textContent || "")
+      } catch (error) {
+        console.log("[v0] Ad script execution skipped")
+      }
+    }
+
+    setTimeout(() => {
+      window.open(movie.downloadUrl, "_blank")
+      setIsDownloading(false)
+    }, 2000)
   }
 
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-        {/* Main Content */}
         <div className="lg:col-span-2">
           <motion.div
             className="relative w-full aspect-video bg-[#1A1B23] rounded-lg overflow-hidden border border-[#2A2B33] mb-6 group"
@@ -153,26 +190,24 @@ export default function MovieDetailClient({
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                style={{ border: 'none' }}
+                style={{ border: "none" }}
               />
             ) : (
-              <video 
-                src={movie.videoUrl} 
+              <video
+                src={movie.videoUrl}
                 poster={movie.posterUrl}
                 controls
                 controlsList="nodownload"
                 className="w-full h-full object-contain"
-                style={{ backgroundColor: '#000' }}
+                style={{ backgroundColor: "#000" }}
               >
                 Your browser does not support the video tag.
               </video>
             )}
-            
-            {/* Hover overlay for better UX */}
+
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
           </motion.div>
 
-          {/* Movie Info */}
           <motion.div
             className="mb-8"
             initial={{ opacity: 0, y: 20 }}
@@ -212,14 +247,31 @@ export default function MovieDetailClient({
                 )}
                 <span>{likesCount}</span>
               </button>
+
+              {movie.downloadUrl && (
+                <button
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="flex items-center gap-2 px-6 py-3 bg-green-500/20 border border-green-500 text-green-400 rounded-lg font-bold hover:bg-green-500/30 transition-all disabled:opacity-50"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      <span>Download</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            {/* Description */}
             <div>
               <h3 className="text-white font-bold text-xl mb-3">Description</h3>
-              <p className="text-[#CCCCCC] leading-relaxed">
-                {movie.description}
-              </p>
+              <p className="text-[#CCCCCC] leading-relaxed">{movie.description}</p>
             </div>
           </motion.div>
 
@@ -231,7 +283,6 @@ export default function MovieDetailClient({
           >
             <h3 className="text-2xl font-bold text-white mb-6">Reviews & Comments</h3>
 
-            {/* Add Comment Form */}
             <form onSubmit={handleCommentSubmit} className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 mb-6">
               <div className="mb-4">
                 <label className="block text-white font-medium mb-2">Your Rating</label>
@@ -245,9 +296,7 @@ export default function MovieDetailClient({
                     >
                       <Star
                         className={`w-8 h-8 ${
-                          star <= commentRating
-                            ? "fill-[#00FFFF] text-[#00FFFF]"
-                            : "text-[#2A2B33]"
+                          star <= commentRating ? "fill-[#00FFFF] text-[#00FFFF]" : "text-[#2A2B33]"
                         }`}
                       />
                     </button>
@@ -291,7 +340,6 @@ export default function MovieDetailClient({
               </button>
             </form>
 
-            {/* Comments List */}
             <div className="space-y-4">
               {movie.comments.length === 0 ? (
                 <p className="text-white/50 text-center py-8">No comments yet. Be the first to comment!</p>
@@ -310,18 +358,14 @@ export default function MovieDetailClient({
                           <Star
                             key={i}
                             className={`w-4 h-4 ${
-                              i < comment.rating
-                                ? "fill-[#00FFFF] text-[#00FFFF]"
-                                : "text-[#2A2B33]"
+                              i < comment.rating ? "fill-[#00FFFF] text-[#00FFFF]" : "text-[#2A2B33]"
                             }`}
                           />
                         ))}
                       </div>
                     </div>
                     <p className="text-[#CCCCCC]">{comment.text}</p>
-                    <p className="text-[#666666] text-xs mt-2">
-                      {new Date(comment.createdAt).toLocaleDateString()}
-                    </p>
+                    <p className="text-[#666666] text-xs mt-2">{new Date(comment.createdAt).toLocaleDateString()}</p>
                   </motion.div>
                 ))
               )}
@@ -329,11 +373,9 @@ export default function MovieDetailClient({
           </motion.div>
         </div>
 
-        {/* Sidebar */}
         <div className="lg:col-span-1">
           {adBannerVertical}
 
-          {/* Movie Stats */}
           <motion.div
             className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 mb-6"
             initial={{ opacity: 0, x: 20 }}
@@ -365,7 +407,6 @@ export default function MovieDetailClient({
 
       {adBannerHorizontal}
 
-      {/* Related Movies */}
       {relatedMovies.length > 0 && (
         <motion.div
           className="mb-12"
@@ -397,6 +438,8 @@ export default function MovieDetailClient({
           </div>
         </motion.div>
       )}
+
+      <div id="adsterra-button-click" style={{ display: "none" }} />
     </>
   )
 }

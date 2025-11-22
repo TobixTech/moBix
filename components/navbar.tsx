@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Search, User, LogOut, X } from 'lucide-react'
+import { Search, User, LogOut, X } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
@@ -14,7 +14,6 @@ interface NavbarProps {
 }
 
 export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarProps) {
-  const authModal = showAuthButtons ? useAuthModal() : null
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -22,6 +21,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
   const searchRef = useRef<HTMLDivElement>(null)
   const { userId } = useAuth()
   const { signOut } = useClerk()
+  const authModal = useAuthModal()
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -69,6 +69,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
+      style={{ paddingBottom: "0.5rem" }}
     >
       <div className="px-4 md:px-8 py-4 flex items-center justify-between gap-4">
         {/* Logo */}
@@ -106,15 +107,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             </motion.div>
           ))}
           {!showAuthButtons && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Link
-                href="/profile"
-                className="text-white hover:text-[#00FFFF] transition relative group"
-              >
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <Link href="/profile" className="text-white hover:text-[#00FFFF] transition relative group">
                 Profile
                 <motion.div
                   className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"
@@ -194,9 +188,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                       ))}
                     </div>
                   ) : (
-                    <div className="p-4 text-center text-[#888888]">
-                      No results found for "{searchQuery}"
-                    </div>
+                    <div className="p-4 text-center text-[#888888]">No results found for "{searchQuery}"</div>
                   )}
                 </motion.div>
               )}
@@ -213,7 +205,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           {showAuthButtons ? (
             <>
               <motion.button
-                onClick={() => authModal?.openAuthModal()}
+                onClick={() => authModal.openAuthModal()}
                 className="px-4 py-2 text-[#00FFFF] hover:text-[#00CCCC] font-semibold transition"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -221,7 +213,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                 Login
               </motion.button>
               <motion.button
-                onClick={() => authModal?.openAuthModal()}
+                onClick={() => authModal.openAuthModal()}
                 className="px-4 py-2 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -311,9 +303,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-[#888888]">
-                    No results found for "{searchQuery}"
-                  </div>
+                  <div className="p-4 text-center text-[#888888]">No results found for "{searchQuery}"</div>
                 )}
               </motion.div>
             )}

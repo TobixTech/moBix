@@ -32,9 +32,10 @@ model Movie {
   title       String
   description String
   year        Int
-  genre       String
+  genre       String    // Now supports: Action, Drama, Sci-Fi, Comedy, Thriller, Nollywood
   posterUrl   String
   videoUrl    String
+  downloadUrl String?   // Added download link for monetization
   isTrending  Boolean   @default(false)
   isFeatured  Boolean   @default(false)
   views       Int       @default(0)
@@ -80,12 +81,14 @@ model AdminInvite {
 
 // Ad Settings Model
 model AdSettings {
-  id                 String   @id @default(uuid())
-  horizontalAdCode   String?
-  verticalAdCode     String?
-  homepageEnabled    Boolean  @default(true)
-  movieDetailEnabled Boolean  @default(true)
-  dashboardEnabled   Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  horizontalAdCode     String?
+  verticalAdCode       String?
+  nativeAdCode         String?  // Added for native ad cards
+  buttonClickAdCode    String?  // Added for download button ads
+  homepageEnabled      Boolean  @default(true)
+  movieDetailEnabled   Boolean  @default(true)
+  dashboardEnabled     Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }

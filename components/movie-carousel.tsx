@@ -1,9 +1,10 @@
 "use client"
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import MovieCard from "./movie-card"
+import NativeAdCard from "./native-ad-card"
 import { getPublicMovies } from "@/lib/server-actions"
 
 interface Movie {
@@ -77,6 +78,14 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
     return null
   }
 
+  const itemsWithAds: (Movie | { isAd: true; id: string })[] = []
+  movies.forEach((movie, index) => {
+    itemsWithAds.push(movie)
+    if ((index + 1) % 3 === 0 && index !== movies.length - 1) {
+      itemsWithAds.push({ isAd: true, id: `ad-${index}` })
+    }
+  })
+
   return (
     <motion.div
       className="space-y-4"
@@ -96,7 +105,6 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
       </motion.h2>
 
       <div className="relative group">
-        {/* Left Arrow */}
         <motion.button
           onClick={() => scroll("left")}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 p-2 rounded-full transition opacity-0 group-hover:opacity-100"
@@ -106,26 +114,40 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
           <ChevronLeft className="w-6 h-6 text-[#00FFFF]" />
         </motion.button>
 
-        {/* Carousel */}
         <div
           id={`carousel-${title}`}
           className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
           style={{ scrollBehavior: "smooth" }}
         >
-          {movies.map((movie, index) => (
-            <motion.div
-              key={movie.id}
-              initial={{ opacity: 0, scale: 0.8 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: index * 0.05 }}
-              viewport={{ once: true }}
-            >
-              <MovieCard movie={movie} />
-            </motion.div>
-          ))}
+          {itemsWithAds.map((item, index) => {
+            if ("isAd" in item) {
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: index * 0.05 }}
+                  viewport={{ once: true }}
+                >
+                  <NativeAdCard />
+                </motion.div>
+              )
+            }
+
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, scale: 0.8 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: index * 0.05 }}
+                viewport={{ once: true }}
+              >
+                <MovieCard movie={item} />
+              </motion.div>
+            )
+          })}
         </div>
 
-        {/* Right Arrow */}
         <motion.button
           onClick={() => scroll("right")}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 p-2 rounded-full transition opacity-0 group-hover:opacity-100"

@@ -11,14 +11,16 @@ import LoadingSpinner from "@/components/loading-spinner"
 
 async function HomepageContent() {
   try {
-    const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies] = await Promise.all([
-      getFeaturedMovie(),
-      getTrendingMovies(),
-      getMoviesByGenre("Action"),
-      getMoviesByGenre("Drama"),
-      getMoviesByGenre("Sci-Fi"),
-      getMoviesByGenre("Comedy"),
-    ])
+    const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies, nollywoodMovies] =
+      await Promise.all([
+        getFeaturedMovie(),
+        getTrendingMovies(),
+        getMoviesByGenre("Action"),
+        getMoviesByGenre("Drama"),
+        getMoviesByGenre("Sci-Fi"),
+        getMoviesByGenre("Comedy"),
+        getMoviesByGenre("Nollywood"),
+      ])
 
     return (
       <>
@@ -50,6 +52,12 @@ async function HomepageContent() {
               <MovieCarousel title="Comedy" movies={comedyMovies} />
             </div>
           )}
+
+          {nollywoodMovies.length > 0 && (
+            <div>
+              <MovieCarousel title="Nollywood" movies={nollywoodMovies} />
+            </div>
+          )}
         </div>
       </>
     )
@@ -71,7 +79,7 @@ export default async function PublicHomePage() {
     <AuthModalWrapper>
       <main className="min-h-screen bg-[#0B0C10]">
         <Navbar showAuthButtons={true} />
-        
+
         <Suspense fallback={<LoadingSpinner size="lg" message="Loading movies..." />}>
           <HomepageContent />
         </Suspense>
