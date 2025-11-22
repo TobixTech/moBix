@@ -13,7 +13,7 @@ model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique
   email     String   @unique
-  role      Role     @default(USER)
+  role      String   @default("USER") // Changed from enum to String to match DB
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   likes     Like[]

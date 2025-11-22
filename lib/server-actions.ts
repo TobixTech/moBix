@@ -459,36 +459,26 @@ export async function toggleLike(movieId: string) {
       return { success: false, error: "Please sign in to like movies" }
     }
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
+    console.log("[v0] Toggle like for movie:", movieId, "user:", userId)
+
+    // Get or create user
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
     })
 
     if (!user) {
-      // Create user if doesn't exist
-      const { user: clerkUser } = await auth()
-      if (!clerkUser) {
-        return { success: false, error: "User not found" }
-      }
+      console.log("[v0] User not found, creating new user...")
+      const clerkClient = await import("@clerk/nextjs/server").then((m) => m.clerkClient)
+      const clerkUser = await clerkClient.users.getUser(userId)
 
-      const newUser = await prisma.user.create({
+      user = await prisma.user.create({
         data: {
           clerkId: userId,
           email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
-          role: "USER",
+          role: "USER", // String instead of enum
         },
       })
-
-      // Create like
-      await prisma.like.create({
-        data: {
-          userId: newUser.id,
-          movieId,
-        },
-      })
-
-      revalidatePath(`/movie/${movieId}`)
-      return { success: true, liked: true }
+      console.log("[v0] Created new user:", user.id)
     }
 
     // Check if already liked
@@ -534,16 +524,17 @@ export async function addComment(movieId: string, text: string, rating: number) 
       return { success: false, error: "Please sign in to comment" }
     }
 
+    console.log("[v0] Adding comment for movie:", movieId, "user:", userId)
+
     // Get or create user
     let user = await prisma.user.findUnique({
       where: { clerkId: userId },
     })
 
     if (!user) {
-      const { user: clerkUser } = await auth()
-      if (!clerkUser) {
-        return { success: false, error: "User not found" }
-      }
+      console.log("[v0] User not found, creating new user...")
+      const clerkClient = await import("@clerk/nextjs/server").then((m) => m.clerkClient)
+      const clerkUser = await clerkClient.users.getUser(userId)
 
       user = await prisma.user.create({
         data: {
@@ -552,6 +543,7 @@ export async function addComment(movieId: string, text: string, rating: number) 
           role: "USER",
         },
       })
+      console.log("[v0] Created new user:", user.id)
     }
 
     const comment = await prisma.comment.create({
@@ -563,6 +555,7 @@ export async function addComment(movieId: string, text: string, rating: number) 
       },
     })
 
+    console.log("[v0] Comment created:", comment.id)
     revalidatePath(`/movie/${movieId}`)
     return { success: true, comment }
   } catch (error: any) {
@@ -839,31 +832,38 @@ export async function updateUserProfile(data: { username?: string; firstName?: s
   }
 }
 
-export async function getUserStats(userId: string) {
+export async function getUserStats() {
   try {
-    const dbUser = await prisma.user.findUnique({
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       include: {
-        _count: {
-          select: {
-            likes: true,
-            comments: true,
-          },
-        },
+        likes: { include: { movie: true } },
+        comments: { include: { movie: true } },
       },
     })
 
-    if (!dbUser) {
-      return { likesCount: 0, commentsCount: 0 }
+    if (!user) {
+      return { success: false, error: "User not found", stats: null }
     }
 
     return {
-      likesCount: dbUser._count.likes,
-      commentsCount: dbUser._count.comments,
+      success: true,
+      stats: {
+        email: user.email,
+        memberSince: user.createdAt,
+        totalLikes: user.likes.length,
+        totalComments: user.comments.length,
+        likedMovies: user.likes.map((like) => like.movie),
+      },
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Error fetching user stats:", error)
-    return { likesCount: 0, commentsCount: 0 }
+    return { success: false, error: error.message, stats: null }
   }
 }
 

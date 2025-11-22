@@ -1,15 +1,31 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useUser } from "@clerk/nextjs"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import MovieCarousel from "@/components/movie-carousel"
-import { User, Settings, LogOut } from "lucide-react"
+import MovieCard from "@/components/movie-card"
+import { User, Settings, LogOut, Heart, MessageSquare } from "lucide-react"
+import { getUserStats } from "@/lib/server-actions"
 
 type DashboardTab = "profile" | "watchlist" | "liked" | "continue"
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("profile")
+  const { user: clerkUser } = useUser()
+  const [userStats, setUserStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchUserData() {
+      const result = await getUserStats()
+      if (result.success) {
+        setUserStats(result.stats)
+      }
+      setLoading(false)
+    }
+    fetchUserData()
+  }, [])
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
@@ -83,52 +99,88 @@ export default function Dashboard() {
               <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
                 <h2 className="text-2xl font-bold text-white mb-6">Profile</h2>
 
-                <div className="flex items-center gap-6 mb-8">
-                  <div className="w-24 h-24 bg-[#00FFFF]/20 rounded-full flex items-center justify-center">
-                    <User className="w-12 h-12 text-[#00FFFF]" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">John Doe</h3>
-                    <p className="text-[#888888]">john.doe@example.com</p>
-                    <p className="text-[#888888] text-sm mt-2">Member since January 2024</p>
-                  </div>
-                </div>
+                {loading ? (
+                  <div className="text-center text-white py-8">Loading...</div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-6 mb-8">
+                      <div className="w-24 h-24 bg-[#00FFFF]/20 rounded-full flex items-center justify-center">
+                        <User className="w-12 h-12 text-[#00FFFF]" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">
+                          {clerkUser?.firstName || "User"} {clerkUser?.lastName || ""}
+                        </h3>
+                        <p className="text-[#888888]">
+                          {userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress}
+                        </p>
+                        <p className="text-[#888888] text-sm mt-2">
+                          Member since{" "}
+                          {userStats?.memberSince ? new Date(userStats.memberSince).toLocaleDateString() : "Recently"}
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">Full Name</label>
-                    <input
-                      type="text"
-                      defaultValue="John Doe"
-                      className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-2">Email</label>
-                    <input
-                      type="email"
-                      defaultValue="john.doe@example.com"
-                      className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
-                    />
-                  </div>
-                  <button className="px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition">
-                    Save Changes
-                  </button>
-                </div>
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
+                        <Heart className="w-8 h-8 text-[#00FFFF] mb-2" />
+                        <p className="text-2xl font-bold text-white">{userStats?.totalLikes || 0}</p>
+                        <p className="text-[#888888] text-sm">Movies Liked</p>
+                      </div>
+                      <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
+                        <MessageSquare className="w-8 h-8 text-[#00FFFF] mb-2" />
+                        <p className="text-2xl font-bold text-white">{userStats?.totalComments || 0}</p>
+                        <p className="text-[#888888] text-sm">Comments Posted</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-white text-sm font-medium mb-2">Full Name</label>
+                        <input
+                          type="text"
+                          defaultValue={clerkUser?.firstName + " " + clerkUser?.lastName || "User"}
+                          className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-white text-sm font-medium mb-2">Email</label>
+                        <input
+                          type="email"
+                          defaultValue={userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress}
+                          className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
+                        />
+                      </div>
+                      <button className="px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition">
+                        Save Changes
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
             {activeTab === "watchlist" && (
               <div>
                 <h2 className="text-2xl font-bold text-white mb-6">My Watchlist</h2>
-                <MovieCarousel title="" />
+                <MovieCard title="" />
               </div>
             )}
 
             {activeTab === "liked" && (
               <div>
                 <h2 className="text-2xl font-bold text-white mb-6">Liked Movies</h2>
-                <MovieCarousel title="" />
+                {loading ? (
+                  <div className="text-center text-white py-8">Loading...</div>
+                ) : userStats?.likedMovies && userStats.likedMovies.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {userStats.likedMovies.map((movie: any) => (
+                      <MovieCard key={movie.id} movie={movie} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-[#888888] py-8">No liked movies yet. Start exploring!</div>
+                )}
               </div>
             )}
 
