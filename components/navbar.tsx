@@ -6,7 +6,6 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
 import { useAuth, useClerk } from "@clerk/nextjs"
-import { useAuthModal } from "./auth-modal-wrapper"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -14,7 +13,6 @@ interface NavbarProps {
 }
 
 export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarProps) {
-  const authModal = useAuthModal()
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -204,7 +202,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           {showAuthButtons ? (
             <>
               <motion.button
-                onClick={() => authModal?.openAuthModal()}
+                onClick={onAuthClick}
                 className="px-4 py-2 text-[#00FFFF] hover:text-[#00CCCC] font-semibold transition"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -212,7 +210,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                 Login
               </motion.button>
               <motion.button
-                onClick={() => authModal?.openAuthModal()}
+                onClick={onAuthClick}
                 className="px-4 py-2 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
