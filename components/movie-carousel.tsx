@@ -1,9 +1,10 @@
 "use client"
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import MovieCard from "./movie-card"
+import NativeAdCard from "./native-ad-card" // Import NativeAdCard component
 import { getPublicMovies } from "@/lib/server-actions"
 
 interface Movie {
@@ -22,6 +23,7 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
   const [scrollPosition, setScrollPosition] = useState(0)
   const [movies, setMovies] = useState<Movie[]>(initialMovies || [])
   const [loading, setLoading] = useState(!initialMovies)
+  const [adCode, setAdCode] = useState<string>("")
 
   useEffect(() => {
     if (!initialMovies) {
@@ -38,6 +40,20 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
 
       fetchMovies()
     }
+
+    const fetchAdCode = async () => {
+      try {
+        const response = await fetch("/api/ad-settings")
+        const data = await response.json()
+        if (data.horizontalAdCode) {
+          setAdCode(data.horizontalAdCode)
+        }
+      } catch (error) {
+        console.error("Error fetching ad code:", error)
+      }
+    }
+
+    fetchAdCode()
   }, [initialMovies])
 
   const scroll = (direction: "left" | "right") => {
@@ -77,6 +93,14 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
     return null
   }
 
+  const moviesWithAds: (Movie | { isAd: true; id: string })[] = []
+  movies.forEach((movie, index) => {
+    moviesWithAds.push(movie)
+    if ((index + 1) % 2 === 0 && adCode) {
+      moviesWithAds.push({ isAd: true, id: `ad-${index}` })
+    }
+  })
+
   return (
     <motion.div
       className="space-y-4"
@@ -112,15 +136,15 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
           className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
           style={{ scrollBehavior: "smooth" }}
         >
-          {movies.map((movie, index) => (
+          {moviesWithAds.map((item, index) => (
             <motion.div
-              key={movie.id}
+              key={"isAd" in item ? item.id : item.id}
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: index * 0.05 }}
               viewport={{ once: true }}
             >
-              <MovieCard movie={movie} />
+              {"isAd" in item ? <NativeAdCard adCode={adCode} /> : <MovieCard movie={item} />}
             </motion.div>
           ))}
         </div>

@@ -144,10 +144,40 @@
 /* Cyan glow effect for primary elements */
 .glow-cyan {
   box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+  /* Added iOS webkit prefix for cyan color support */
+  -webkit-box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
 }
 
 .glow-cyan-hover:hover {
   box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+  /* Added iOS webkit prefix for cyan color hover support */
+  -webkit-box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+}
+
+/* Added iOS-specific cyan color fixes for buttons and primary elements */
+button.bg-gradient-to-r,
+.bg-gradient-to-r {
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+button:not(.bg-gradient-to-r) {
+  -webkit-appearance: none;
+}
+
+/* Cyan color fix for iOS */
+.text-cyan-400,
+.text-cyan-500,
+.from-cyan-500,
+.to-cyan-400,
+[class*="cyan"] {
+  color: #00ffff !important;
+  -webkit-text-fill-color: #00ffff;
+}
+
+.bg-cyan-500,
+.bg-cyan-400 {
+  background-color: #00ffff !important;
 }
 
 /* Added scrollbar hiding for carousels */
@@ -155,7 +185,7 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-  
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;

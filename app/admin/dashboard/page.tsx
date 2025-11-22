@@ -18,6 +18,7 @@ import {
   Lock,
   Loader,
   Settings,
+  Save,
 } from "lucide-react"
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
@@ -30,6 +31,8 @@ import {
   uploadMovie,
   updateMovie,
   deleteMovie,
+  getAdSettings, // Added import for getAdSettings
+  updateAdSettings, // Added import for updateAdSettings
 } from "@/lib/server-actions"
 
 type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads"
@@ -47,6 +50,16 @@ interface Movie {
   genre?: string
   uploadDate?: string
   status?: string
+  downloadEnabled?: boolean // Added downloadEnabled
+  downloadUrl?: string // Added downloadUrl
+  customVastUrl?: string // Added customVastUrl
+  useGlobalAd?: boolean // Added useGlobalAd
+  description?: string // Added description
+  thumbnail?: string // Added thumbnail for edit modal
+  videoLink?: string // Added videoLink for edit modal
+  year?: number // Added year for edit modal
+  posterUrl?: string // Added posterUrl for edit modal
+  videoUrl?: string // Added videoUrl for edit modal
 }
 
 interface Signup {
@@ -95,6 +108,17 @@ export default function AdminDashboard() {
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
 
+  const [adSettings, setAdSettings] = useState({
+    horizontalAdCode: "",
+    verticalAdCode: "",
+    vastUrl: "",
+    adTimeout: 20,
+    showPrerollAds: true,
+    showHomepageAds: true,
+    showMovieDetailAds: true,
+  })
+
+  // Added ad settings and download settings to formData
   const [formData, setFormData] = useState({
     title: "",
     thumbnail: "",
@@ -103,6 +127,10 @@ export default function AdminDashboard() {
     genre: "Action",
     releaseDate: "",
     status: "draft",
+    downloadEnabled: false,
+    downloadUrl: "",
+    customVastUrl: "",
+    useGlobalAd: true,
   })
 
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -135,18 +163,31 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsData, trendingData, signupsData, moviesData, usersData] = await Promise.all([
+        const [metricsData, trendingData, signupsData, moviesData, usersData, adSettingsData] = await Promise.all([
           getAdminMetrics(),
           getTrendingMovies(),
           getRecentSignups(),
           getAdminMovies(),
           getAdminUsers(),
+          getAdSettings(), // Added call to getAdSettings
         ])
         setMetrics(metricsData)
         setTrendingMovies(trendingData)
         setRecentSignups(signupsData)
         setMovies(moviesData)
         setUsers(usersData)
+
+        if (adSettingsData) {
+          setAdSettings({
+            horizontalAdCode: adSettingsData.horizontalAdCode || "",
+            verticalAdCode: adSettingsData.verticalAdCode || "",
+            vastUrl: adSettingsData.vastPrerollUrl || "", // Corrected from vastUrl to vastPrerollUrl
+            adTimeout: adSettingsData.adTimeout || 20, // Corrected from adTimeoutSeconds to adTimeout
+            showPrerollAds: adSettingsData.adsEnabled ?? true, // Assuming adsEnabled controls preroll
+            showHomepageAds: adSettingsData.homepageEnabled ?? true,
+            showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
+          })
+        }
 
         const commentsResponse = await fetch("/api/admin/comments")
         const commentsData = await commentsResponse.json()
@@ -180,6 +221,10 @@ export default function AdminDashboard() {
       posterUrl: formData.thumbnail,
       videoUrl: formData.videoLink,
       isFeatured: formData.status === "published",
+      downloadEnabled: formData.downloadEnabled,
+      downloadUrl: formData.downloadUrl,
+      customVastUrl: formData.customVastUrl,
+      useGlobalAd: formData.useGlobalAd,
     })
 
     if (result.success) {
@@ -191,6 +236,10 @@ export default function AdminDashboard() {
         genre: "Action",
         releaseDate: "",
         status: "draft",
+        downloadEnabled: false,
+        downloadUrl: "",
+        customVastUrl: "",
+        useGlobalAd: true,
       })
 
       const moviesData = await getAdminMovies()
@@ -206,8 +255,72 @@ export default function AdminDashboard() {
   }
 
   const handleEdit = (movie: Movie) => {
-    setEditingMovie(movie)
+    setEditingMovie({
+      ...movie,
+      downloadEnabled: movie.downloadEnabled || false,
+      downloadUrl: movie.downloadUrl || "",
+      customVastUrl: movie.customVastUrl || "",
+      useGlobalAd: movie.useGlobalAd ?? true,
+      description: movie.description || "",
+      thumbnail: movie.thumbnail || movie.posterUrl || "",
+      videoLink: movie.videoLink || movie.videoUrl || "",
+      year: movie.year || 2024,
+      posterUrl: movie.posterUrl || "",
+      videoUrl: movie.videoUrl || "",
+    })
     setEditModalOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingMovie) return
+
+    setLoading(true)
+    const result = await updateMovie(String(editingMovie.id), {
+      title: editingMovie.title,
+      description: editingMovie.description || "",
+      year: editingMovie.year || 2024,
+      genre: editingMovie.genre || "Action",
+      posterUrl: editingMovie.thumbnail || editingMovie.posterUrl || "",
+      videoUrl: editingMovie.videoLink || editingMovie.videoUrl || "",
+      isFeatured: editingMovie.status === "Published",
+      downloadEnabled: editingMovie.downloadEnabled || false,
+      downloadUrl: editingMovie.downloadUrl || "",
+      customVastUrl: editingMovie.customVastUrl || "",
+      useGlobalAd: editingMovie.useGlobalAd ?? true,
+    })
+
+    if (result.success) {
+      const moviesData = await getAdminMovies()
+      setMovies(moviesData)
+      setEditModalOpen(false)
+      setEditingMovie(null)
+    } else {
+      alert(`Update failed: ${result.error}`)
+    }
+
+    setLoading(false)
+  }
+
+  const handleSaveAdSettings = async () => {
+    setLoading(true)
+
+    const result = await updateAdSettings({
+      horizontalAdCode: adSettings.horizontalAdCode,
+      verticalAdCode: adSettings.verticalAdCode,
+      vastPrerollUrl: adSettings.vastUrl,
+      adTimeout: adSettings.adTimeout,
+      adsEnabled: adSettings.showPrerollAds || adSettings.showHomepageAds || adSettings.showMovieDetailAds,
+      homepageEnabled: adSettings.showHomepageAds,
+      movieDetailEnabled: adSettings.showMovieDetailAds,
+    })
+
+    if (result.success) {
+      alert("Ad settings saved successfully!")
+    } else {
+      alert(`Failed to save ad settings: ${result.error}`)
+    }
+
+    setLoading(false)
   }
 
   const handleDelete = async (movieId: number) => {
@@ -223,32 +336,6 @@ export default function AdminDashboard() {
       setMovies(moviesData)
     } else {
       alert(`Delete failed: ${result.error}`)
-    }
-
-    setLoading(false)
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editingMovie) return
-
-    setLoading(true)
-    const result = await updateMovie(String(editingMovie.id), {
-      title: editingMovie.title,
-      description: "",
-      year: 2024,
-      genre: editingMovie.genre || "Action",
-      posterUrl: "",
-      videoUrl: "",
-      isFeatured: editingMovie.status === "Published",
-    })
-
-    if (result.success) {
-      const moviesData = await getAdminMovies()
-      setMovies(moviesData)
-      setEditModalOpen(false)
-      setEditingMovie(null)
-    } else {
-      alert(`Update failed: ${result.error}`)
     }
 
     setLoading(false)
@@ -363,7 +450,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex flex-col lg:flex-row">
       {editModalOpen && editingMovie && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0F1018] border border-white/10 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#0F1018] border border-white/10 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-white">Edit Movie</h2>
               <button
@@ -377,7 +464,7 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-white font-medium mb-2 text-sm">Movie Title</label>
                 <input
@@ -400,26 +487,106 @@ export default function AdminDashboard() {
                   <option value="Sci-Fi">Sci-Fi</option>
                   <option value="Thriller">Thriller</option>
                   <option value="Comedy">Comedy</option>
+                  <option value="Nollywood">Nollywood</option>
                 </select>
               </div>
 
-              <div className="flex gap-4 pt-4">
-                <button
-                  onClick={handleSaveEdit}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
-                >
-                  Save Changes
-                </button>
-                <button
-                  onClick={() => {
-                    setEditModalOpen(false)
-                    setEditingMovie(null)
-                  }}
-                  className="px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-lg hover:bg-white/10 transition-all"
-                >
-                  Cancel
-                </button>
+              <div>
+                <label className="block text-white font-medium mb-2 text-sm">Thumbnail URL</label>
+                <input
+                  type="url"
+                  value={editingMovie.thumbnail || editingMovie.posterUrl}
+                  onChange={(e) => setEditingMovie({ ...editingMovie, thumbnail: e.target.value })}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                />
               </div>
+
+              <div>
+                <label className="block text-white font-medium mb-2 text-sm">Video URL</label>
+                <input
+                  type="url"
+                  value={editingMovie.videoLink || editingMovie.videoUrl}
+                  onChange={(e) => setEditingMovie({ ...editingMovie, videoLink: e.target.value })}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-white font-medium mb-2 text-sm">Description</label>
+                <textarea
+                  value={editingMovie.description || ""}
+                  onChange={(e) => setEditingMovie({ ...editingMovie, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingMovie.downloadEnabled || false}
+                    onChange={(e) => setEditingMovie({ ...editingMovie, downloadEnabled: e.target.checked })}
+                    className="w-4 h-4 accent-cyan-400"
+                  />
+                  <span className="text-white text-sm">Enable Download</span>
+                </label>
+              </div>
+
+              {editingMovie.downloadEnabled && (
+                <div>
+                  <label className="block text-white font-medium mb-2 text-sm">Download URL</label>
+                  <input
+                    type="url"
+                    value={editingMovie.downloadUrl || ""}
+                    onChange={(e) => setEditingMovie({ ...editingMovie, downloadUrl: e.target.value })}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingMovie.useGlobalAd ?? true}
+                    onChange={(e) => setEditingMovie({ ...editingMovie, useGlobalAd: e.target.checked })}
+                    className="w-4 h-4 accent-cyan-400"
+                  />
+                  <span className="text-white text-sm">Use Global Ad</span>
+                </label>
+              </div>
+
+              {!editingMovie.useGlobalAd && (
+                <div>
+                  <label className="block text-white font-medium mb-2 text-sm">Custom VAST URL</label>
+                  <input
+                    type="url"
+                    value={editingMovie.customVastUrl || ""}
+                    onChange={(e) => setEditingMovie({ ...editingMovie, customVastUrl: e.target.value })}
+                    placeholder="https://example.com/vast.xml"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-4 pt-6">
+              <button
+                onClick={handleSaveEdit}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={() => {
+                  setEditModalOpen(false)
+                  setEditingMovie(null)
+                }}
+                className="px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-lg hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -697,7 +864,30 @@ export default function AdminDashboard() {
                         <option value="Sci-Fi">Sci-Fi</option>
                         <option value="Thriller">Thriller</option>
                         <option value="Comedy">Comedy</option>
+                        <option value="Nollywood">Nollywood</option>
                       </select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.downloadEnabled}
+                          onChange={(e) => setFormData({ ...formData, downloadEnabled: e.target.checked })}
+                          className="w-4 h-4 accent-cyan-400"
+                        />
+                        <span className="text-white text-sm font-medium">Enable Download</span>
+                      </label>
+
+                      {formData.downloadEnabled && (
+                        <input
+                          type="url"
+                          value={formData.downloadUrl}
+                          onChange={(e) => setFormData({ ...formData, downloadUrl: e.target.value })}
+                          placeholder="https://example.com/download.mp4"
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -745,6 +935,31 @@ export default function AdminDashboard() {
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
                         required
                       />
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.useGlobalAd}
+                          onChange={(e) => setFormData({ ...formData, useGlobalAd: e.target.checked })}
+                          className="w-4 h-4 accent-cyan-400"
+                        />
+                        <span className="text-white text-sm font-medium">Use Global Ad</span>
+                      </label>
+
+                      {!formData.useGlobalAd && (
+                        <div>
+                          <label className="block text-white/70 text-xs mb-1">Custom VAST URL</label>
+                          <input
+                            type="url"
+                            value={formData.customVastUrl}
+                            onChange={(e) => setFormData({ ...formData, customVastUrl: e.target.value })}
+                            placeholder="https://example.com/vast.xml"
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -888,12 +1103,127 @@ export default function AdminDashboard() {
             <div className="space-y-6">
               <div>
                 <h1 className="text-4xl font-bold text-white mb-2">Ad Management</h1>
-                <p className="text-white/50">Manage ads for the platform</p>
+                <p className="text-white/50">Configure Adsterra and other ad codes for the platform</p>
               </div>
 
-              {/* Ad Management Content */}
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8">
-                <p className="text-white">This is where you can manage ads.</p>
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8 space-y-6">
+                <div>
+                  <h3 className="text-white font-bold text-lg mb-4">Pre-roll Video Ads (VAST URL)</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Adsterra VAST URL</label>
+                      <input
+                        type="url"
+                        value={adSettings.vastUrl}
+                        onChange={(e) => setAdSettings({ ...adSettings, vastUrl: e.target.value })}
+                        placeholder="https://syndication.realsrv.com/splash.php?idzone=..."
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                      />
+                      <p className="text-white/40 text-xs mt-1">
+                        Get your VAST URL from Adsterra's Video Ad campaign settings
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-white/70 text-sm mb-2">Ad Timeout (seconds)</label>
+                        <input
+                          type="number"
+                          min="10"
+                          max="30"
+                          value={adSettings.adTimeout}
+                          onChange={(e) => setAdSettings({ ...adSettings, adTimeout: Number.parseInt(e.target.value) })}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                        />
+                      </div>
+
+                      <div className="flex items-center">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={adSettings.showPrerollAds}
+                            onChange={(e) => setAdSettings({ ...adSettings, showPrerollAds: e.target.checked })}
+                            className="w-4 h-4 accent-cyan-400"
+                          />
+                          <span className="text-white text-sm">Enable Pre-roll Ads</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10 pt-6">
+                  <h3 className="text-white font-bold text-lg mb-4">Native Ad Cards (Adsterra)</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Horizontal Ad Code (Movie Carousels)</label>
+                      <textarea
+                        value={adSettings.horizontalAdCode}
+                        onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
+                        placeholder='<script type="text/javascript">...</script>'
+                        rows={4}
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
+                      />
+                      <p className="text-white/40 text-xs mt-1">
+                        Paste your Adsterra Native Banner ad code here. Ads will appear after every 2 movies.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Vertical Ad Code (Sidebars)</label>
+                      <textarea
+                        value={adSettings.verticalAdCode}
+                        onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
+                        placeholder='<script type="text/javascript">...</script>'
+                        rows={4}
+                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
+                      />
+                      <p className="text-white/40 text-xs mt-1">
+                        Paste your Adsterra vertical banner ad code here for movie detail sidebars.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={adSettings.showHomepageAds}
+                          onChange={(e) => setAdSettings({ ...adSettings, showHomepageAds: e.target.checked })}
+                          className="w-4 h-4 accent-cyan-400"
+                        />
+                        <span className="text-white text-sm">Show on Homepage</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={adSettings.showMovieDetailAds}
+                          onChange={(e) => setAdSettings({ ...adSettings, showMovieDetailAds: e.target.checked })}
+                          className="w-4 h-4 accent-cyan-400"
+                        />
+                        <span className="text-white text-sm">Show on Movie Pages</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSaveAdSettings}
+                  disabled={loading}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5" />
+                      <span>Save Ad Settings</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           )}

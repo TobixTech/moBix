@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Search, User, LogOut, X } from 'lucide-react'
+import { Search, User, LogOut, X } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
@@ -14,7 +14,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarProps) {
-  const authModal = showAuthButtons ? useAuthModal() : null
+  const authModal = useAuthModal()
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -65,7 +65,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
 
   return (
     <motion.nav
-      className="fixed top-0 w-full bg-[#0B0C10]/95 backdrop-blur border-b border-[#2A2B33] z-50"
+      className="fixed top-0 w-full bg-[#0B0C10]/95 backdrop-blur border-b border-[#2A2B33] z-50 pb-safe"
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -106,15 +106,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             </motion.div>
           ))}
           {!showAuthButtons && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Link
-                href="/profile"
-                className="text-white hover:text-[#00FFFF] transition relative group"
-              >
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <Link href="/profile" className="text-white hover:text-[#00FFFF] transition relative group">
                 Profile
                 <motion.div
                   className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"
@@ -160,7 +153,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             <AnimatePresence>
               {showSearchResults && (
                 <motion.div
-                  className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto"
+                  className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto z-[60]"
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
@@ -194,9 +187,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                       ))}
                     </div>
                   ) : (
-                    <div className="p-4 text-center text-[#888888]">
-                      No results found for "{searchQuery}"
-                    </div>
+                    <div className="p-4 text-center text-[#888888]">No results found for "{searchQuery}"</div>
                   )}
                 </motion.div>
               )}
@@ -277,7 +268,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           <AnimatePresence>
             {showSearchResults && (
               <motion.div
-                className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto"
+                className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg shadow-xl overflow-hidden max-h-96 overflow-y-auto z-[60]"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -311,9 +302,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-[#888888]">
-                    No results found for "{searchQuery}"
-                  </div>
+                  <div className="p-4 text-center text-[#888888]">No results found for "{searchQuery}"</div>
                 )}
               </motion.div>
             )}
