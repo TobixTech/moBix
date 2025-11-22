@@ -556,13 +556,18 @@ export async function getMoviesByGenre(genre: string) {
   try {
     const movies = await prisma.movie.findMany({
       where: {
-        genre,
+        genre: {
+          equals: genre,
+          mode: "insensitive",
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
       take: 12,
     })
+
+    console.log(`[v0] Found ${movies.length} movies for genre: ${genre}`)
     return movies
   } catch (error) {
     console.error("[v0] Error fetching movies by genre:", error)

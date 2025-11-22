@@ -32,15 +32,19 @@ async function HomepageContent() {
             <AdBanner type="horizontal" placement="homepage" className="my-8" />
           </div>
 
-          <div>
-            <MovieCarousel title="Action & Adventure" movies={actionMovies} />
-            <AdBanner type="horizontal" placement="homepage" className="my-8" />
-          </div>
+          {actionMovies.length > 0 && (
+            <div>
+              <MovieCarousel title="Action & Adventure" movies={actionMovies} />
+              <AdBanner type="horizontal" placement="homepage" className="my-8" />
+            </div>
+          )}
 
-          <div>
-            <MovieCarousel title="Drama" movies={dramaMovies} />
-            <AdBanner type="horizontal" placement="homepage" className="my-8" />
-          </div>
+          {dramaMovies.length > 0 && (
+            <div>
+              <MovieCarousel title="Drama" movies={dramaMovies} />
+              <AdBanner type="horizontal" placement="homepage" className="my-8" />
+            </div>
+          )}
 
           {sciFiMovies.length > 0 && (
             <div>
