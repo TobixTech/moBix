@@ -678,3 +678,113 @@ export async function updateAdSettings(settings: {
     return { success: false, error: error.message || "Failed to update ad settings" }
   }
 }
+
+export async function getUserProfile() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const user = await ensureUserExists(userId)
+    const client = await clerkClient()
+    const clerkUser = await client.users.getUser(userId)
+
+    return {
+      success: true,
+      user: {
+        ...user,
+        username: clerkUser.username,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+      },
+    }
+  } catch (error: any) {
+    console.error("[v0] Error fetching user profile:", error)
+    return { success: false, error: error.message || "Failed to fetch profile" }
+  }
+}
+
+export async function updateUserProfile(data: { username: string; firstName: string; lastName: string }) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const client = await clerkClient()
+
+    try {
+      await client.users.updateUser(userId, {
+        username: data.username || undefined,
+        firstName: data.firstName || undefined,
+        lastName: data.lastName || undefined,
+      })
+    } catch (clerkError: any) {
+      // Handle case where username might be taken or other Clerk validation errors
+      console.error("[v0] Clerk update error:", clerkError)
+      return { success: false, error: clerkError.errors?.[0]?.message || "Failed to update profile in Clerk" }
+    }
+
+    revalidatePath("/profile")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error updating user profile:", error)
+    return { success: false, error: error.message || "Failed to update profile" }
+  }
+}
+
+export async function getUserStats(userId: string) {
+  try {
+    // We need to find our internal DB user ID first (which corresponds to the Clerk ID)
+    // But our schema stores clerkId in users.clerkId and referenced by users.id in other tables.
+    // Wait, the likes/comments tables use our internal UUID (users.id), NOT the clerk ID.
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!user) {
+      return { likesCount: 0, commentsCount: 0 }
+    }
+
+    const [likesCount] = await db.select({ count: count() }).from(likes).where(eq(likes.userId, user.id))
+    const [commentsCount] = await db.select({ count: count() }).from(comments).where(eq(comments.userId, user.id))
+
+    return {
+      likesCount: likesCount.count,
+      commentsCount: commentsCount.count,
+    }
+  } catch (error) {
+    console.error("[v0] Error fetching user stats:", error)
+    return { likesCount: 0, commentsCount: 0 }
+  }
+}
+
+export async function grantAdminAccessWithKey(accessKey: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const isValid = await verifyAdminInvitationCode(accessKey)
+
+    if (!isValid) {
+      return { success: false, error: "Invalid access key" }
+    }
+
+    const result = await assignAdminRole(userId)
+
+    if (result.success) {
+      revalidatePath("/admin")
+      revalidatePath("/profile")
+    }
+
+    return result
+  } catch (error: any) {
+    console.error("[v0] Error granting admin access:", error)
+    return { success: false, error: error.message || "Failed to grant access" }
+  }
+}
