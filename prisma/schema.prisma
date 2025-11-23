@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -13,17 +13,11 @@ model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique
   email     String   @unique
-  role      String   @default("USER") // Changed from enum to String to match DB
+  role      String   @default("USER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   likes     Like[]
   comments  Comment[]
-}
-
-// User Roles
-enum Role {
-  USER
-  ADMIN
 }
 
 // Movie Model (For all movie data)
@@ -35,10 +29,10 @@ model Movie {
   genre         String
   posterUrl     String
   videoUrl      String
-  customVastUrl String?   // Optional custom VAST URL per movie
-  useGlobalAd   Boolean   @default(true)  // Toggle for global vs custom ad
-  downloadUrl   String?   // Optional download link
-  downloadEnabled Boolean @default(false)  // Toggle for download button
+  customVastUrl String?
+  useGlobalAd   Boolean   @default(true)
+  downloadUrl   String?
+  downloadEnabled Boolean @default(false)
   isTrending    Boolean   @default(false)
   isFeatured    Boolean   @default(false)
   views         Int       @default(0)
@@ -85,10 +79,10 @@ model AdminInvite {
 // Ad Settings Model
 model AdSettings {
   id                 String   @id @default(uuid())
-  horizontalAdCode   String?  // For banner ads in carousels
-  verticalAdCode     String?  // For sidebar ads
-  vastUrl            String?  // VAST URL for pre-roll video ads
-  smartLinkUrl       String?  // Added Smart Link URL for download button ads
+  horizontalAdCode   String?
+  verticalAdCode     String?
+  vastUrl            String?
+  smartLinkUrl       String?
   adTimeoutSeconds   Int      @default(20)
   showPrerollAds     Boolean  @default(true)
   showDownloadPageAds Boolean @default(true)
