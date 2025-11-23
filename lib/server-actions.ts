@@ -1179,3 +1179,164 @@ export async function getContinueWatching() {
     return []
   }
 }
+
+export async function seedDatabase() {
+  try {
+    console.log("[v0] Starting database seeding...")
+
+    // Sample movies to seed
+    const sampleMovies = [
+      {
+        title: "Inception",
+        description:
+          "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
+        year: 2010,
+        genre: "Sci-Fi",
+        posterUrl: "/inception-movie-poster.png",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        isTrending: true,
+        isFeatured: true,
+        views: 1523,
+      },
+      {
+        title: "The Dark Knight",
+        description:
+          "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.",
+        year: 2008,
+        genre: "Action",
+        posterUrl: "/dark-knight-poster.png",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+        isTrending: true,
+        isFeatured: false,
+        views: 2341,
+      },
+      {
+        title: "Interstellar",
+        description:
+          "A team of explorers travel through a wormhole in space in an attempt to ensure humanity survival.",
+        year: 2014,
+        genre: "Sci-Fi",
+        posterUrl: "/interstellar-movie-poster.jpg",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        isTrending: true,
+        isFeatured: false,
+        views: 1876,
+      },
+      {
+        title: "The Shawshank Redemption",
+        description:
+          "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
+        year: 1994,
+        genre: "Drama",
+        posterUrl: "/shawshank-redemption-poster.png",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        isTrending: false,
+        isFeatured: false,
+        views: 3124,
+      },
+      {
+        title: "Pulp Fiction",
+        description:
+          "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.",
+        year: 1994,
+        genre: "Drama",
+        posterUrl: "/generic-movie-poster.png",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+        isTrending: false,
+        isFeatured: false,
+        views: 2654,
+      },
+      {
+        title: "The Matrix",
+        description:
+          "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.",
+        year: 1999,
+        genre: "Sci-Fi",
+        posterUrl: "/matrix-movie-poster.png",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+        isTrending: true,
+        isFeatured: false,
+        views: 2987,
+      },
+      {
+        title: "Mad Max: Fury Road",
+        description:
+          "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search for her homeland with the aid of a group of female prisoners.",
+        year: 2015,
+        genre: "Action",
+        posterUrl: "/mad-max-fury-road-poster.jpg",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+        isTrending: false,
+        isFeatured: false,
+        views: 1789,
+      },
+      {
+        title: "The Grand Budapest Hotel",
+        description:
+          "A writer encounters the owner of an aging high-class hotel, who tells him of his early years serving as a lobby boy.",
+        year: 2014,
+        genre: "Comedy",
+        posterUrl: "/grand-budapest-hotel-inspired-poster.png",
+        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+        isTrending: false,
+        isFeatured: false,
+        views: 1234,
+      },
+    ]
+
+    let insertedCount = 0
+    let skippedCount = 0
+
+    for (const movieData of sampleMovies) {
+      // Check if movie already exists
+      const existing = await db.query.movies.findFirst({
+        where: eq(movies.title, movieData.title),
+      })
+
+      if (existing) {
+        console.log(`[v0] Movie already exists: ${movieData.title}`)
+        skippedCount++
+        continue
+      }
+
+      // Insert movie
+      await db.insert(movies).values(movieData)
+      console.log(`[v0] Inserted movie: ${movieData.title}`)
+      insertedCount++
+    }
+
+    // Ensure default ad settings exist
+    const existingAdSettings = await db.query.adSettings.findFirst()
+    if (!existingAdSettings) {
+      await db.insert(adSettings).values({
+        horizontalAdCode: "",
+        verticalAdCode: "",
+        vastUrl: "",
+        smartLinkUrl: "",
+        adTimeoutSeconds: 20,
+        showPrerollAds: true,
+        homepageEnabled: false,
+        movieDetailEnabled: false,
+        dashboardEnabled: false,
+      })
+      console.log("[v0] Created default ad settings")
+    }
+
+    console.log(`[v0] Seeding complete! Inserted: ${insertedCount}, Skipped: ${skippedCount}`)
+    revalidatePath("/admin/dashboard")
+    revalidatePath("/")
+
+    return {
+      success: true,
+      message: `Successfully seeded ${insertedCount} movies (${skippedCount} already existed)`,
+      inserted: insertedCount,
+      skipped: skippedCount,
+    }
+  } catch (error: any) {
+    console.error("[v0] Error seeding database:", error)
+    return {
+      success: false,
+      error: error.message || "Failed to seed database",
+    }
+  }
+}
