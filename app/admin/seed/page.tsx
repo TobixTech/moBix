@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Database, Check, AlertCircle, Loader, ArrowLeft } from "lucide-react"
-import { seedDatabase } from "@/lib/server-actions"
+import { Database, Check, AlertCircle, Loader, ArrowLeft, Film, ExternalLink } from "lucide-react"
+import { seedDatabase, getAdminMovies } from "@/lib/server-actions"
 import Link from "next/link"
 
 export default function SeedDatabasePage() {
@@ -15,7 +15,21 @@ export default function SeedDatabasePage() {
     skipped?: number
     error?: string
   } | null>(null)
+  const [existingMovies, setExistingMovies] = useState<any[]>([])
   const router = useRouter()
+
+  useEffect(() => {
+    fetchMovies()
+  }, [])
+
+  const fetchMovies = async () => {
+    try {
+      const movies = await getAdminMovies()
+      setExistingMovies(movies)
+    } catch (error) {
+      console.error("Failed to fetch movies:", error)
+    }
+  }
 
   const handleSeed = async () => {
     setLoading(true)
@@ -23,6 +37,7 @@ export default function SeedDatabasePage() {
 
     const response = await seedDatabase()
     setResult(response)
+    await fetchMovies() // Refresh list after seeding
     setLoading(false)
   }
 
@@ -77,20 +92,61 @@ export default function SeedDatabasePage() {
           )}
 
           <div className="bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg p-6 mb-6">
-            <h2 className="text-white font-semibold mb-3">What will be seeded:</h2>
-            <ul className="text-[#888888] space-y-2 text-sm">
-              <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />8 Popular movies with sample data
-              </li>
-              <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />
-                Default ad settings configuration
-              </li>
-              <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />
-                Skips any movies that already exist
-              </li>
-            </ul>
+            <h2 className="text-white font-semibold mb-3 flex items-center justify-between">
+              <span>Database Status</span>
+              <span className="text-xs font-normal px-2 py-1 rounded bg-[#00FFFF]/10 text-[#00FFFF]">
+                {existingMovies.length} Movies Found
+              </span>
+            </h2>
+
+            {existingMovies.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {existingMovies.map((movie) => (
+                  <div
+                    key={movie.id}
+                    className="flex items-center justify-between p-3 bg-black/20 rounded border border-white/5 hover:border-[#00FFFF]/30 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Film className="w-4 h-4 text-[#888888] group-hover:text-[#00FFFF] transition-colors" />
+                      <div>
+                        <p className="text-sm font-medium text-white">{movie.title}</p>
+                        <p className="text-xs text-[#888888] font-mono">{movie.id}</p>
+                      </div>
+                    </div>
+                    <a
+                      href={`/movie/${movie.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-[#00FFFF] hover:bg-[#00FFFF]/10 rounded-full transition-colors"
+                      title="View Movie Page"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-4 text-[#888888] text-sm italic">
+                No movies found in database. Run the seed to add sample content.
+              </div>
+            )}
+
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <h3 className="text-white text-sm font-semibold mb-2">What will be seeded:</h3>
+              <ul className="text-[#888888] space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />8 Popular movies with sample data
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />
+                  Default ad settings configuration
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />
+                  Skips any movies that already exist
+                </li>
+              </ul>
+            </div>
           </div>
 
           <button
