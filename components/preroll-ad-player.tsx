@@ -22,17 +22,22 @@ export default function PrerollAdPlayer({
   const [timeLeft, setTimeLeft] = useState(maxDuration)
   const [canSkip, setCanSkip] = useState(false)
   const [showPlaceholder, setShowPlaceholder] = useState(!vastUrl)
+  const [skipTimeLeft, setSkipTimeLeft] = useState(skipDelay) // Track skip timer
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    const skipTimer = setTimeout(() => {
-      setCanSkip(true)
-    }, skipDelay * 1000)
+    const timer = setInterval(() => {
+      setSkipTimeLeft((prev) => {
+        if (prev <= 1) {
+          setCanSkip(true)
+          return 0
+        }
+        return prev - 1
+      })
 
-    const countdownInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(countdownInterval)
+          clearInterval(timer)
           onComplete()
           return 0
         }
@@ -40,10 +45,7 @@ export default function PrerollAdPlayer({
       })
     }, 1000)
 
-    return () => {
-      clearTimeout(skipTimer)
-      clearInterval(countdownInterval)
-    }
+    return () => clearInterval(timer)
   }, [skipDelay, maxDuration, onComplete])
 
   const handleSkip = () => {
@@ -66,17 +68,24 @@ export default function PrerollAdPlayer({
             <p className="text-[#CCCCCC] mb-6">Your video will start in {timeLeft} seconds...</p>
           </motion.div>
 
-          {canSkip && (
-            <motion.button
-              onClick={handleSkip}
-              className="mt-6 px-6 py-3 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/30 border border-[#00FFFF] text-[#00FFFF] rounded-lg font-bold transition-all flex items-center gap-2 mx-auto"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <X className="w-5 h-5" />
-              Skip Ad
-            </motion.button>
-          )}
+          <button
+            onClick={canSkip ? handleSkip : undefined}
+            disabled={!canSkip}
+            className={`mt-6 px-6 py-3 rounded-lg font-bold transition-all flex items-center gap-2 mx-auto ${
+              canSkip
+                ? "bg-[#00FFFF]/20 hover:bg-[#00FFFF]/30 border border-[#00FFFF] text-[#00FFFF] cursor-pointer"
+                : "bg-gray-800 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            {canSkip ? (
+              <>
+                <X className="w-5 h-5" />
+                Skip Ad
+              </>
+            ) : (
+              <span>Skip in {skipTimeLeft}s</span>
+            )}
+          </button>
         </div>
       </div>
     )
@@ -102,17 +111,24 @@ export default function PrerollAdPlayer({
             <p className="text-white text-sm font-medium">Ad · {timeLeft}s</p>
           </div>
 
-          {canSkip && (
-            <motion.button
-              onClick={handleSkip}
-              className="px-4 py-2 bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] rounded-lg font-bold transition-all flex items-center gap-2"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <X className="w-4 h-4" />
-              Skip Ad
-            </motion.button>
-          )}
+          <button
+            onClick={canSkip ? handleSkip : undefined}
+            disabled={!canSkip}
+            className={`px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 ${
+              canSkip
+                ? "bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10]"
+                : "bg-black/50 text-white/50 cursor-not-allowed border border-white/20"
+            }`}
+          >
+            {canSkip ? (
+              <>
+                <X className="w-4 h-4" />
+                Skip Ad
+              </>
+            ) : (
+              <span className="text-sm">Skip in {skipTimeLeft}s</span>
+            )}
+          </button>
         </div>
       </div>
     </div>

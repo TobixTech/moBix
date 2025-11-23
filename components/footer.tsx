@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { ReportIssueModal } from "@/components/report-issue-modal"
 
 export default function Footer() {
   return (
@@ -16,18 +17,18 @@ export default function Footer() {
             <h4 className="text-white font-bold mb-4">Company</h4>
             <ul className="space-y-2 text-[#888888] text-sm">
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
+                <Link href="/about" className="hover:text-[#00FFFF] transition">
                   About Us
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
-                  Careers
+                <Link href="/about" className="hover:text-[#00FFFF] transition">
+                  A
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
-                  Press
+                <Link href="/contact" className="hover:text-[#00FFFF] transition">
+                  Contact
                 </Link>
               </li>
             </ul>
@@ -38,17 +39,15 @@ export default function Footer() {
             <h4 className="text-white font-bold mb-4">Support</h4>
             <ul className="space-y-2 text-[#888888] text-sm">
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
+                <Link href="/contact" className="hover:text-[#00FFFF] transition">
                   Help Center
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
-                  Contact Us
-                </Link>
+                <ReportIssueModal />
               </li>
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
+                <Link href="/faq" className="hover:text-[#00FFFF] transition">
                   FAQ
                 </Link>
               </li>
@@ -60,18 +59,13 @@ export default function Footer() {
             <h4 className="text-white font-bold mb-4">Legal</h4>
             <ul className="space-y-2 text-[#888888] text-sm">
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
+                <Link href="/privacy" className="hover:text-[#00FFFF] transition">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
+                <Link href="/terms" className="hover:text-[#00FFFF] transition">
                   Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link href="#" className="hover:text-[#00FFFF] transition">
-                  Cookie Policy
                 </Link>
               </li>
             </ul>

@@ -4,8 +4,8 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Heart, Star, Send, Loader, Download } from "lucide-react"
-import { toggleLike, addComment } from "@/lib/server-actions"
+import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react" // Added Plus, Check icons
+import { toggleLike, addComment, toggleWatchlist } from "@/lib/server-actions" // Added toggleWatchlist
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
@@ -17,6 +17,8 @@ interface Comment {
   createdAt: Date
   user: {
     email: string
+    firstName?: string | null
+    displayName?: string
   }
 }
 
@@ -51,18 +53,25 @@ export default function MovieDetailClient({
   adBannerHorizontal,
   vastUrl,
   smartLinkUrl, // Added smartLinkUrl prop
+  adTimeout = 20, // Added adTimeout prop with default
+  isInWatchlist = false, // Added prop with default
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
   adBannerVertical?: React.ReactNode
   adBannerHorizontal?: React.ReactNode
   vastUrl?: string
-  smartLinkUrl?: string // Added smartLinkUrl type
+  smartLinkUrl?: string
+  adTimeout?: number // Added adTimeout type
+  isInWatchlist?: boolean // Added type definition
 }) {
   const { userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(movie.likesCount)
   const [isLiking, setIsLiking] = useState(false)
+
+  const [inWatchlist, setInWatchlist] = useState(isInWatchlist)
+  const [isWatchlistLoading, setIsWatchlistLoading] = useState(false)
 
   const [commentText, setCommentText] = useState("")
   const [commentRating, setCommentRating] = useState(5)
@@ -118,6 +127,24 @@ export default function MovieDetailClient({
     }
 
     setIsLiking(false)
+  }
+
+  const handleWatchlistToggle = async () => {
+    if (!userId) {
+      alert("Please sign in to manage your watchlist")
+      return
+    }
+
+    setIsWatchlistLoading(true)
+    const result = await toggleWatchlist(movie.id)
+
+    if (result.success) {
+      setInWatchlist(result.added || false)
+    } else {
+      alert(result.error || "Failed to update watchlist")
+    }
+
+    setIsWatchlistLoading(false)
   }
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
@@ -188,6 +215,7 @@ export default function MovieDetailClient({
               posterUrl={movie.posterUrl}
               title={movie.title}
               vastUrl={finalVastUrl}
+              adTimeout={adTimeout} // Pass timeout to player
             />
           </motion.div>
 
@@ -220,6 +248,26 @@ export default function MovieDetailClient({
                   {adClickCount < 2 ? `Download (Step ${adClickCount + 1}/2)` : "Download Now"}
                 </button>
               )}
+
+              <button
+                onClick={handleWatchlistToggle}
+                disabled={isWatchlistLoading}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-all ${
+                  inWatchlist
+                    ? "bg-green-500/20 border-green-500 text-green-400"
+                    : "bg-[#1A1B23] text-white border-[#2A2B33] hover:border-[#00FFFF]"
+                }`}
+              >
+                {isWatchlistLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : inWatchlist ? (
+                  <Check className="w-5 h-5" />
+                ) : (
+                  <Plus className="w-5 h-5" />
+                )}
+                <span>{inWatchlist ? "In Watchlist" : "Add to Watchlist"}</span>
+              </button>
+
               <button
                 onClick={handleLike}
                 disabled={isLiking}
@@ -245,6 +293,7 @@ export default function MovieDetailClient({
             </div>
           </motion.div>
 
+          {/* Reviews & Comments */}
           <motion.div
             className="mb-8"
             initial={{ opacity: 0, y: 20 }}
@@ -324,7 +373,9 @@ export default function MovieDetailClient({
                     animate={{ opacity: 1, x: 0 }}
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <h4 className="text-white font-bold">{comment.user.email}</h4>
+                      <h4 className="text-white font-bold">
+                        {comment.user.displayName || comment.user.firstName || comment.user.email.split("@")[0]}
+                      </h4>
                       <div className="flex gap-1">
                         {[...Array(5)].map((_, i) => (
                           <Star

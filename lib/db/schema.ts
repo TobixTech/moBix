@@ -8,6 +8,9 @@ export const users = pgTable("User", {
     .$defaultFn(() => crypto.randomUUID()),
   clerkId: text("clerkId").unique().notNull(),
   email: text("email").unique().notNull(),
+  username: text("username"),
+  firstName: text("firstName"),
+  lastName: text("lastName"),
   role: text("role").default("USER").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")
@@ -19,6 +22,7 @@ export const users = pgTable("User", {
 export const usersRelations = relations(users, ({ many }) => ({
   likes: many(likes),
   comments: many(comments),
+  watchlist: many(watchlist),
 }))
 
 // Movies
@@ -49,6 +53,7 @@ export const movies = pgTable("Movie", {
 export const moviesRelations = relations(movies, ({ many }) => ({
   likes: many(likes),
   comments: many(comments),
+  feedback: many(feedback),
 }))
 
 // Likes
@@ -123,6 +128,54 @@ export const adminInvites = pgTable("AdminInvite", {
   expiresAt: timestamp("expiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 })
+
+// Feedback table for movie requests and issue reports
+export const feedback = pgTable("Feedback", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  type: text("type").notNull(), // 'REQUEST' or 'REPORT'
+  title: text("title"),
+  details: text("details"),
+  email: text("email"),
+  status: text("status").default("NEW").notNull(), // 'NEW', 'IN_PROGRESS', 'COMPLETE'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+// Watchlist table
+export const watchlist = pgTable(
+  "Watchlist",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    movieId: text("movieId")
+      .notNull()
+      .references(() => movies.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    unq: primaryKey({ columns: [t.userId, t.movieId] }),
+  }),
+)
+
+export const watchlistRelations = relations(watchlist, ({ one }) => ({
+  user: one(users, {
+    fields: [watchlist.userId],
+    references: [users.id],
+  }),
+  movie: one(movies, {
+    fields: [watchlist.movieId],
+    references: [movies.id],
+  }),
+}))
 
 // Ad Settings
 export const adSettings = pgTable("AdSettings", {

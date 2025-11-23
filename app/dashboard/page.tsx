@@ -5,27 +5,69 @@ import { useUser } from "@clerk/nextjs"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import MovieCard from "@/components/movie-card"
-import { User, Settings, LogOut, Heart, MessageSquare } from "lucide-react"
-import { getUserStats } from "@/lib/server-actions"
+import { User, Settings, LogOut, Heart, MessageSquare, Loader, Save } from "lucide-react"
+import { getUserStats, updateUserProfile } from "@/lib/server-actions"
+import { useRouter } from "next/navigation"
 
 type DashboardTab = "profile" | "watchlist" | "liked" | "continue"
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("profile")
-  const { user: clerkUser } = useUser()
+  const { user: clerkUser, isLoaded } = useUser()
   const [userStats, setUserStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [username, setUsername] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState("")
 
   useEffect(() => {
     async function fetchUserData() {
+      if (clerkUser) {
+        setFirstName(clerkUser.firstName || "")
+        setLastName(clerkUser.lastName || "")
+        setUsername(clerkUser.username || "")
+      }
+
       const result = await getUserStats()
       if (result.success) {
         setUserStats(result.stats)
       }
       setLoading(false)
     }
-    fetchUserData()
-  }, [])
+
+    if (isLoaded) {
+      fetchUserData()
+    }
+  }, [isLoaded, clerkUser])
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true)
+    setSaveMessage("")
+
+    try {
+      const result = await updateUserProfile({
+        username,
+        firstName,
+        lastName,
+      })
+
+      if (result.success) {
+        setSaveMessage("Profile updated successfully!")
+        setTimeout(() => setSaveMessage(""), 3000)
+        router.refresh()
+      } else {
+        setSaveMessage(`Error: ${result.error}`)
+      }
+    } catch (error) {
+      setSaveMessage("Failed to update profile")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
@@ -136,24 +178,58 @@ export default function Dashboard() {
 
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-white text-sm font-medium mb-2">Full Name</label>
+                        <label className="block text-white text-sm font-medium mb-2">First Name</label>
                         <input
                           type="text"
-                          defaultValue={clerkUser?.firstName + " " + clerkUser?.lastName || "User"}
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
                           className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
                         />
                       </div>
                       <div>
-                        <label className="block text-white text-sm font-medium mb-2">Email</label>
+                        <label className="block text-white text-sm font-medium mb-2">Last Name</label>
                         <input
-                          type="email"
-                          defaultValue={userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress}
+                          type="text"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
                           className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
                         />
                       </div>
-                      <button className="px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition">
-                        Save Changes
-                      </button>
+                      <div>
+                        <label className="block text-white text-sm font-medium mb-2">Username</label>
+                        <input
+                          type="text"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-white text-sm font-medium mb-2">Email (Cannot be changed)</label>
+                        <input
+                          type="email"
+                          value={userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress || ""}
+                          readOnly
+                          className="w-full px-4 py-2 bg-[#0B0C10]/50 border border-[#2A2B33] rounded text-[#888888] cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={handleSaveProfile}
+                          disabled={isSaving}
+                          className="px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          Save Changes
+                        </button>
+                        {saveMessage && (
+                          <span className={saveMessage.includes("Error") ? "text-red-400" : "text-green-400"}>
+                            {saveMessage}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

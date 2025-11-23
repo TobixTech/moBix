@@ -97,7 +97,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
 
         {/* Menu */}
         <div className="hidden md:flex gap-6 flex-1 ml-8">
-          {["Home", "Movies", "Dashboard"].map((item, i) => (
+          {["Home", "Movies", "Watchlist", "Dashboard"].map((item, i) => (
             <motion.div
               key={item}
               initial={{ opacity: 0, y: -10 }}
@@ -105,7 +105,17 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
               transition={{ delay: i * 0.1 }}
             >
               <Link
-                href={item === "Home" ? (showAuthButtons ? "/" : "/home") : "/"}
+                href={
+                  item === "Home"
+                    ? showAuthButtons
+                      ? "/"
+                      : "/home"
+                    : item === "Watchlist"
+                      ? "/watchlist"
+                      : item === "Movies"
+                        ? "/home" // Directing Movies to home for now as it lists movies
+                        : "/"
+                }
                 className="text-white hover:text-[#00FFFF] transition relative group text-xs"
               >
                 {item}

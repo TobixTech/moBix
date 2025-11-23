@@ -2,9 +2,22 @@
 
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { db } from "./db"
-import { movies, users, likes, comments, adSettings } from "./db/schema"
-import { eq, desc, and, or, ilike, count, sum, sql, not } from "drizzle-orm"
+import { movies, users, likes, comments, adSettings, feedback, watchlist } from "./db/schema"
+import { eq, desc, and, or, ilike, count, sum, sql, not, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+
+interface CommentWithUser {
+  id: string
+  text: string
+  rating: number
+  createdAt: Date
+  user: {
+    email: string
+    firstName?: string | null
+    lastName?: string | null
+    username?: string | null
+  }
+}
 
 export async function uploadMovie(formData: {
   title: string
@@ -63,32 +76,37 @@ export async function getPublicMovies() {
 
 export async function getTrendingMovies() {
   try {
-    // Fetch all movies first (matching previous logic for random shuffle)
-    // To get like counts, we'll fetch them separately or use a join if needed.
-    // For simplicity and to match the 'shuffle' logic, we'll fetch movies and their like counts.
+    // Get top 10 movies by like count
+    const topLiked = await db
+      .select({
+        id: movies.id,
+        title: movies.title,
+        genre: movies.genre,
+        posterUrl: movies.posterUrl,
+        likeCount: count(likes.id),
+      })
+      .from(movies)
+      .leftJoin(likes, eq(movies.id, likes.movieId))
+      .groupBy(movies.id)
+      .orderBy(desc(count(likes.id)))
+      .limit(10)
 
-    // Efficient approach: Get top movies by likes, or just random ones?
-    // The previous code fetched ALL movies, counted likes, then shuffled.
+    // If we don't have enough liked movies, fill with random ones
+    if (topLiked.length < 5) {
+      const allMovies = await db.query.movies.findMany({
+        limit: 20,
+        orderBy: [desc(movies.createdAt)],
+      })
 
-    const allMovies = await db.query.movies.findMany({
-      with: {
-        likes: true, // This fetches all likes. For large datasets, use count() instead.
-      },
-    })
-
-    if (allMovies.length === 0) {
-      console.log("[v0] No movies found in database")
-      return []
+      const shuffled = allMovies.sort(() => 0.5 - Math.random()).slice(0, 10)
+      return shuffled
     }
 
-    // Randomize the movies array
-    const shuffled = allMovies.sort(() => 0.5 - Math.random())
-
-    // Take the first 10 random movies
-    const randomMovies = shuffled.slice(0, 10)
-
-    console.log(`[v0] Returning ${randomMovies.length} random movies for trending`)
-    return randomMovies
+    // Map to expected format
+    return topLiked.map((m) => ({
+      ...m,
+      likes: [], // Placeholder for compatibility
+    }))
   } catch (error) {
     console.error("[v0] Error fetching trending movies:", error)
     return []
@@ -136,8 +154,21 @@ export async function getMovieById(id: string) {
       .set({ views: sql`${movies.views} + 1` })
       .where(eq(movies.id, id))
 
+    const transformedComments = movie.comments.map((comment: any) => ({
+      ...comment,
+      user: {
+        email: comment.user.email,
+        firstName: comment.user.firstName,
+        lastName: comment.user.lastName,
+        username: comment.user.username,
+        // Helper property for frontend
+        displayName: comment.user.firstName || comment.user.username || comment.user.email.split("@")[0] || "Anonymous",
+      },
+    }))
+
     return {
       ...movie,
+      comments: transformedComments,
       likesCount: movie.likes.length,
       avgRating: Math.round(avgRating * 10) / 10,
     }
@@ -149,32 +180,60 @@ export async function getMovieById(id: string) {
 
 export async function getRelatedMovies(movieId: string, genre: string) {
   try {
-    if (!genre) {
-      console.log("[v0] No genre provided for related movies, fetching recent movies")
-      const result = await db.query.movies.findMany({
-        where: not(eq(movies.id, movieId)),
-        orderBy: [desc(movies.createdAt)],
-        limit: 4,
-      })
-      return result
-    }
-
-    const result = await db.query.movies.findMany({
+    // 1. Try to find movies with same genre
+    let related = await db.query.movies.findMany({
       where: and(eq(movies.genre, genre), not(eq(movies.id, movieId))),
-      orderBy: [desc(movies.createdAt)],
+      orderBy: [desc(movies.views)], // Order by views for "smart" relevance
       limit: 4,
     })
 
-    if (result.length === 0) {
-      console.log("[v0] No related movies in genre:", genre, "- fetching recent movies instead")
-      return await db.query.movies.findMany({
-        where: not(eq(movies.id, movieId)),
-        orderBy: [desc(movies.createdAt)],
-        limit: 4,
-      })
+    // 2. If not enough, find movies with overlapping genre words (e.g. "Action Sci-Fi" matches "Action")
+    if (related.length < 4) {
+      const genreWords = genre.split(" ").filter((w) => w.length > 3)
+
+      if (genreWords.length > 0) {
+        const moreRelated = await db.query.movies.findMany({
+          where: and(
+            or(...genreWords.map((w) => ilike(movies.genre, `%${w}%`))),
+            not(eq(movies.id, movieId)),
+            // Exclude already found
+            related.length > 0
+              ? not(
+                  inArray(
+                    movies.id,
+                    related.map((m) => m.id),
+                  ),
+                )
+              : undefined,
+          ),
+          limit: 4 - related.length,
+        })
+        related = [...related, ...moreRelated]
+      }
     }
 
-    return result
+    // 3. Fallback to trending/popular if still not enough
+    if (related.length < 4) {
+      const popular = await db.query.movies.findMany({
+        where: and(
+          not(eq(movies.id, movieId)),
+          // Exclude already found
+          related.length > 0
+            ? not(
+                inArray(
+                  movies.id,
+                  related.map((m) => m.id),
+                ),
+              )
+            : undefined,
+        ),
+        orderBy: [desc(movies.views)],
+        limit: 4 - related.length,
+      })
+      related = [...related, ...popular]
+    }
+
+    return related
   } catch (error) {
     console.error("[v0] Error fetching related movies:", error)
     return []
@@ -323,6 +382,9 @@ export async function assignAdminRole(userId: string): Promise<{ success: boolea
     await db.insert(users).values({
       clerkId: userId,
       email: email,
+      username: clerkUser.username || null,
+      firstName: clerkUser.firstName || null,
+      lastName: clerkUser.lastName || null,
       role: "ADMIN",
     })
 
@@ -413,6 +475,9 @@ export async function ensureUserExists(userId: string) {
         .values({
           clerkId: userId,
           email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+          username: clerkUser.username || null,
+          firstName: clerkUser.firstName || null,
+          lastName: clerkUser.lastName || null,
           role: "user",
         })
         .returning()
@@ -446,6 +511,7 @@ export async function toggleLike(movieId: string) {
     if (existingLike) {
       await db.delete(likes).where(eq(likes.id, existingLike.id))
       revalidatePath(`/movie/${movieId}`)
+      revalidatePath("/dashboard")
       return { success: true, liked: false }
     } else {
       await db.insert(likes).values({
@@ -453,6 +519,7 @@ export async function toggleLike(movieId: string) {
         movieId,
       })
       revalidatePath(`/movie/${movieId}`)
+      revalidatePath("/dashboard")
       return { success: true, liked: true }
     }
   } catch (error: any) {
@@ -563,6 +630,7 @@ export async function getAllComments() {
       movieTitle: comment.movie.title,
       movieId: comment.movie.id,
       userEmail: comment.user.email,
+      userName: comment.user.firstName || comment.user.username || comment.user.email,
       createdAt: comment.createdAt.toISOString().split("T")[0],
     }))
   } catch (error) {
@@ -721,6 +789,15 @@ export async function updateUserProfile(data: { username: string; firstName: str
         firstName: data.firstName || undefined,
         lastName: data.lastName || undefined,
       })
+
+      await db
+        .update(users)
+        .set({
+          username: data.username || undefined,
+          firstName: data.firstName || undefined,
+          lastName: data.lastName || undefined,
+        })
+        .where(eq(users.clerkId, userId))
     } catch (clerkError: any) {
       // Handle case where username might be taken or other Clerk validation errors
       console.error("[v0] Clerk update error:", clerkError)
@@ -728,6 +805,7 @@ export async function updateUserProfile(data: { username: string; firstName: str
     }
 
     revalidatePath("/profile")
+    revalidatePath("/dashboard")
     return { success: true }
   } catch (error: any) {
     console.error("[v0] Error updating user profile:", error)
@@ -786,5 +864,242 @@ export async function grantAdminAccessWithKey(accessKey: string) {
   } catch (error: any) {
     console.error("[v0] Error granting admin access:", error)
     return { success: false, error: error.message || "Failed to grant access" }
+  }
+}
+
+export async function submitFeedback(data: {
+  type: "REQUEST" | "REPORT"
+  title: string
+  details?: string
+  email?: string
+}) {
+  try {
+    console.log("[v0] Submitting feedback:", data)
+
+    await db.insert(feedback).values({
+      type: data.type,
+      title: data.title,
+      details: data.details || "",
+      email: data.email || "",
+    })
+
+    console.log("[v0] Feedback submitted successfully")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error submitting feedback:", error)
+    return { success: false, error: error.message || "Failed to submit feedback" }
+  }
+}
+
+export async function getWatchlist() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const user = await ensureUserExists(userId)
+
+    const result = await db.query.watchlist.findMany({
+      where: eq(watchlist.userId, user.id),
+      with: {
+        movie: true,
+      },
+      orderBy: [desc(watchlist.createdAt)],
+    })
+
+    return {
+      success: true,
+      movies: result.map((item) => ({
+        ...item.movie,
+        watchlistId: item.id,
+      })),
+    }
+  } catch (error: any) {
+    console.error("[v0] Error fetching watchlist:", error)
+    return { success: false, error: error.message || "Failed to fetch watchlist" }
+  }
+}
+
+export async function toggleWatchlist(movieId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Please sign in to manage watchlist" }
+    }
+
+    const user = await ensureUserExists(userId)
+
+    const existing = await db.query.watchlist.findFirst({
+      where: and(eq(watchlist.userId, user.id), eq(watchlist.movieId, movieId)),
+    })
+
+    if (existing) {
+      await db.delete(watchlist).where(eq(watchlist.id, existing.id))
+      revalidatePath(`/movie/${movieId}`)
+      revalidatePath("/dashboard")
+      revalidatePath("/watchlist")
+      return { success: true, added: false }
+    } else {
+      await db.insert(watchlist).values({
+        userId: user.id,
+        movieId,
+      })
+      revalidatePath(`/movie/${movieId}`)
+      revalidatePath("/dashboard")
+      revalidatePath("/watchlist")
+      return { success: true, added: true }
+    }
+  } catch (error: any) {
+    console.error("[v0] Error toggling watchlist:", error)
+    return { success: false, error: error.message || "Failed to update watchlist" }
+  }
+}
+
+export async function getWatchlistStatus(movieId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return false
+    }
+
+    const user = await ensureUserExists(userId)
+
+    const existing = await db.query.watchlist.findFirst({
+      where: and(eq(watchlist.userId, user.id), eq(watchlist.movieId, movieId)),
+    })
+
+    return !!existing
+  } catch (error) {
+    console.error("[v0] Error checking watchlist status:", error)
+    return false
+  }
+}
+
+export async function getFeedbackEntries() {
+  try {
+    const result = await db.query.feedback.findMany({
+      orderBy: [desc(feedback.createdAt)],
+    })
+    return result
+  } catch (error) {
+    console.error("[v0] Error fetching feedback:", error)
+    return []
+  }
+}
+
+export async function updateFeedbackStatus(id: string, status: string) {
+  try {
+    await db.update(feedback).set({ status }).where(eq(feedback.id, id))
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error updating feedback status:", error)
+    return { success: false, error: error.message || "Failed to update status" }
+  }
+}
+
+export async function deleteFeedback(id: string) {
+  try {
+    await db.delete(feedback).where(eq(feedback.id, id))
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[v0] Error deleting feedback:", error)
+    return { success: false, error: error.message || "Failed to delete feedback" }
+  }
+}
+
+export async function getRecommendedMovies() {
+  try {
+    const { userId } = await auth()
+
+    // If no user, return popular movies
+    if (!userId) {
+      const popular = await db.query.movies.findMany({
+        orderBy: [desc(movies.views)],
+        limit: 12,
+      })
+      return popular
+    }
+
+    const user = await ensureUserExists(userId)
+
+    // Get user's liked movies to understand preferences
+    const userLikes = await db.query.likes.findMany({
+      where: eq(likes.userId, user.id),
+      with: {
+        movie: true,
+      },
+    })
+
+    if (userLikes.length === 0) {
+      // User hasn't liked anything, return trending
+      return await getTrendingMovies()
+    }
+
+    // Extract preferred genres
+    const genres = userLikes.map((l) => l.movie.genre)
+    const genreCounts: Record<string, number> = {}
+
+    genres.forEach((g) => {
+      // Split "Action, Adventure" into individual genres
+      const parts = g.split(/[,/ ]+/).filter((p) => p.length > 3)
+      parts.forEach((p) => {
+        genreCounts[p] = (genreCounts[p] || 0) + 1
+      })
+    })
+
+    // Sort genres by frequency
+    const topGenres = Object.entries(genreCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([g]) => g)
+      .slice(0, 3) // Top 3 genres
+
+    if (topGenres.length === 0) return await getTrendingMovies()
+
+    // Find movies matching top genres, excluding already liked
+    const likedMovieIds = userLikes.map((l) => l.movie.id)
+
+    const recommendations = await db.query.movies.findMany({
+      where: and(or(...topGenres.map((g) => ilike(movies.genre, `%${g}%`))), not(inArray(movies.id, likedMovieIds))),
+      orderBy: [desc(movies.views)], // Surface popular ones in those genres
+      limit: 12,
+    })
+
+    return recommendations.length > 0 ? recommendations : await getTrendingMovies()
+  } catch (error) {
+    console.error("[v0] Error fetching recommendations:", error)
+    return []
+  }
+}
+
+export async function getTopRatedMovies() {
+  try {
+    // Join comments to calculate average rating
+    const topRated = await db
+      .select({
+        id: movies.id,
+        title: movies.title,
+        genre: movies.genre,
+        posterUrl: movies.posterUrl,
+        avgRating: sql<number>`avg(${comments.rating})`.mapWith(Number),
+        ratingCount: count(comments.id),
+      })
+      .from(movies)
+      .leftJoin(comments, eq(movies.id, comments.movieId))
+      .groupBy(movies.id)
+      .having(sql`count(${comments.id}) > 0`) // Only movies with ratings
+      .orderBy(desc(sql`avg(${comments.rating})`))
+      .limit(10)
+
+    if (topRated.length < 5) {
+      return await getPublicMovies()
+    }
+
+    return topRated
+  } catch (error) {
+    console.error("[v0] Error fetching top rated movies:", error)
+    return []
   }
 }

@@ -20,6 +20,8 @@ import {
   Settings,
   Save,
   Ban,
+  Inbox,
+  CheckCircle,
 } from "lucide-react"
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
@@ -28,21 +30,24 @@ import {
   getTrendingMovies,
   getRecentSignups,
   getAdminMovies,
-  getAdminUsers, // Fixed import from getAllUsers to getAdminUsers
+  getAdminUsers,
   uploadMovie,
   updateMovie,
   deleteMovie,
-  getAdSettings, // Added import for getAdSettings
-  updateAdSettings, // Added import for updateAdSettings
-  deleteComment, // Added import for deleteComment server action
-  banUser, // Added import for banUser server action
-  deleteUser, // Added import for deleteUser server action
+  getAdSettings,
+  updateAdSettings,
+  deleteComment,
+  banUser,
+  deleteUser,
+  getFeedbackEntries, // Added import
+  updateFeedbackStatus, // Added import
+  deleteFeedback, // Added import
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads"
+type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback"
 
 interface Metric {
   label: string
@@ -50,6 +55,7 @@ interface Metric {
   change: string
 }
 
+// ... existing interfaces ...
 interface Movie {
   id: number
   title: string
@@ -57,16 +63,16 @@ interface Movie {
   genre?: string
   uploadDate?: string
   status?: string
-  downloadEnabled?: boolean // Added downloadEnabled
-  downloadUrl?: string // Added downloadUrl
-  customVastUrl?: string // Added customVastUrl
-  useGlobalAd?: boolean // Added useGlobalAd
-  description?: string // Added description
-  thumbnail?: string // Added thumbnail for edit modal
-  videoLink?: string // Added videoLink for edit modal
-  year?: number // Added year for edit modal
-  posterUrl?: string // Added posterUrl for edit modal
-  videoUrl?: string // Added videoUrl for edit modal
+  downloadEnabled?: boolean
+  downloadUrl?: string
+  customVastUrl?: string
+  useGlobalAd?: boolean
+  description?: string
+  thumbnail?: string
+  videoLink?: string
+  year?: number
+  posterUrl?: string
+  videoUrl?: string
 }
 
 interface Signup {
@@ -76,7 +82,7 @@ interface Signup {
 }
 
 interface User {
-  id: string // Changed to string to match server action return type
+  id: string
   email: string
   dateJoined: string
   role: string
@@ -90,6 +96,16 @@ interface Comment {
   userEmail: string
   createdAt: string
   movieId: string
+}
+
+interface Feedback {
+  id: string
+  type: string
+  title: string
+  details: string
+  email: string
+  status: string
+  createdAt: Date
 }
 
 export default function AdminDashboard() {
@@ -110,23 +126,24 @@ export default function AdminDashboard() {
   const [movies, setMovies] = useState<Movie[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [comments, setComments] = useState<Comment[]>([])
+  const [feedback, setFeedback] = useState<Feedback[]>([]) // Added feedback state
   const [loading, setLoading] = useState(true)
 
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
 
+  // ... existing state ...
   const [adSettings, setAdSettings] = useState({
     horizontalAdCode: "",
     verticalAdCode: "",
     vastUrl: "",
-    smartLinkUrl: "", // Added Smart Link URL state
+    smartLinkUrl: "",
     adTimeout: 20,
     showPrerollAds: true,
     showHomepageAds: true,
     showMovieDetailAds: true,
   })
 
-  // Added ad settings and download settings to formData
   const [formData, setFormData] = useState({
     title: "",
     thumbnail: "",
@@ -141,6 +158,7 @@ export default function AdminDashboard() {
     useGlobalAd: true,
   })
 
+  // ... existing handlePinSubmit ...
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPinError("")
@@ -171,26 +189,29 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsData, trendingData, signupsData, moviesData, usersData, adSettingsData] = await Promise.all([
-          getAdminMetrics(),
-          getTrendingMovies(),
-          getRecentSignups(),
-          getAdminMovies(),
-          getAdminUsers(), // Fixed from getAllUsers to getAdminUsers
-          getAdSettings(), // Added call to getAdSettings
-        ])
+        const [metricsData, trendingData, signupsData, moviesData, usersData, adSettingsData, feedbackData] =
+          await Promise.all([
+            getAdminMetrics(),
+            getTrendingMovies(),
+            getRecentSignups(),
+            getAdminMovies(),
+            getAdminUsers(),
+            getAdSettings(),
+            getFeedbackEntries(), // Added fetch for feedback
+          ])
         setMetrics(metricsData)
         setTrendingMovies(trendingData)
         setRecentSignups(signupsData)
         setMovies(moviesData)
         setUsers(usersData)
+        setFeedback(feedbackData) // Set feedback state
 
         if (adSettingsData) {
           setAdSettings({
             horizontalAdCode: adSettingsData.horizontalAdCode || "",
             verticalAdCode: adSettingsData.verticalAdCode || "",
             vastUrl: adSettingsData.vastUrl || "",
-            smartLinkUrl: adSettingsData.smartLinkUrl || "", // Initialize smartLinkUrl
+            smartLinkUrl: adSettingsData.smartLinkUrl || "",
             adTimeout: adSettingsData.adTimeoutSeconds || 20,
             showPrerollAds: adSettingsData.showPrerollAds ?? true,
             showHomepageAds: adSettingsData.homepageEnabled ?? true,
@@ -213,6 +234,7 @@ export default function AdminDashboard() {
     }
   }, [pinVerified])
 
+  // ... existing handlers (handleFormChange, handleUpload, handleEdit, handleSaveEdit, handleSaveAdSettings, handleDelete, handleDeleteComment, handleBanUser, handleDeleteUser) ...
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -273,7 +295,6 @@ export default function AdminDashboard() {
       genre: movie.genre || "Action",
       posterUrl: movie.posterUrl || "",
       videoUrl: movie.videoUrl || "",
-      // Use videoUrl for both videoLink and videoUrl to ensure form displays correctly
       videoLink: movie.videoUrl || "",
       thumbnail: movie.posterUrl || "",
       downloadEnabled: movie.downloadEnabled || false,
@@ -293,9 +314,7 @@ export default function AdminDashboard() {
       description: editingMovie.description || "",
       year: editingMovie.year || 2024,
       genre: editingMovie.genre || "Action",
-      // Use whichever field has a value, fallback to existing posterUrl
       posterUrl: editingMovie.thumbnail || editingMovie.posterUrl || "",
-      // Use whichever field has a value, fallback to existing videoUrl
       videoUrl: editingMovie.videoLink || editingMovie.videoUrl || "",
       isFeatured: editingMovie.status === "Published",
       downloadEnabled: editingMovie.downloadEnabled || false,
@@ -323,7 +342,7 @@ export default function AdminDashboard() {
       horizontalAdCode: adSettings.horizontalAdCode,
       verticalAdCode: adSettings.verticalAdCode,
       vastUrl: adSettings.vastUrl,
-      smartLinkUrl: adSettings.smartLinkUrl, // Include Smart Link URL
+      smartLinkUrl: adSettings.smartLinkUrl,
       adTimeoutSeconds: adSettings.adTimeout,
       showPrerollAds: adSettings.showPrerollAds,
       homepageEnabled: adSettings.showHomepageAds,
@@ -366,7 +385,6 @@ export default function AdminDashboard() {
     const result = await deleteComment(commentId)
 
     if (result.success) {
-      // Refresh comments
       const commentsResponse = await fetch("/api/admin/comments")
       const commentsData = await commentsResponse.json()
       setComments(commentsData)
@@ -387,8 +405,7 @@ export default function AdminDashboard() {
     const result = await banUser(userId)
 
     if (result.success) {
-      // Refresh users
-      const usersData = await getAdminUsers() // Fixed from getAllUsers to getAdminUsers
+      const usersData = await getAdminUsers()
       setUsers(usersData)
       alert("User banned successfully!")
     } else {
@@ -407,8 +424,7 @@ export default function AdminDashboard() {
     const result = await deleteUser(userId)
 
     if (result.success) {
-      // Refresh users
-      const usersData = await getAdminUsers() // Fixed from getAllUsers to getAdminUsers
+      const usersData = await getAdminUsers()
       setUsers(usersData)
       alert("User deleted successfully!")
     } else {
@@ -418,9 +434,35 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  const handleUpdateFeedback = async (id: string, status: string) => {
+    setLoading(true)
+    const result = await updateFeedbackStatus(id, status)
+    if (result.success) {
+      const feedbackData = await getFeedbackEntries()
+      setFeedback(feedbackData)
+    } else {
+      alert("Failed to update status")
+    }
+    setLoading(false)
+  }
+
+  const handleDeleteFeedback = async (id: string) => {
+    if (!confirm("Delete this entry permanently?")) return
+    setLoading(true)
+    const result = await deleteFeedback(id)
+    if (result.success) {
+      const feedbackData = await getFeedbackEntries()
+      setFeedback(feedbackData)
+    } else {
+      alert("Failed to delete entry")
+    }
+    setLoading(false)
+  }
+
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
   const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
+  // ... existing PIN verification render ...
   if (!pinVerified) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center p-4">
@@ -497,7 +539,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex flex-col lg:flex-row">
-      {/* Edit Movie Modal */}
+      {/* ... Edit Modal ... */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-[#1A1B23] border border-[#00FFFF]/30 text-white">
           <DialogHeader>
@@ -579,124 +621,83 @@ export default function AdminDashboard() {
               />
             </div>
 
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="edit-download"
+                checked={editingMovie?.downloadEnabled || false}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, downloadEnabled: e.target.checked })}
+                className="w-4 h-4 rounded border-white/10 bg-white/5 text-cyan-500 focus:ring-cyan-500/50"
+              />
+              <label htmlFor="edit-download" className="text-white text-sm">
+                Enable Download
+              </label>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-white font-medium mb-2 text-sm">Download URL</label>
+              <input
+                type="url"
+                value={editingMovie?.downloadUrl || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, downloadUrl: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all disabled:opacity-50"
+                disabled={!editingMovie?.downloadEnabled}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-white font-medium mb-2 text-sm">Custom VAST URL (Optional)</label>
+              <input
+                type="url"
+                value={editingMovie?.customVastUrl || ""}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, customVastUrl: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="edit-global-ad"
+                checked={editingMovie?.useGlobalAd ?? true}
+                onChange={(e) => setEditingMovie({ ...editingMovie!, useGlobalAd: e.target.checked })}
+                className="w-4 h-4 rounded border-white/10 bg-white/5 text-cyan-500 focus:ring-cyan-500/50"
+              />
+              <label htmlFor="edit-global-ad" className="text-white text-sm">
+                Use Global Ad Settings
+              </label>
+            </div>
+
             <div className="md:col-span-2">
               <label className="block text-white font-medium mb-2 text-sm">Description</label>
               <textarea
                 value={editingMovie?.description || ""}
                 onChange={(e) => setEditingMovie({ ...editingMovie!, description: e.target.value })}
                 rows={3}
-                placeholder="Movie description..."
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-2 cursor-pointer mb-3">
-                <input
-                  type="checkbox"
-                  checked={editingMovie?.downloadEnabled || false}
-                  onChange={(e) => setEditingMovie({ ...editingMovie!, downloadEnabled: e.target.checked })}
-                  className="w-4 h-4 accent-cyan-400"
-                />
-                <span className="text-white text-sm font-medium">Enable Download Button</span>
-              </label>
-
-              {editingMovie?.downloadEnabled && (
-                <input
-                  type="url"
-                  value={editingMovie?.downloadUrl || ""}
-                  onChange={(e) => setEditingMovie({ ...editingMovie!, downloadUrl: e.target.value })}
-                  placeholder="https://download-link.com/file.mp4"
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              )}
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-2 cursor-pointer mb-3">
-                <input
-                  type="checkbox"
-                  checked={!(editingMovie?.useGlobalAd ?? true)}
-                  onChange={(e) => setEditingMovie({ ...editingMovie!, useGlobalAd: !e.target.checked })}
-                  className="w-4 h-4 accent-cyan-400"
-                />
-                <span className="text-white text-sm font-medium">Use Custom Pre-roll Ad</span>
-              </label>
-
-              {!(editingMovie?.useGlobalAd ?? true) && (
-                <input
-                  type="url"
-                  value={editingMovie?.customVastUrl || ""}
-                  onChange={(e) => setEditingMovie({ ...editingMovie!, customVastUrl: e.target.value })}
-                  placeholder="https://vast-url.com/ad.xml"
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              )}
-            </div>
-          </div>
-
-          <DialogHeader className="mt-6">
-            <DialogTitle className="text-lg font-bold text-white/80">Ad Settings for this Movie</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white font-medium mb-2 text-sm">Custom VAST URL</label>
-              <input
-                type="url"
-                value={editingMovie?.customVastUrl || ""}
-                onChange={(e) => setEditingMovie({ ...editingMovie!, customVastUrl: e.target.value })}
-                placeholder="https://vast-url.com/ad.xml"
                 className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
               />
             </div>
-            <div>
-              <label className="block text-white font-medium mb-2 text-sm">Use Global Ad</label>
-              <select
-                value={editingMovie?.useGlobalAd?.toString() || "true"}
-                onChange={(e) => setEditingMovie({ ...editingMovie!, useGlobalAd: e.target.value === "true" })}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-              >
-                <option value="true">Yes</option>
-                <option value="false">No</option>
-              </select>
-            </div>
           </div>
 
-          <div className="flex gap-4 pt-8">
+          <div className="flex justify-end gap-3 mt-6">
             <button
-              onClick={handleSaveEdit}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
-            >
-              Save Changes
-            </button>
-            <button
-              onClick={() => {
-                setEditModalOpen(false)
-                setEditingMovie(null)
-              }}
-              className="px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-lg hover:bg-white/10 transition-all"
+              onClick={() => setEditModalOpen(false)}
+              className="px-4 py-2 bg-white/5 text-white hover:bg-white/10 rounded-lg transition-all"
             >
               Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-black font-bold rounded-lg transition-all flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              Save Changes
             </button>
           </div>
         </DialogContent>
       </Dialog>
-
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
-        aria-label="Toggle sidebar"
-      >
-        {sidebarOpen ? <X className="w-6 h-6 text-white" /> : <Menu className="w-6 h-6 text-white" />}
-      </button>
-
-      {sidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
 
       <aside
         className={`w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 flex flex-col transition-all duration-300 ${
@@ -718,6 +719,7 @@ export default function AdminDashboard() {
             { id: "users", label: "Manage Users", icon: Users },
             { id: "comments", label: "Comment Moderation", icon: MessageSquare },
             { id: "ads", label: "Ad Management", icon: Settings },
+            { id: "feedback", label: "Feedback & Requests", icon: Inbox },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -748,57 +750,224 @@ export default function AdminDashboard() {
       </aside>
 
       <main className="flex-1 overflow-auto w-full lg:w-auto">
-        <div className="p-4 sm:p-8 space-y-8 pt-16 lg:pt-8">
-          {activeTab === "overview" && (
-            <div className="space-y-8">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Dashboard Overview</h1>
-                <p className="text-white/50">Real-time platform metrics and activity</p>
+        {/* Header */}
+        <header className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-white/5 backdrop-blur-xl sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden text-white/70 hover:text-white">
+              {sidebarOpen ? <X /> : <Menu />}
+            </button>
+            <h2 className="text-xl font-bold text-white capitalize">
+              {activeTab === "overview" ? "Dashboard Overview" : activeTab.replace("-", " ")}
+            </h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-2 text-sm text-white/50 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              System Operational
+            </div>
+            <div className="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold">
+              A
+            </div>
+          </div>
+        </header>
+
+        <div className="p-6">
+          {/* ... other tabs content ... */}
+          {activeTab === "feedback" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Stats Cards */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                  <h4 className="text-white/60 text-sm mb-1">Total Requests</h4>
+                  <p className="text-2xl font-bold text-white">{feedback.filter((f) => f.type === "REQUEST").length}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                  <h4 className="text-white/60 text-sm mb-1">Pending Items</h4>
+                  <p className="text-2xl font-bold text-yellow-400">
+                    {feedback.filter((f) => f.status !== "COMPLETE").length}
+                  </p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                  <h4 className="text-white/60 text-sm mb-1">Completed</h4>
+                  <p className="text-2xl font-bold text-green-400">
+                    {feedback.filter((f) => f.status === "COMPLETE").length}
+                  </p>
+                </div>
               </div>
 
-              {/* Metric Cards */}
+              <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Type</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Title / Details</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Date</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {feedback.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-white/40">
+                            No feedback or requests found.
+                          </td>
+                        </tr>
+                      ) : (
+                        feedback.map((item) => (
+                          <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                            <td className="px-6 py-4">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-bold border ${
+                                  item.type === "REQUEST"
+                                    ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                    : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                                }`}
+                              >
+                                {item.type}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-white">{item.title}</div>
+                              {item.details && (
+                                <div className="text-sm text-white/50 mt-1 line-clamp-1">{item.details}</div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-white/70">{item.email || "Anonymous"}</td>
+                            <td className="px-6 py-4">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-bold border ${
+                                  item.status === "COMPLETE"
+                                    ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                    : item.status === "IN_PROGRESS"
+                                      ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                                      : "bg-white/10 text-white/60 border-white/10"
+                                }`}
+                              >
+                                {item.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-white/50">
+                              {new Date(item.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                {item.status !== "COMPLETE" && (
+                                  <button
+                                    onClick={() => handleUpdateFeedback(item.id, "COMPLETE")}
+                                    className="p-1.5 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
+                                    title="Mark as Complete"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteFeedback(item.id)}
+                                  className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ... existing content for other tabs ... */}
+          {activeTab === "overview" && (
+            <div className="space-y-6">
+              {/* Metrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {metrics.map((metric, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 backdrop-blur-xl border border-cyan-500/20 rounded-xl p-6 hover:border-cyan-500/40 transition-all"
+                {metrics.map((metric, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-white/5 backdrop-blur-md border border-white/10 p-6 rounded-2xl hover:border-cyan-500/30 transition-all group"
                   >
-                    <p className="text-white/60 text-sm font-medium mb-2">{metric.label}</p>
-                    <p className="text-3xl font-bold text-cyan-400 mb-2">{metric.value}</p>
-                    <p className="text-xs text-green-400">{metric.change}</p>
-                  </div>
+                    <h3 className="text-white/50 text-sm font-medium mb-2">{metric.label}</h3>
+                    <div className="flex items-end justify-between">
+                      <div className="text-2xl font-bold text-white group-hover:text-cyan-400 transition-colors">
+                        {metric.value}
+                      </div>
+                      <div className="text-green-400 text-sm font-bold bg-green-500/10 px-2 py-1 rounded-lg border border-green-500/20">
+                        {metric.change}
+                      </div>
+                    </div>
+                  </motion.div>
                 ))}
               </div>
 
-              {/* Activity Panels */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top Trending Movies */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-white mb-4">Top 5 Trending Movies</h2>
-                  <div className="space-y-3">
+                {/* Trending Movies */}
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
+                  <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <Film className="w-5 h-5 text-cyan-400" />
+                    Trending Now
+                  </h3>
+                  <div className="space-y-4">
                     {trendingMovies.map((movie) => (
                       <div
                         key={movie.id}
-                        className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
+                        className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors group"
                       >
-                        <span className="text-white font-medium">{movie.title}</span>
-                        <span className="text-cyan-400 text-sm font-bold">{movie.views}</span>
+                        <div className="w-12 h-16 bg-white/10 rounded-lg overflow-hidden relative">
+                          {movie.posterUrl ? (
+                            <img
+                              src={movie.posterUrl || "/placeholder.svg"}
+                              alt={movie.title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-white/30">
+                              No Img
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-white font-medium group-hover:text-cyan-400 transition-colors">
+                            {movie.title}
+                          </h4>
+                          <p className="text-white/40 text-sm">{movie.genre}</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-white font-bold">{movie.views}</div>
+                          <div className="text-white/30 text-xs">views</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Recent Signups */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-white mb-4">Recent User Signups</h2>
-                  <div className="space-y-3">
+                {/* Recent Activity */}
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
+                  <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-cyan-400" />
+                    Recent Signups
+                  </h3>
+                  <div className="space-y-4">
                     {recentSignups.map((signup) => (
                       <div
                         key={signup.id}
-                        className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
+                        className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors"
                       >
-                        <span className="text-white font-medium text-sm">{signup.email}</span>
-                        <span className="text-white/50 text-xs">{signup.date}</span>
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                          {signup.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-white font-medium">{signup.email}</h4>
+                          <p className="text-white/40 text-sm">Joined {signup.date}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -809,146 +978,113 @@ export default function AdminDashboard() {
 
           {activeTab === "movies" && (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Manage Movies</h1>
-                <p className="text-white/50">View, edit, and delete movie content</p>
-              </div>
-
-              {/* Search and Filter */}
-              <div className="flex gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-3 w-5 h-5 text-white/40" />
+              <div className="flex flex-col md:flex-row gap-4 justify-between">
+                <div className="relative flex-1 max-w-md">
                   <input
                     type="text"
                     placeholder="Search movies..."
                     value={movieSearch}
                     onChange={(e) => setMovieSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pl-10 text-white focus:outline-none focus:border-cyan-500/50"
                   />
+                  <Search className="w-5 h-5 text-white/30 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 </div>
-                <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 transition-all flex items-center gap-2">
-                  <Filter className="w-4 h-4" />
-                  Filter
-                </button>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filter
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("upload")}
+                    className="px-4 py-2 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload New
+                  </button>
+                </div>
               </div>
 
-              {/* Movies Table */}
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-white/10 bg-white/5">
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Title</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Genre</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Upload Date</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Status</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Views</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredMovies.map((movie) => (
-                        <tr key={movie.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
-                          <td className="px-6 py-4 text-white font-medium">{movie.title}</td>
-                          <td className="px-6 py-4 text-white/70">{movie.genre}</td>
-                          <td className="px-6 py-4 text-white/70">{movie.uploadDate}</td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                movie.status === "Published"
-                                  ? "bg-green-500/20 text-green-400"
-                                  : "bg-yellow-500/20 text-yellow-400"
-                              }`}
-                            >
-                              {movie.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-cyan-400 font-bold">{movie.views}</td>
-                          <td className="px-6 py-4 flex gap-2">
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Movie</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Genre</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Date</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Views</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {filteredMovies.map((movie) => (
+                      <tr key={movie.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-white">{movie.title}</div>
+                        </td>
+                        <td className="px-6 py-4 text-white/70">{movie.genre}</td>
+                        <td className="px-6 py-4 text-white/50">{movie.uploadDate}</td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold border ${
+                              movie.status === "Published"
+                                ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                            }`}
+                          >
+                            {movie.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-white font-mono">{movie.views}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
                             <button
                               onClick={() => handleEdit(movie)}
-                              className="p-2 bg-white/5 hover:bg-cyan-500/20 rounded-lg transition-all"
-                              title="Edit Movie"
+                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
                             >
-                              <Edit className="w-4 h-4 text-cyan-400" />
+                              <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDelete(movie.id)}
-                              className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
-                              title="Delete Movie"
+                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
                             >
-                              <Trash2 className="w-4 h-4 text-red-400" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {activeTab === "upload" && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Upload New Movie</h1>
-                <p className="text-white/50">Add a new movie to the platform</p>
-              </div>
-
-              <form
-                onSubmit={handleUpload}
-                className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8"
-              >
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left Column */}
-                  <div className="space-y-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
+                <h3 className="text-2xl font-bold text-white mb-8">Upload New Movie</h3>
+                <form onSubmit={handleUpload} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Movie Title</label>
+                      <label className="block text-white/70 text-sm font-medium mb-2">Movie Title</label>
                       <input
                         type="text"
                         name="title"
                         value={formData.title}
                         onChange={handleFormChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
                         placeholder="Enter movie title"
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
                         required
                       />
                     </div>
-
                     <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Thumbnail URL</label>
-                      <input
-                        type="url"
-                        name="thumbnail"
-                        value={formData.thumbnail}
-                        onChange={handleFormChange}
-                        placeholder="https://example.com/thumbnail.jpg"
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Video Link</label>
-                      <input
-                        type="url"
-                        name="videoLink"
-                        value={formData.videoLink}
-                        onChange={handleFormChange}
-                        placeholder="https://example.com/video.mp4"
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Genre</label>
+                      <label className="block text-white/70 text-sm font-medium mb-2">Genre</label>
                       <select
                         name="genre"
                         value={formData.genre}
                         onChange={handleFormChange}
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
                       >
                         <option value="Action">Action</option>
                         <option value="Drama">Drama</option>
@@ -958,379 +1094,411 @@ export default function AdminDashboard() {
                         <option value="Nollywood">Nollywood</option>
                       </select>
                     </div>
-
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.downloadEnabled}
-                          onChange={(e) => setFormData({ ...formData, downloadEnabled: e.target.checked })}
-                          className="w-4 h-4 accent-cyan-400"
-                        />
-                        <span className="text-white text-sm font-medium">Enable Download</span>
-                      </label>
-
-                      {formData.downloadEnabled && (
-                        <input
-                          type="url"
-                          value={formData.downloadUrl}
-                          onChange={(e) => setFormData({ ...formData, downloadUrl: e.target.value })}
-                          placeholder="https://example.com/download.mp4"
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
-                        />
-                      )}
-                    </div>
                   </div>
 
-                  {/* Right Column */}
-                  <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Release Date</label>
+                      <label className="block text-white/70 text-sm font-medium mb-2">Release Date</label>
                       <input
                         type="date"
                         name="releaseDate"
                         value={formData.releaseDate}
                         onChange={handleFormChange}
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
                         required
                       />
                     </div>
-
                     <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Status</label>
-                      <div className="flex gap-4">
-                        {["draft", "published"].map((status) => (
-                          <label key={status} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="status"
-                              value={status}
-                              checked={formData.status === status}
-                              onChange={handleFormChange}
-                              className="w-4 h-4 accent-cyan-400"
-                            />
-                            <span className="text-white capitalize text-sm">{status}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-white font-medium mb-2 text-sm">Long Description</label>
-                      <textarea
-                        name="description"
-                        value={formData.description}
+                      <label className="block text-white/70 text-sm font-medium mb-2">Status</label>
+                      <select
+                        name="status"
+                        value={formData.status}
                         onChange={handleFormChange}
-                        placeholder="Enter movie description..."
-                        rows={4}
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.useGlobalAd}
-                          onChange={(e) => setFormData({ ...formData, useGlobalAd: e.target.checked })}
-                          className="w-4 h-4 accent-cyan-400"
-                        />
-                        <span className="text-white text-sm font-medium">Use Global Ad</span>
-                      </label>
-
-                      {!formData.useGlobalAd && (
-                        <div>
-                          <label className="block text-white/70 text-xs mb-1">Custom VAST URL</label>
-                          <input
-                            type="url"
-                            value={formData.customVastUrl}
-                            onChange={(e) => setFormData({ ...formData, customVastUrl: e.target.value })}
-                            placeholder="https://example.com/vast.xml"
-                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
-                          />
-                        </div>
-                      )}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                      </select>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  className="w-full mt-8 px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all flex items-center justify-center gap-2"
-                >
-                  <Upload className="w-5 h-5" />
-                  Upload Movie
-                </button>
-              </form>
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">Description</label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleFormChange}
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                      placeholder="Enter movie description"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-white/70 text-sm font-medium mb-2">Thumbnail URL</label>
+                      <input
+                        type="url"
+                        name="thumbnail"
+                        value={formData.thumbnail}
+                        onChange={handleFormChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                        placeholder="https://..."
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-white/70 text-sm font-medium mb-2">Video Link (Embed/Direct)</label>
+                      <input
+                        type="url"
+                        name="videoLink"
+                        value={formData.videoLink}
+                        onChange={handleFormChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                        placeholder="https://..."
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Added Download & Ad Settings to Upload Form */}
+                  <div className="p-4 border border-white/10 rounded-xl bg-white/5 space-y-4">
+                    <h4 className="font-medium text-white">Additional Options</h4>
+
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="downloadEnabled"
+                        checked={formData.downloadEnabled}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, downloadEnabled: e.target.checked }))}
+                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-cyan-500 focus:ring-cyan-500/50"
+                      />
+                      <label htmlFor="downloadEnabled" className="text-white text-sm">
+                        Enable Download
+                      </label>
+                    </div>
+
+                    {formData.downloadEnabled && (
+                      <div>
+                        <label className="block text-white/70 text-sm font-medium mb-2">Download URL</label>
+                        <input
+                          type="url"
+                          name="downloadUrl"
+                          value={formData.downloadUrl}
+                          onChange={handleFormChange}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                          placeholder="https://..."
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-white/70 text-sm font-medium mb-2">Custom VAST URL (Optional)</label>
+                      <input
+                        type="url"
+                        name="customVastUrl"
+                        value={formData.customVastUrl}
+                        onChange={handleFormChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                        placeholder="Override global ad setting"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="useGlobalAd"
+                        checked={formData.useGlobalAd}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, useGlobalAd: e.target.checked }))}
+                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-cyan-500 focus:ring-cyan-500/50"
+                      />
+                      <label htmlFor="useGlobalAd" className="text-white text-sm">
+                        Use Global Ad Settings
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          title: "",
+                          thumbnail: "",
+                          videoLink: "",
+                          description: "",
+                          genre: "Action",
+                          releaseDate: "",
+                          status: "draft",
+                          downloadEnabled: false,
+                          downloadUrl: "",
+                          customVastUrl: "",
+                          useGlobalAd: true,
+                        })
+                      }
+                      className="px-6 py-3 bg-white/5 text-white hover:bg-white/10 rounded-xl font-medium transition-all"
+                    >
+                      Clear Form
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all disabled:opacity-50"
+                    >
+                      {loading ? "Uploading..." : "Upload Movie"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
           {activeTab === "users" && (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Manage Users</h1>
-                <p className="text-white/50">View and manage registered users</p>
-              </div>
-
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-5 h-5 text-white/40" />
-                <input
-                  type="text"
-                  placeholder="Search users by email..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
-                />
-              </div>
-
-              {/* Users Table */}
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-white/10 bg-white/5">
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Email</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Date Joined</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Role</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUsers.map((user) => (
-                        <tr key={user.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
-                          <td className="px-6 py-4 text-white font-medium">{user.email}</td>
-                          <td className="px-6 py-4 text-white/70">{user.dateJoined}</td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                user.role === "Admin"
-                                  ? "bg-purple-500/20 text-purple-400"
-                                  : "bg-blue-500/20 text-blue-400"
-                              }`}
-                            >
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleBanUser(user.id)}
-                                className="p-2 bg-white/5 hover:bg-yellow-500/20 rounded-lg transition-all"
-                                title="Ban User"
-                              >
-                                <Ban className="w-4 h-4 text-yellow-400" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
-                                title="Delete User"
-                              >
-                                <Trash2 className="w-4 h-4 text-red-400" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div className="flex justify-between items-center">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pl-10 text-white focus:outline-none focus:border-cyan-500/50"
+                  />
+                  <Search className="w-5 h-5 text-white/30 absolute left-3 top-1/2 transform -translate-y-1/2" />
                 </div>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Role</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Joined</th>
+                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {filteredUsers.map((user) => (
+                      <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                              {user.email.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="text-white">{user.email}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold border ${
+                              user.role === "Admin"
+                                ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                : "bg-white/10 text-white/60 border-white/10"
+                            }`}
+                          >
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-white/50">{user.dateJoined}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleBanUser(user.id)}
+                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-yellow-400 transition-colors"
+                              title="Ban User"
+                            >
+                              <Ban className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {activeTab === "comments" && (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Comment Moderation</h1>
-                <p className="text-white/50">Review and manage user comments across all movies</p>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-white/10 bg-white/5">
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Movie</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">User</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Comment</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Rating</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Date</th>
-                        <th className="px-6 py-4 text-left text-white font-bold text-sm">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {comments.map((comment) => (
-                        <tr key={comment.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
-                          <td className="px-6 py-4 text-white font-medium">{comment.movieTitle}</td>
-                          <td className="px-6 py-4 text-white/70">{comment.userEmail}</td>
-                          <td className="px-6 py-4 text-white/70 max-w-xs truncate">{comment.text}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: comment.rating }).map((_, i) => (
-                                <span key={i} className="text-yellow-400">
-                                  ★
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-white/70">{comment.createdAt}</td>
-                          <td className="px-6 py-4">
-                            <button
-                              onClick={() => handleDeleteComment(comment.id)}
-                              className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg transition-all"
-                              title="Delete Comment"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-400" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <h3 className="text-2xl font-bold text-white mb-6">Recent Comments</h3>
+              <div className="space-y-4">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                          <Users className="w-5 h-5 text-white/50" />
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">{comment.userEmail}</div>
+                          <div className="text-white/40 text-sm">on {comment.movieTitle}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-yellow-400 font-bold flex items-center gap-1">★ {comment.rating}</span>
+                        <button
+                          onClick={() => handleDeleteComment(comment.id)}
+                          className="p-2 hover:bg-red-500/10 text-white/30 hover:text-red-400 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-white/80 leading-relaxed">{comment.text}</p>
+                    <div className="mt-4 text-white/30 text-xs">{comment.createdAt}</div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
           {activeTab === "ads" && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Ad Management</h1>
-                <p className="text-white/50">Configure Adsterra and other ad codes for the platform</p>
-              </div>
+            <div className="max-w-4xl mx-auto space-y-8">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                  <Settings className="w-6 h-6 text-cyan-400" />
+                  Ad Configuration
+                </h3>
 
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-8 space-y-6">
-                <div>
-                  <h3 className="text-white font-bold text-lg mb-4">Pre-roll Video Ads (VAST URL)</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-white/70 text-sm mb-2">VAST URL</label>
-                      <input
-                        type="url"
-                        value={adSettings.vastUrl}
-                        onChange={(e) => setAdSettings({ ...adSettings, vastUrl: e.target.value })}
-                        placeholder="https://syndication.realsrv.com/splash.php?idzone=..."
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-white/70 text-sm mb-2">Ad Timeout (seconds)</label>
-                        <input
-                          type="number"
-                          min="10"
-                          max="30"
-                          value={adSettings.adTimeout}
-                          onChange={(e) => setAdSettings({ ...adSettings, adTimeout: Number.parseInt(e.target.value) })}
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-cyan-500/50 transition-all"
-                        />
-                      </div>
-
-                      <div className="flex items-center">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={adSettings.showPrerollAds}
-                            onChange={(e) => setAdSettings({ ...adSettings, showPrerollAds: e.target.checked })}
-                            className="w-4 h-4 accent-cyan-400"
-                          />
-                          <span className="text-white text-sm">Enable Pre-roll Ads</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-white/10 pt-6">
-                  <h3 className="text-white font-bold text-lg mb-4">Download Button Smart Link</h3>
+                <div className="space-y-6">
                   <div>
-                    <label className="block text-white/70 text-sm mb-2">Smart Link URL</label>
+                    <label className="block text-white font-medium mb-2">VAST Tag URL (Video Ads)</label>
+                    <input
+                      type="url"
+                      value={adSettings.vastUrl}
+                      onChange={(e) => setAdSettings({ ...adSettings, vastUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                      placeholder="https://..."
+                    />
+                    <p className="text-white/40 text-sm mt-2">
+                      URL for VAST-compliant video ads (pre-roll). Leave empty to disable.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">Smart Link URL</label>
                     <input
                       type="url"
                       value={adSettings.smartLinkUrl}
                       onChange={(e) => setAdSettings({ ...adSettings, smartLinkUrl: e.target.value })}
-                      placeholder="https://www.profitablecreativegatetocontent.com/smartlink/?a=..."
-                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                      placeholder="https://..."
                     />
-                    <p className="text-white/40 text-xs mt-1">Smart Link will be shown 2 times before download</p>
+                    <p className="text-white/40 text-sm mt-2">
+                      Direct link for popunders/smart links on download buttons.
+                    </p>
                   </div>
-                </div>
 
-                <div className="border-t border-white/10 pt-6">
-                  <h3 className="text-white font-bold text-lg mb-4">Native Ad Cards</h3>
-                  <div className="space-y-4">
+                  <div>
+                    <label className="block text-white font-medium mb-2">Ad Timeout (Seconds)</label>
+                    <input
+                      type="number"
+                      value={adSettings.adTimeout}
+                      onChange={(e) => setAdSettings({ ...adSettings, adTimeout: Number(e.target.value) })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                      min="5"
+                      max="60"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-white/70 text-sm mb-2">Horizontal Ad Code (Movie Carousels)</label>
+                      <label className="block text-white font-medium mb-2">Horizontal Ad Code</label>
                       <textarea
                         value={adSettings.horizontalAdCode}
                         onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
-                        placeholder='<script async="async" data-cfasync="false" src="//pl28063417.effectivegatecpm.com/..."></script><div id="container-..."></div>'
                         rows={4}
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                        placeholder="<!-- HTML/JS Code -->"
                       />
-                      <p className="text-white/40 text-xs mt-1">
-                        Complete ad code including script and div tags. Ads appear after every 2 movies.
-                      </p>
                     </div>
-
                     <div>
-                      <label className="block text-white/70 text-sm mb-2">Vertical Ad Code (Sidebars)</label>
+                      <label className="block text-white font-medium mb-2">Vertical Ad Code</label>
                       <textarea
                         value={adSettings.verticalAdCode}
                         onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
-                        placeholder='<script async="async" data-cfasync="false" src="//pl28063417.effectivegatecpm.com/..."></script><div id="container-..."></div>'
                         rows={4}
-                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                        placeholder="<!-- HTML/JS Code -->"
                       />
-                      <p className="text-white/40 text-xs mt-1">
-                        Complete ad code including script and div tags for movie detail sidebars.
-                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-white/10">
+                    <h4 className="font-medium text-white">Display Settings</h4>
+
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                      <span className="text-white">Show Pre-roll Ads</span>
+                      <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                        <input
+                          type="checkbox"
+                          checked={adSettings.showPrerollAds}
+                          onChange={(e) => setAdSettings({ ...adSettings, showPrerollAds: e.target.checked })}
+                          className="peer absolute opacity-0 w-0 h-0"
+                          id="toggle-preroll"
+                        />
+                        <label
+                          htmlFor="toggle-preroll"
+                          className="block w-12 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-cyan-500 transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6"
+                        />
+                      </div>
                     </div>
 
-                    <div className="flex gap-6">
-                      <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                      <span className="text-white">Show Homepage Ads</span>
+                      <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
                         <input
                           type="checkbox"
                           checked={adSettings.showHomepageAds}
                           onChange={(e) => setAdSettings({ ...adSettings, showHomepageAds: e.target.checked })}
-                          className="w-4 h-4 accent-cyan-400"
+                          className="peer absolute opacity-0 w-0 h-0"
+                          id="toggle-homepage"
                         />
-                        <span className="text-white text-sm">Show on Homepage</span>
-                      </label>
+                        <label
+                          htmlFor="toggle-homepage"
+                          className="block w-12 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-cyan-500 transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6"
+                        />
+                      </div>
+                    </div>
 
-                      <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                      <span className="text-white">Show Movie Detail Ads</span>
+                      <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
                         <input
                           type="checkbox"
                           checked={adSettings.showMovieDetailAds}
                           onChange={(e) => setAdSettings({ ...adSettings, showMovieDetailAds: e.target.checked })}
-                          className="w-4 h-4 accent-cyan-400"
+                          className="peer absolute opacity-0 w-0 h-0"
+                          id="toggle-details"
                         />
-                        <span className="text-white text-sm">Show on Movie Pages</span>
-                      </label>
+                        <label
+                          htmlFor="toggle-details"
+                          className="block w-12 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-cyan-500 transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={handleSaveAdSettings}
-                  disabled={loading}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader className="w-5 h-5 animate-spin" />
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
+                  <div className="flex justify-end pt-6">
+                    <button
+                      onClick={handleSaveAdSettings}
+                      className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2"
+                    >
                       <Save className="w-5 h-5" />
-                      <span>Save Ad Settings</span>
-                    </>
-                  )}
-                </button>
+                      Save Settings
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -10,6 +10,7 @@ interface ProductionVideoPlayerProps {
   title: string
   vastUrl?: string
   skipIntro?: boolean
+  adTimeout?: number
 }
 
 export default function ProductionVideoPlayer({
@@ -18,6 +19,7 @@ export default function ProductionVideoPlayer({
   title,
   vastUrl,
   skipIntro = false,
+  adTimeout = 20,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
   const [showAd, setShowAd] = useState(false)
@@ -78,7 +80,15 @@ export default function ProductionVideoPlayer({
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
       {/* Pre-roll Ad */}
-      {showAd && <PrerollAdPlayer vastUrl={vastUrl} onComplete={handleAdComplete} onSkip={handleAdSkip} />}
+      {showAd && (
+        <PrerollAdPlayer
+          vastUrl={vastUrl}
+          onComplete={handleAdComplete}
+          onSkip={handleAdSkip}
+          maxDuration={adTimeout}
+          skipDelay={5}
+        />
+      )}
 
       {/* Main Video Player */}
       {showVideo && (
