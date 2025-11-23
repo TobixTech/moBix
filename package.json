@@ -6,7 +6,7 @@
     "build": "next build",
     "db:migrate": "tsx scripts/manual-migration.ts",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx scripts/seed-database.ts",
+    "db:seed": "tsx scripts/seed-with-drizzle.ts",
     "db:studio": "drizzle-kit studio",
     "dev": "next dev",
     "lint": "next lint",
