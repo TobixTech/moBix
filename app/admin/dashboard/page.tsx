@@ -775,100 +775,125 @@ export default function AdminDashboard() {
           {/* ... other tabs content ... */}
           {activeTab === "feedback" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Stats Cards */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <h4 className="text-white/60 text-sm mb-1">Total Requests</h4>
-                  <p className="text-2xl font-bold text-white">{feedback.filter((f) => f.type === "REQUEST").length}</p>
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-bold text-white">Feedback & Requests</h2>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-cyan-500/20 rounded-xl">
+                      <Inbox className="w-6 h-6 text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="text-white/60 text-sm">Total Entries</p>
+                      <p className="text-2xl font-bold text-white">{feedback.length}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <h4 className="text-white/60 text-sm mb-1">Pending Items</h4>
-                  <p className="text-2xl font-bold text-yellow-400">
-                    {feedback.filter((f) => f.status !== "COMPLETE").length}
-                  </p>
+
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-yellow-500/20 rounded-xl">
+                      <Loader className="w-6 h-6 text-yellow-400" />
+                    </div>
+                    <div>
+                      <p className="text-white/60 text-sm">Pending</p>
+                      <p className="text-2xl font-bold text-white">
+                        {feedback.filter((f) => f.status === "NEW" || f.status === "IN_PROGRESS").length}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <h4 className="text-white/60 text-sm mb-1">Completed</h4>
-                  <p className="text-2xl font-bold text-green-400">
-                    {feedback.filter((f) => f.status === "COMPLETE").length}
-                  </p>
+
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-green-500/20 rounded-xl">
+                      <CheckCircle className="w-6 h-6 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-white/60 text-sm">Completed</p>
+                      <p className="text-2xl font-bold text-white">
+                        {feedback.filter((f) => f.status === "COMPLETE").length}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+              {/* Feedback List */}
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-white/5 border-b border-white/10">
-                      <tr>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Type</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Title / Details</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Date</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Type</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Title</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Details</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Email</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Status</th>
+                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Date</th>
+                        <th className="px-6 py-4 text-right text-sm font-medium text-white/60">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/10">
+                    <tbody>
                       {feedback.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-white/40">
-                            No feedback or requests found.
+                          <td colSpan={7} className="px-6 py-8 text-center text-white/40">
+                            No feedback or requests yet
                           </td>
                         </tr>
                       ) : (
-                        feedback.map((item) => (
-                          <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                        feedback.map((entry) => (
+                          <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                             <td className="px-6 py-4">
                               <span
-                                className={`px-2 py-1 rounded text-xs font-bold border ${
-                                  item.type === "REQUEST"
-                                    ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                                    : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  entry.type === "REQUEST"
+                                    ? "bg-purple-500/20 text-purple-400"
+                                    : "bg-orange-500/20 text-orange-400"
                                 }`}
                               >
-                                {item.type}
+                                {entry.type}
                               </span>
                             </td>
-                            <td className="px-6 py-4">
-                              <div className="font-medium text-white">{item.title}</div>
-                              {item.details && (
-                                <div className="text-sm text-white/50 mt-1 line-clamp-1">{item.details}</div>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-white/70">{item.email || "Anonymous"}</td>
+                            <td className="px-6 py-4 text-white font-medium">{entry.title || "No Title"}</td>
+                            <td className="px-6 py-4 text-white/60 max-w-xs truncate">{entry.details || "—"}</td>
+                            <td className="px-6 py-4 text-white/60 text-sm">{entry.email || "—"}</td>
                             <td className="px-6 py-4">
                               <span
-                                className={`px-2 py-1 rounded text-xs font-bold border ${
-                                  item.status === "COMPLETE"
-                                    ? "bg-green-500/10 text-green-400 border-green-500/20"
-                                    : item.status === "IN_PROGRESS"
-                                      ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                                      : "bg-white/10 text-white/60 border-white/10"
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  entry.status === "NEW"
+                                    ? "bg-cyan-500/20 text-cyan-400"
+                                    : entry.status === "IN_PROGRESS"
+                                      ? "bg-yellow-500/20 text-yellow-400"
+                                      : "bg-green-500/20 text-green-400"
                                 }`}
                               >
-                                {item.status}
+                                {entry.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-white/50">
-                              {new Date(item.createdAt).toLocaleDateString()}
+                            <td className="px-6 py-4 text-white/60 text-sm">
+                              {new Date(entry.createdAt).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                {item.status !== "COMPLETE" && (
+                              <div className="flex items-center justify-end gap-2">
+                                {entry.status !== "COMPLETE" && (
                                   <button
-                                    onClick={() => handleUpdateFeedback(item.id, "COMPLETE")}
-                                    className="p-1.5 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
+                                    onClick={() => handleUpdateFeedback(entry.id, "COMPLETE")}
+                                    className="p-2 hover:bg-green-500/20 rounded-lg transition-colors group"
                                     title="Mark as Complete"
                                   >
-                                    <CheckCircle className="w-4 h-4" />
+                                    <CheckCircle className="w-4 h-4 text-white/40 group-hover:text-green-400" />
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleDeleteFeedback(item.id)}
-                                  className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                  onClick={() => handleDeleteFeedback(entry.id)}
+                                  className="p-2 hover:bg-red-500/20 rounded-lg transition-colors group"
                                   title="Delete"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
                                 </button>
                               </div>
                             </td>
@@ -882,10 +907,9 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ... existing content for other tabs ... */}
+          {/* Metrics Grid */}
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Metrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {metrics.map((metric, index) => (
                   <motion.div

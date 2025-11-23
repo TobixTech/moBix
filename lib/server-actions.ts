@@ -5,6 +5,7 @@ import { db } from "./db"
 import { movies, users, likes, comments, adSettings, feedback, watchlist } from "./db/schema"
 import { eq, desc, and, or, ilike, count, sum, sql, not, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { getRedisClient } from "./redis"
 
 interface CommentWithUser {
   id: string
@@ -1056,7 +1057,7 @@ export async function getRecommendedMovies() {
       .map(([g]) => g)
       .slice(0, 3) // Top 3 genres
 
-    if (topGenres.length === 0) return await getTrendingMovies()
+    if (topGenres.length === 0) return await getPublicMovies()
 
     // Find movies matching top genres, excluding already liked
     const likedMovieIds = userLikes.map((l) => l.movie.id)
@@ -1100,6 +1101,81 @@ export async function getTopRatedMovies() {
     return topRated
   } catch (error) {
     console.error("[v0] Error fetching top rated movies:", error)
+    return []
+  }
+}
+
+export async function saveWatchProgress(movieId: string, progress: number) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const dbUser = await ensureUserExists(userId)
+    if (!dbUser) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Store watch progress in Redis for fast retrieval
+    const redis = await getRedisClient()
+    await redis.set(`watch:${dbUser.id}:${movieId}`, progress.toString(), {
+      ex: 60 * 60 * 24 * 30, // Expire after 30 days
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("[v0] Error saving watch progress:", error)
+    return { success: false, error: "Failed to save progress" }
+  }
+}
+
+export async function getContinueWatching() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return []
+    }
+
+    const dbUser = await ensureUserExists(userId)
+    if (!dbUser) {
+      return []
+    }
+
+    // Get all watch progress keys for this user
+    const redis = await getRedisClient()
+    const keys = await redis.keys(`watch:${dbUser.id}:*`)
+
+    const continueWatching = []
+    for (const key of keys) {
+      const movieId = key.split(":")[2]
+      const progress = await redis.get(key)
+
+      if (progress && Number.parseInt(progress) > 5 && Number.parseInt(progress) < 95) {
+        // Only show if watched between 5% and 95%
+        const movie = await db.query.movies.findFirst({
+          where: eq(movies.id, movieId),
+          columns: {
+            id: true,
+            title: true,
+            posterUrl: true,
+            year: true,
+            genre: true,
+          },
+        })
+
+        if (movie) {
+          continueWatching.push({
+            ...movie,
+            progress: Number.parseInt(progress),
+          })
+        }
+      }
+    }
+
+    return continueWatching
+  } catch (error) {
+    console.error("[v0] Error getting continue watching:", error)
     return []
   }
 }

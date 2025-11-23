@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
 import { useAuth, useClerk } from "@clerk/nextjs"
+import { RequestMovieModal } from "./request-movie-modal"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -143,6 +144,14 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           )}
         </div>
 
+        {/* Request Movie Button */}
+        {!showAuthButtons && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+            <RequestMovieModal />
+          </motion.div>
+        )}
+
+        {/* Search */}
         <motion.div
           ref={searchRef}
           className="relative flex items-center"
