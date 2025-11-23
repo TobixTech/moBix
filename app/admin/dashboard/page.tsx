@@ -1213,7 +1213,7 @@ export default function AdminDashboard() {
                   <h3 className="text-white font-bold text-lg mb-4">Pre-roll Video Ads (VAST URL)</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-white/70 text-sm mb-2">Adsterra VAST URL</label>
+                      <label className="block text-white/70 text-sm mb-2">VAST URL</label>
                       <input
                         type="url"
                         value={adSettings.vastUrl}
@@ -1221,9 +1221,6 @@ export default function AdminDashboard() {
                         placeholder="https://syndication.realsrv.com/splash.php?idzone=..."
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
                       />
-                      <p className="text-white/40 text-xs mt-1">
-                        Get your VAST URL from Adsterra's Video Ad campaign settings
-                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -1257,7 +1254,7 @@ export default function AdminDashboard() {
                 <div className="border-t border-white/10 pt-6">
                   <h3 className="text-white font-bold text-lg mb-4">Download Button Smart Link</h3>
                   <div>
-                    <label className="block text-white/70 text-sm mb-2">Adsterra Smart Link URL</label>
+                    <label className="block text-white/70 text-sm mb-2">Smart Link URL</label>
                     <input
                       type="url"
                       value={adSettings.smartLinkUrl}
@@ -1265,15 +1262,12 @@ export default function AdminDashboard() {
                       placeholder="https://www.profitablecreativegatetocontent.com/smartlink/?a=..."
                       className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all"
                     />
-                    <p className="text-white/40 text-xs mt-1">
-                      This Smart Link will be shown 2 times before users can download. Get your Smart Link from
-                      Adsterra's Smart Link campaign.
-                    </p>
+                    <p className="text-white/40 text-xs mt-1">Smart Link will be shown 2 times before download</p>
                   </div>
                 </div>
 
                 <div className="border-t border-white/10 pt-6">
-                  <h3 className="text-white font-bold text-lg mb-4">Native Ad Cards (Adsterra)</h3>
+                  <h3 className="text-white font-bold text-lg mb-4">Native Ad Cards</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-white/70 text-sm mb-2">Horizontal Ad Code (Movie Carousels)</label>
@@ -1285,8 +1279,7 @@ export default function AdminDashboard() {
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
                       />
                       <p className="text-white/40 text-xs mt-1">
-                        Paste your complete Adsterra Native Banner ad code (including script and div tags). Ads will
-                        appear after every 2 movies.
+                        Complete ad code including script and div tags. Ads appear after every 2 movies.
                       </p>
                     </div>
 
@@ -1300,8 +1293,7 @@ export default function AdminDashboard() {
                         className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 transition-all font-mono text-xs resize-none"
                       />
                       <p className="text-white/40 text-xs mt-1">
-                        Paste your complete Adsterra vertical banner ad code (including script and div tags) for movie
-                        detail sidebars.
+                        Complete ad code including script and div tags for movie detail sidebars.
                       </p>
                     </div>
 
