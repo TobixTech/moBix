@@ -25,14 +25,19 @@ export default function PrerollAdPlayer({
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
+    console.log("[v0] PrerollAdPlayer mounted with VAST URL:", vastUrl)
+    console.log("[v0] Skip delay:", skipDelay, "Max duration:", maxDuration)
+
     const skipTimer = setTimeout(() => {
       setCanSkip(true)
+      console.log("[v0] Skip button now available")
     }, skipDelay * 1000)
 
     const countdownInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(countdownInterval)
+          console.log("[v0] Ad timeout reached, proceeding to video")
           onComplete()
           return 0
         }
@@ -44,9 +49,10 @@ export default function PrerollAdPlayer({
       clearTimeout(skipTimer)
       clearInterval(countdownInterval)
     }
-  }, [skipDelay, maxDuration, onComplete])
+  }, [skipDelay, maxDuration, onComplete, vastUrl])
 
   const handleSkip = () => {
+    console.log("[v0] Ad skipped by user")
     onSkip()
   }
 
@@ -64,6 +70,7 @@ export default function PrerollAdPlayer({
             </div>
             <h3 className="text-2xl font-bold text-white mb-3">Advertisement</h3>
             <p className="text-[#CCCCCC] mb-6">Your video will start in {timeLeft} seconds...</p>
+            <p className="text-[#888888] text-sm">Configure ads in Admin Dashboard → Ad Management</p>
           </motion.div>
 
           {canSkip && (
@@ -85,19 +92,21 @@ export default function PrerollAdPlayer({
   return (
     <div className="absolute inset-0 bg-black z-40">
       <div className="relative w-full h-full">
+        {/* VAST Video Player */}
         <video
           ref={videoRef}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           src={vastUrl}
           autoPlay
           onEnded={onComplete}
           onError={(e) => {
-            console.error("Error loading VAST ad:", e)
+            console.error("[v0] Error loading VAST ad:", e)
             setShowPlaceholder(true)
           }}
         />
 
-        <div className="absolute top-4 right-4 flex items-center gap-4 z-50">
+        {/* Ad Controls Overlay */}
+        <div className="absolute top-4 right-4 flex items-center gap-4">
           <div className="bg-black/80 px-4 py-2 rounded-lg">
             <p className="text-white text-sm font-medium">Ad · {timeLeft}s</p>
           </div>

@@ -1,10 +1,8 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Lock, Loader, Key } from "lucide-react"
+import { useRouter } from 'next/navigation'
+import { Lock, Loader, Key } from 'lucide-react'
 import { motion } from "framer-motion"
 import { grantAdminAccessWithKey } from "@/lib/server-actions"
 
@@ -20,20 +18,26 @@ export default function AdminAccessKeyPage() {
     setError("")
     setLoading(true)
 
+    console.log("[v0] Submitting access key...")
+
     try {
       const result = await grantAdminAccessWithKey(accessKey)
 
       if (result.success) {
+        console.log("[v0] Access key validated successfully")
         setSuccess(true)
         setAccessKey("")
-
+        
         setTimeout(() => {
+          console.log("[v0] Redirecting to admin dashboard...")
           window.location.replace("/admin/dashboard")
-        }, 2000)
+        }, 3000)
       } else {
+        console.log("[v0] Access key validation failed:", result.error)
         setError(result.error || "Invalid access key")
       }
     } catch (err: any) {
+      console.error("[v0] Error validating access key:", err)
       setError("An error occurred. Please try again.")
     } finally {
       setLoading(false)
@@ -42,12 +46,20 @@ export default function AdminAccessKeyPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center p-4">
-      <motion.div className="w-full max-w-md" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div
+        className="w-full max-w-md"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
         <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <div className="p-4 bg-[#00FFFF]/10 rounded-full">
-                {success ? <Lock className="w-12 h-12 text-green-400" /> : <Key className="w-12 h-12 text-[#00FFFF]" />}
+                {success ? (
+                  <Lock className="w-12 h-12 text-green-400" />
+                ) : (
+                  <Key className="w-12 h-12 text-[#00FFFF]" />
+                )}
               </div>
             </div>
             <h1 className="text-4xl font-black bg-gradient-to-r from-[#00FFFF] via-[#00CCCC] to-[#00FFFF] bg-clip-text text-transparent mb-2">
@@ -114,6 +126,17 @@ export default function AdminAccessKeyPage() {
               )}
             </button>
           </form>
+
+          <div className="mt-6 p-4 bg-[#00FFFF]/10 border border-[#00FFFF]/20 rounded-lg">
+            <p className="text-[#888888] text-xs text-center mb-2">
+              <strong className="text-cyan-400">Note:</strong> You must be signed in to use this feature
+            </p>
+            <p className="text-[#888888] text-xs text-center">
+              Key is stored in <code className="bg-white/10 px-1 rounded text-cyan-400">ADMIN_SECRET_KEY</code> environment variable
+              <br />
+              Default: <code className="bg-white/10 px-1 rounded text-cyan-400">MOBIX_SECRET_2024</code>
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>

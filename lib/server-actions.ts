@@ -728,6 +728,12 @@ export async function updateAdSettings(settings: {
   movieDetailEnabled?: boolean
 }) {
   try {
+    const { userId } = await auth()
+
+    if (!userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
     console.log("[v0] Updating ad settings:", settings)
 
     // Get or create ad settings
