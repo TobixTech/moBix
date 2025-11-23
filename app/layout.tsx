@@ -13,7 +13,10 @@ export const metadata: Metadata = {
   description: "Premium streaming platform for movies and shows",
   generator: "v0.app",
   icons: {
-    icon: "/favicon.svg", // Updated to use SVG favicon
+    icon: "/favicon.svg",
+  },
+  other: {
+    "6a97888e-site-verification": "31d833de3e94dcf092ac2dec8b419b57",
   },
 }
 
@@ -25,7 +28,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className="dark">
-        <body className={`font-sans antialiased bg-[#0B0C10] text-white`}>
+        <body className="font-sans antialiased bg-[#0B0C10] text-white">
           {children}
           <Analytics />
         </body>
