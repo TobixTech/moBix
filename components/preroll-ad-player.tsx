@@ -84,10 +84,10 @@ export default function PrerollAdPlayer({
 
   return (
     <div className="absolute inset-0 bg-black z-40">
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full bg-black flex items-center justify-center">
         <video
           ref={videoRef}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           src={vastUrl}
           autoPlay
           onEnded={onComplete}

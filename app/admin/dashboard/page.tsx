@@ -478,13 +478,6 @@ export default function AdminDashboard() {
                 )}
               </button>
             </form>
-
-            <div className="mt-6 p-4 bg-[#00FFFF]/10 border border-[#00FFFF]/20 rounded-lg">
-              <p className="text-[#888888] text-xs text-center">
-                PIN is stored in <code className="bg-white/10 px-1 rounded text-cyan-400">ADMIN_PIN</code> environment
-                variable
-              </p>
-            </div>
           </div>
         </motion.div>
       </div>
