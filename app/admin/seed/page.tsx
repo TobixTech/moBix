@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Database, Check, AlertCircle, Loader, ArrowLeft, Film, ExternalLink, Terminal } from "lucide-react"
+import { Database, Check, AlertCircle, Loader, ArrowLeft, Film, ExternalLink, Terminal, RefreshCw } from "lucide-react"
 import { seedDatabase, getAdminMovies } from "@/lib/server-actions"
 import Link from "next/link"
 
 export default function SeedDatabasePage() {
   const [loading, setLoading] = useState(false)
+  const [forceReseed, setForceReseed] = useState(false)
   const [result, setResult] = useState<{
     success: boolean
     message?: string
@@ -36,7 +37,7 @@ export default function SeedDatabasePage() {
     setLoading(true)
     setResult(null)
 
-    const response = await seedDatabase()
+    const response = await seedDatabase(forceReseed)
     setResult(response)
     await fetchMovies() // Refresh list after seeding
     setLoading(false)
@@ -151,18 +152,36 @@ export default function SeedDatabasePage() {
             )}
 
             <div className="mt-4 pt-4 border-t border-white/5">
-              <h3 className="text-white text-sm font-semibold mb-2">What will be seeded:</h3>
-              <ul className="text-[#888888] space-y-2 text-sm">
+              <h3 className="text-white text-sm font-semibold mb-2">Seeding Options:</h3>
+
+              <label className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 cursor-pointer hover:bg-red-500/20 transition-colors">
+                <div className="relative flex items-center mt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={forceReseed}
+                    onChange={(e) => setForceReseed(e.target.checked)}
+                    className="w-4 h-4 border-red-500 rounded text-red-500 focus:ring-red-500 bg-transparent"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-medium text-red-400">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Force Reseed (Overwrite existing movies)
+                  </div>
+                  <p className="text-xs text-red-400/70 mt-1">
+                    Check this if your movies are returning 404 errors. It will delete and recreate them with correct
+                    IDs.
+                  </p>
+                </div>
+              </label>
+
+              <ul className="text-[#888888] space-y-2 text-sm mt-4">
                 <li className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />8 Popular movies with sample data
                 </li>
                 <li className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />
                   Default ad settings configuration
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#00FFFF]" />
-                  Skips any movies that already exist
                 </li>
               </ul>
             </div>
@@ -171,17 +190,21 @@ export default function SeedDatabasePage() {
           <button
             onClick={handleSeed}
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className={`w-full py-3 bg-gradient-to-r font-bold rounded-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+              forceReseed
+                ? "from-red-500 to-red-600 hover:shadow-red-500/50 text-white"
+                : "from-[#00FFFF] to-[#00CCCC] hover:shadow-[#00FFFF]/50 text-[#0B0C10]"
+            }`}
           >
             {loading ? (
               <>
                 <Loader className="w-4 h-4 animate-spin" />
-                <span>Seeding Database...</span>
+                <span>{forceReseed ? "Reseeding Database..." : "Seeding Database..."}</span>
               </>
             ) : (
               <>
                 <Database className="w-4 h-4" />
-                <span>Start Seeding</span>
+                <span>{forceReseed ? "Force Reseed Database" : "Start Seeding"}</span>
               </>
             )}
           </button>
