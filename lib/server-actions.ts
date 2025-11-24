@@ -330,7 +330,8 @@ export async function verifyAdminInvitationCode(code: string): Promise<boolean> 
   const validCodes = [
     process.env.ADMIN_INVITATION_CODE,
     process.env.ADMIN_SECRET_KEY,
-    process.env.SECRET_KEY, // Added SECRET_KEY as a valid environment variable source
+    process.env.SECRET_KEY,
+    process.env.ADMIN_ACCESS_KEY,
     process.env.ADMIN_PIN,
     "MOBIX_ADMIN_2024",
   ].filter(Boolean)
@@ -857,7 +858,8 @@ export async function grantAdminAccessWithKey(accessKey: string) {
       return { success: false, error: "Invalid access key" }
     }
 
-    cookies().set("admin_access_verified", "true", {
+    const cookieStore = await cookies()
+    cookieStore.set("admin_access_verified", "true", {
       path: "/",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
