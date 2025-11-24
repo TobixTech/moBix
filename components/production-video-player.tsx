@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
 
@@ -11,6 +11,7 @@ interface ProductionVideoPlayerProps {
   vastUrl?: string
   skipIntro?: boolean
   adTimeout?: number
+  showPrerollAds?: boolean
 }
 
 export default function ProductionVideoPlayer({
@@ -20,30 +21,28 @@ export default function ProductionVideoPlayer({
   vastUrl,
   skipIntro = false,
   adTimeout = 20,
+  showPrerollAds = true,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
   const [showAd, setShowAd] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
 
-  useEffect(() => {
-    console.log("[v0] ProductionVideoPlayer initialized")
-    console.log("[v0] VAST URL:", vastUrl || "Not configured")
-  }, [vastUrl])
-
   const handleIntroComplete = () => {
-    console.log("[v0] Intro completed, showing ad")
     setShowIntro(false)
-    setShowAd(true)
+    if (showPrerollAds && vastUrl) {
+      setShowAd(true)
+    } else {
+      // Skip ads and go directly to video
+      setShowVideo(true)
+    }
   }
 
   const handleAdComplete = () => {
-    console.log("[v0] Ad completed, showing main video")
     setShowAd(false)
     setShowVideo(true)
   }
 
   const handleAdSkip = () => {
-    console.log("[v0] Ad skipped, showing main video")
     setShowAd(false)
     setShowVideo(true)
   }
@@ -79,7 +78,7 @@ export default function ProductionVideoPlayer({
       {/* Intro Animation */}
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
-      {/* Pre-roll Ad */}
+      {/* Pre-roll Ad - Only shows if showPrerollAds is enabled */}
       {showAd && (
         <PrerollAdPlayer
           vastUrl={vastUrl}

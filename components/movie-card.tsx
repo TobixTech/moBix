@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Heart, Play } from 'lucide-react'
+import { Heart, Play } from "lucide-react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 
@@ -19,8 +19,6 @@ export default function MovieCard({ movie }: MovieCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-
-  console.log("[v0] Movie card rendered - Title:", movie.title, "ID:", movie.id, "Link:", `/movie/${movie.id}`)
 
   return (
     <Link href={`/movie/${movie.id}`} prefetch={false}>

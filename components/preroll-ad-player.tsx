@@ -21,9 +21,10 @@ export default function PrerollAdPlayer({
 }: PrerollAdPlayerProps) {
   const [timeLeft, setTimeLeft] = useState(maxDuration)
   const [canSkip, setCanSkip] = useState(false)
-  const [showPlaceholder, setShowPlaceholder] = useState(!vastUrl)
-  const [skipTimeLeft, setSkipTimeLeft] = useState(skipDelay) // Track skip timer
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const [showPlaceholder, setShowPlaceholder] = useState(false)
+  const [skipTimeLeft, setSkipTimeLeft] = useState(skipDelay)
+  const [adLoaded, setAdLoaded] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -52,7 +53,7 @@ export default function PrerollAdPlayer({
     onSkip()
   }
 
-  if (showPlaceholder) {
+  if (!vastUrl) {
     return (
       <div className="absolute inset-0 bg-[#0B0C10] z-40 flex items-center justify-center">
         <div className="max-w-2xl mx-auto p-8 text-center">
@@ -94,14 +95,16 @@ export default function PrerollAdPlayer({
   return (
     <div className="absolute inset-0 bg-black z-40">
       <div className="relative w-full h-full bg-black flex items-center justify-center">
-        <video
-          ref={videoRef}
-          className="w-full h-full object-contain"
+        <iframe
+          ref={iframeRef}
           src={vastUrl}
-          autoPlay
-          onEnded={onComplete}
-          onError={(e) => {
-            console.error("Error loading VAST ad:", e)
+          className="w-full h-full"
+          allow="autoplay; fullscreen"
+          allowFullScreen
+          style={{ border: "none" }}
+          onLoad={() => setAdLoaded(true)}
+          onError={() => {
+            console.error("Error loading VAST ad")
             setShowPlaceholder(true)
           }}
         />

@@ -21,16 +21,17 @@ export default async function AuthenticatedHomePage() {
       <div className="px-4 md:px-8 py-8 space-y-12">
         <div>
           <MovieCarousel title="Recommended For You" movies={recommended} />
-          <AdBanner type="horizontal" className="my-8" />
+          <AdBanner type="horizontal" placement="homepage" className="my-8" />
         </div>
 
         <div>
           <MovieCarousel title="Trending Now" movies={trending} />
+          <AdBanner type="horizontal" placement="homepage" className="my-8" />
         </div>
 
         <div>
           <MovieCarousel title="Top Rated" movies={topRated} />
-          <AdBanner type="horizontal" className="my-8" />
+          <AdBanner type="horizontal" placement="homepage" className="my-8" />
         </div>
 
         <div>

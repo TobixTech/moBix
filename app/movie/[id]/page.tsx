@@ -75,6 +75,7 @@ export default async function MovieDetail({
   console.log("[v0] Smart Link URL:", adSettings?.smartLinkUrl || "Not configured")
 
   const adTimeout = adSettings?.adTimeoutSeconds || 20
+  const showPrerollAds = adSettings?.showPrerollAds ?? true
 
   const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
@@ -89,6 +90,7 @@ export default async function MovieDetail({
           vastUrl={adSettings?.vastUrl}
           smartLinkUrl={adSettings?.smartLinkUrl}
           adTimeout={adTimeout}
+          showPrerollAds={showPrerollAds}
           isInWatchlist={isInWatchlist}
           adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
           adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}

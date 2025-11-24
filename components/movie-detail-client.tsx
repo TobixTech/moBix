@@ -54,6 +54,7 @@ export default function MovieDetailClient({
   vastUrl,
   smartLinkUrl, // Added smartLinkUrl prop
   adTimeout = 20, // Added adTimeout prop with default
+  showPrerollAds = true,
   isInWatchlist = false, // Added prop with default
 }: {
   movie: Movie
@@ -63,6 +64,7 @@ export default function MovieDetailClient({
   vastUrl?: string
   smartLinkUrl?: string
   adTimeout?: number // Added adTimeout type
+  showPrerollAds?: boolean
   isInWatchlist?: boolean // Added type definition
 }) {
   const { userId } = useAuth()
@@ -216,6 +218,7 @@ export default function MovieDetailClient({
               title={movie.title}
               vastUrl={finalVastUrl}
               adTimeout={adTimeout} // Pass timeout to player
+              showPrerollAds={showPrerollAds}
             />
           </motion.div>
 
