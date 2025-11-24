@@ -87,6 +87,7 @@ interface User {
   dateJoined: string
   role: string
   createdAt?: string // Added for getUsers response
+  commentsCount?: number // Added for users tab
 }
 
 interface Comment {
@@ -1303,6 +1304,7 @@ export default function AdminDashboard() {
                       <tr>
                         <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
                         <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Role</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Comments</th>
                         <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Joined</th>
                         <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
                       </tr>
@@ -1329,6 +1331,7 @@ export default function AdminDashboard() {
                               {user.role}
                             </span>
                           </td>
+                          <td className="px-6 py-4 text-white/70">{user.commentsCount || 0}</td>
                           <td className="px-6 py-4 text-white/50">{user.createdAt || user.dateJoined}</td>{" "}
                           {/* Prefer createdAt if available, otherwise fall back to dateJoined */}
                           <td className="px-6 py-4">

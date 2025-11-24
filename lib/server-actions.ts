@@ -1351,6 +1351,9 @@ export async function seedDatabase() {
 export async function getUsers() {
   try {
     const result = await db.query.users.findMany({
+      with: {
+        comments: true,
+      },
       orderBy: [desc(users.createdAt)],
     })
     return result.map((user) => ({
@@ -1362,6 +1365,7 @@ export async function getUsers() {
       role: user.role,
       createdAt: user.createdAt.toISOString().split("T")[0],
       clerkId: user.clerkId,
+      commentsCount: user.comments.length,
     }))
   } catch (error) {
     console.error("[v0] Error fetching users:", error)
