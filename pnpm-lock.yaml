@@ -37,7 +37,7 @@ importers:
         version: 1.0.2
       '@op-engineering/op-sqlite':
         specifier: latest
-        version: 15.0.7(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)
+        version: 15.1.1(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)
       '@opentelemetry/api':
         specifier: latest
         version: 1.9.0
@@ -174,7 +174,7 @@ importers:
         specifier: 1.0.4
         version: 1.0.4(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       crypto:
-        specifier: latest
+        specifier: 1.0.1
         version: 1.0.1
       date-fns:
         specifier: 4.1.0
@@ -184,7 +184,7 @@ importers:
         version: 17.2.3
       drizzle-orm:
         specifier: latest
-        version: 0.44.7(e9f58ee9eccc1ba2af84c8fbb4b4a898)
+        version: 0.44.7(ecdba0930d02c89129c1a3bba87ed7d3)
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.2.0)
@@ -1876,8 +1876,8 @@ packages:
     engines: {node: '>=10'}
     deprecated: This functionality has been moved to @npmcli/fs
 
-  '@op-engineering/op-sqlite@15.0.7':
-    resolution: {integrity: sha512-EExQtz7QPxPWXQ00QjFiHvbohMOrpEzFbWbWZ1BXvZeDafbYJxS6DYRO08w5Q44WnaNbxBfmRc/1/seZuHMI/g==}
+  '@op-engineering/op-sqlite@15.1.1':
+    resolution: {integrity: sha512-Oxp+/6gIGoWep9qnzjtujp0xB2K9XlRUW0dgrA0ytf3CsEbTmSePkvUIbwhFMxQs5RjFo72Yoq6uceIRM9j/Wg==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -5222,6 +5222,12 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
+  react-native-safe-area-context@5.6.2:
+    resolution: {integrity: sha512-4XGqMNj5qjUTYywJqpdWZ9IG8jgkS3h06sfVjfw5yZQZfWnRFXczi0GnYyFyCc2EBps/qFmoCH8fez//WumdVg==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   react-native@0.82.1:
     resolution: {integrity: sha512-tFAqcU7Z4g49xf/KnyCEzI4nRTu1Opcx05Ov2helr8ZTg1z7AJR/3sr2rZ+AAVlAs2IXk+B0WOxXGmdD3+4czA==}
     engines: {node: '>= 20.19.4'}
@@ -7902,10 +7908,11 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
-  '@op-engineering/op-sqlite@15.0.7(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)':
+  '@op-engineering/op-sqlite@15.1.1(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)':
     dependencies:
       react: 19.2.0
       react-native: 0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0)
+      react-native-safe-area-context: 5.6.2(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)
 
   '@opentelemetry/api@1.9.0': {}
 
@@ -9936,7 +9943,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.44.7(e9f58ee9eccc1ba2af84c8fbb4b4a898):
+  drizzle-orm@0.44.7(ecdba0930d02c89129c1a3bba87ed7d3):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.936.0
       '@cloudflare/workers-types': 4.20251121.0
@@ -9944,7 +9951,7 @@ snapshots:
       '@libsql/client': 0.15.15(bufferutil@4.0.9)
       '@libsql/client-wasm': 0.15.15
       '@neondatabase/serverless': 1.0.2
-      '@op-engineering/op-sqlite': 15.0.7(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)
+      '@op-engineering/op-sqlite': 15.1.1(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@prisma/client': 7.0.0(prisma@6.0.0)(typescript@5.0.2)
@@ -11706,6 +11713,11 @@ snapshots:
   react-is@16.13.1: {}
 
   react-is@18.3.1: {}
+
+  react-native-safe-area-context@5.6.2(react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      react: 19.2.0
+      react-native: 0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0)
 
   react-native@0.82.1(@babel/core@7.28.5)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.2.0):
     dependencies:
