@@ -20,9 +20,6 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isProtectedAdminRoute(req)) {
-    if (!userId) {
-      return NextResponse.redirect(new URL("/admin/login", req.url))
-    }
     const adminVerified = req.cookies.get("admin_access_verified")
     if (!adminVerified) {
       return NextResponse.redirect(new URL("/admin/access-key", req.url))
@@ -30,9 +27,7 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isAdminAccessKeyRoute(req)) {
-    if (!userId) {
-      return NextResponse.redirect(new URL("/", req.url))
-    }
+    // No userId check needed here
   }
 
   if (isDashboardRoute(req)) {

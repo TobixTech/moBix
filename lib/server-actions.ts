@@ -330,6 +330,7 @@ export async function verifyAdminInvitationCode(code: string): Promise<boolean> 
   const validCodes = [
     process.env.ADMIN_INVITATION_CODE,
     process.env.ADMIN_SECRET_KEY,
+    process.env.SECRET_KEY, // Added SECRET_KEY as a valid environment variable source
     process.env.ADMIN_PIN,
     "MOBIX_ADMIN_2024",
   ].filter(Boolean)
@@ -850,31 +851,22 @@ export async function getUserStats(userId: string) {
 
 export async function grantAdminAccessWithKey(accessKey: string) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return { success: false, error: "Not authenticated" }
-    }
-
     const isValid = await verifyAdminInvitationCode(accessKey)
 
     if (!isValid) {
       return { success: false, error: "Invalid access key" }
     }
 
-    const result = await assignAdminRole(userId)
+    cookies().set("admin_access_verified", "true", {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+    })
 
-    if (result.success) {
-      cookies().set("admin_access_verified", "true", {
-        path: "/",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-      })
-      revalidatePath("/admin")
-      revalidatePath("/profile")
-    }
+    revalidatePath("/admin")
 
-    return result
+    return { success: true }
   } catch (error: any) {
     console.error("[v0] Error granting admin access:", error)
     return { success: false, error: error.message || "Failed to grant access" }
