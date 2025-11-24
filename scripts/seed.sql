@@ -17,6 +17,6 @@ VALUES ('MOBIX_ADMIN_2024', true)
 ON CONFLICT (code) DO NOTHING;
 
 -- Seed Ad Settings
-INSERT INTO "AdSettings" ("horizontalAdCode", "verticalAdCode", "homepageEnabled", "movieDetailEnabled", "dashboardEnabled", "adTimeout") 
-SELECT '', '', false, false, false, 5
+INSERT INTO "AdSettings" ("horizontalAdCode", "verticalAdCode", "homepageEnabled", "movieDetailEnabled", "dashboardEnabled", "adTimeoutSeconds") 
+SELECT '', '', false, false, false, 20
 WHERE NOT EXISTS (SELECT 1 FROM "AdSettings");

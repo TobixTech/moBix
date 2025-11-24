@@ -1,12 +1,16 @@
 import { db } from "../lib/db"
 import { movies, adminInvites, adSettings } from "../lib/db/schema"
 import { eq } from "drizzle-orm"
+import * as dotenv from "dotenv"
+
+dotenv.config({ path: ".env.local" })
 
 async function seed() {
   console.log("🌱 Starting database seeding...")
 
   try {
-    // Seed Movies
+    // 1. Seed Movies
+    console.log("📽️  Seeding movies...")
     const moviesToSeed = [
       {
         title: "Inception",
@@ -107,10 +111,11 @@ async function seed() {
     ]
 
     for (const movie of moviesToSeed) {
-      // Check if movie already exists
-      const existing = await db.select().from(movies).where(eq(movies.title, movie.title)).limit(1)
+      const existing = await db.query.movies.findFirst({
+        where: eq(movies.title, movie.title),
+      })
 
-      if (existing.length === 0) {
+      if (!existing) {
         await db.insert(movies).values(movie)
         console.log(`✅ Inserted movie: ${movie.title}`)
       } else {
@@ -118,35 +123,37 @@ async function seed() {
       }
     }
 
-    // Seed Admin Invite Code
-    const existingInvite = await db
-      .select()
-      .from(adminInvites)
-      .where(eq(adminInvites.code, "MOBIX_ADMIN_2024"))
-      .limit(1)
+    // 2. Seed Admin Invite Code
+    console.log("🔑 Seeding admin invite code...")
+    const adminCode = process.env.ADMIN_INVITATION_CODE || "MOBIX_ADMIN_2024"
+    const existingInvite = await db.query.adminInvites.findFirst({
+      where: eq(adminInvites.code, adminCode),
+    })
 
-    if (existingInvite.length === 0) {
+    if (!existingInvite) {
       await db.insert(adminInvites).values({
-        code: "MOBIX_ADMIN_2024",
+        code: adminCode,
         isValid: true,
       })
-      console.log("✅ Inserted admin invite code: MOBIX_ADMIN_2024")
+      console.log(`✅ Admin invitation code created: ${adminCode}`)
     } else {
-      console.log("⏭️  Admin invite code already exists")
+      console.log("⏭️  Admin invitation code already exists")
     }
 
-    // Seed Ad Settings (if none exist)
-    const existingAdSettings = await db.select().from(adSettings).limit(1)
+    // 3. Seed Ad Settings
+    console.log("📢 Seeding ad settings...")
+    const existingAdSettings = await db.query.adSettings.findFirst()
 
-    if (existingAdSettings.length === 0) {
+    if (!existingAdSettings) {
       await db.insert(adSettings).values({
         horizontalAdCode: "",
         verticalAdCode: "",
         homepageEnabled: false,
         movieDetailEnabled: false,
         dashboardEnabled: false,
+        adTimeoutSeconds: 20,
       })
-      console.log("✅ Inserted default ad settings")
+      console.log("✅ Default ad settings created")
     } else {
       console.log("⏭️  Ad settings already exist")
     }
@@ -154,13 +161,13 @@ async function seed() {
     console.log("🎉 Database seeding completed successfully!")
   } catch (error) {
     console.error("❌ Error seeding database:", error)
-    throw error
+    process.exit(1)
   }
 }
 
 seed()
   .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error)
+  .catch((e) => {
+    console.error(e)
     process.exit(1)
   })
