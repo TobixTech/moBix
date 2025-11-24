@@ -11,10 +11,7 @@ VALUES
 ('The Grand Budapest Hotel', 'A writer encounters the owner of an aging high-class hotel, who tells him of his early years serving as a lobby boy.', 2014, 'Comedy', '/grand-budapest-hotel-inspired-poster.png', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', 1234, false, false)
 ON CONFLICT (title) DO NOTHING;
 
--- Seed Admin Invite
-INSERT INTO "AdminInvite" (code, "isValid") 
-VALUES ('MOBIX_ADMIN_2024', true) 
-ON CONFLICT (code) DO NOTHING;
+-- Removed Seed Admin Invite
 
 -- Seed Ad Settings
 INSERT INTO "AdSettings" ("horizontalAdCode", "verticalAdCode", "homepageEnabled", "movieDetailEnabled", "dashboardEnabled", "adTimeoutSeconds") 

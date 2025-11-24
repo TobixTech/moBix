@@ -77,18 +77,6 @@ const runMigration = async () => {
     `
     console.log("Checked/Created Comment table")
 
-    // Admin Invites Table
-    await sql`
-      CREATE TABLE IF NOT EXISTS "AdminInvite" (
-        "id" text PRIMARY KEY,
-        "code" text NOT NULL UNIQUE,
-        "isValid" boolean NOT NULL DEFAULT true,
-        "expiresAt" timestamp,
-        "createdAt" timestamp NOT NULL DEFAULT now()
-      );
-    `
-    console.log("Checked/Created AdminInvite table")
-
     // Ad Settings Table
     await sql`
       CREATE TABLE IF NOT EXISTS "AdSettings" (

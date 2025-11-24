@@ -51,16 +51,9 @@ CREATE TABLE IF NOT EXISTS "Comment" (
   FOREIGN KEY ("movieId") REFERENCES "Movie"("id") ON DELETE CASCADE
 );
 
--- AdminInvite table
-CREATE TABLE IF NOT EXISTS "AdminInvite" (
-  "id" TEXT PRIMARY KEY,
-  "code" TEXT UNIQUE NOT NULL,
-  "isValid" BOOLEAN DEFAULT TRUE,
-  "expiresAt" TIMESTAMP,
-  "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- Removed AdminInvite table
 
--- AdSettings table
+-- Ad Settings table
 CREATE TABLE IF NOT EXISTS "AdSettings" (
   "id" TEXT PRIMARY KEY,
   "horizontalAdCode" TEXT,
@@ -71,8 +64,3 @@ CREATE TABLE IF NOT EXISTS "AdSettings" (
   "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- Insert default admin invite code
-INSERT INTO "AdminInvite" ("id", "code", "isValid", "expiresAt")
-VALUES (gen_random_uuid()::text, 'MOBIX_SECRET_2024', TRUE, NULL)
-ON CONFLICT DO NOTHING;

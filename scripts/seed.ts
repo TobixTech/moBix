@@ -1,5 +1,5 @@
 import { db } from "../lib/db"
-import { movies, adminInvites, adSettings } from "../lib/db/schema"
+import { movies, adSettings } from "../lib/db/schema"
 import { eq } from "drizzle-orm"
 import * as dotenv from "dotenv"
 
@@ -121,23 +121,6 @@ async function seed() {
       } else {
         console.log(`⏭️  Movie already exists: ${movie.title}`)
       }
-    }
-
-    // 2. Seed Admin Invite Code
-    console.log("🔑 Seeding admin invite code...")
-    const adminCode = process.env.ADMIN_INVITATION_CODE || "MOBIX_ADMIN_2024"
-    const existingInvite = await db.query.adminInvites.findFirst({
-      where: eq(adminInvites.code, adminCode),
-    })
-
-    if (!existingInvite) {
-      await db.insert(adminInvites).values({
-        code: adminCode,
-        isValid: true,
-      })
-      console.log(`✅ Admin invitation code created: ${adminCode}`)
-    } else {
-      console.log("⏭️  Admin invitation code already exists")
     }
 
     // 3. Seed Ad Settings

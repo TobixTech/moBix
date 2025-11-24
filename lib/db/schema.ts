@@ -116,17 +116,6 @@ export const commentsRelations = relations(comments, ({ one }) => ({
   }),
 }))
 
-// Admin Invites
-export const adminInvites = pgTable("AdminInvite", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  code: text("code").unique().notNull(),
-  isValid: boolean("isValid").default(true).notNull(),
-  expiresAt: timestamp("expiresAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-})
-
 // Feedback table for movie requests and issue reports
 export const feedback = pgTable("Feedback", {
   id: text("id")
