@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { ExternalLink } from "lucide-react"
 
@@ -10,36 +10,53 @@ interface NativeAdCardProps {
 
 export default function NativeAdCard({ adCode }: NativeAdCardProps) {
   const adContainerRef = useRef<HTMLDivElement>(null)
+  const [adLoaded, setAdLoaded] = useState(false)
 
   useEffect(() => {
-    if (adCode && adContainerRef.current) {
-      // Clear any existing content
-      adContainerRef.current.innerHTML = ""
+    if (!adCode || !adContainerRef.current) return
 
-      // Create a temporary container to parse the HTML
-      const tempDiv = document.createElement("div")
-      tempDiv.innerHTML = adCode.trim()
+    const container = adContainerRef.current
+    container.innerHTML = ""
 
-      // Extract scripts and other elements
-      const scripts = tempDiv.querySelectorAll("script")
-      const otherElements = Array.from(tempDiv.children).filter((el) => el.tagName !== "SCRIPT")
+    // Create an iframe to isolate ad scripts
+    const iframe = document.createElement("iframe")
+    iframe.style.width = "100%"
+    iframe.style.height = "100%"
+    iframe.style.border = "none"
+    iframe.style.minHeight = "300px"
+    iframe.setAttribute("scrolling", "no")
+    iframe.setAttribute("frameborder", "0")
 
-      // Append non-script elements first
-      otherElements.forEach((el) => {
-        adContainerRef.current?.appendChild(el.cloneNode(true))
-      })
+    container.appendChild(iframe)
 
-      // Execute scripts
-      scripts.forEach((oldScript) => {
-        const newScript = document.createElement("script")
-        Array.from(oldScript.attributes).forEach((attr) => {
-          newScript.setAttribute(attr.name, attr.value)
-        })
-        newScript.textContent = oldScript.textContent
-        adContainerRef.current?.appendChild(newScript)
-      })
-
-      console.log("[v0] Ad script injected successfully")
+    // Write the ad code into the iframe
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+    if (iframeDoc) {
+      iframeDoc.open()
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100%;
+              background: transparent;
+              overflow: hidden;
+            }
+          </style>
+        </head>
+        <body>
+          ${adCode}
+        </body>
+        </html>
+      `)
+      iframeDoc.close()
+      setAdLoaded(true)
     }
   }, [adCode])
 
@@ -59,11 +76,15 @@ export default function NativeAdCard({ adCode }: NativeAdCardProps) {
           Ad
         </div>
 
-        {/* Ad Content - Script will be injected here */}
-        <div ref={adContainerRef} className="w-full aspect-[2/3] flex items-center justify-center p-4 min-h-[360px]" />
+        {/* Ad Content Container */}
+        <div ref={adContainerRef} className="w-full aspect-[2/3] flex items-center justify-center min-h-[360px]" />
 
-        {/* Ad Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+        {/* Loading state */}
+        {!adLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-[#00FFFF]/20 border-t-[#00FFFF] rounded-full animate-spin" />
+          </div>
+        )}
 
         {/* Sponsored Label at Bottom */}
         <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">

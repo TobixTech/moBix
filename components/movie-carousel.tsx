@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import MovieCard from "./movie-card"
-import NativeAdCard from "./native-ad-card" // Import NativeAdCard component
+import NativeAdCard from "./native-ad-card"
 import { getPublicMovies } from "@/lib/server-actions"
 
 interface Movie {
@@ -19,11 +19,16 @@ interface MovieCarouselProps {
   movies?: Movie[]
 }
 
+interface AdSettings {
+  horizontalAdCode?: string
+  homepageEnabled?: boolean
+}
+
 export default function MovieCarousel({ title, movies: initialMovies }: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
   const [movies, setMovies] = useState<Movie[]>(initialMovies || [])
   const [loading, setLoading] = useState(!initialMovies)
-  const [adCode, setAdCode] = useState<string>("")
+  const [adSettings, setAdSettings] = useState<AdSettings | null>(null)
 
   useEffect(() => {
     if (!initialMovies) {
@@ -41,19 +46,17 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
       fetchMovies()
     }
 
-    const fetchAdCode = async () => {
+    const fetchAdSettings = async () => {
       try {
         const response = await fetch("/api/ad-settings")
         const data = await response.json()
-        if (data.horizontalAdCode) {
-          setAdCode(data.horizontalAdCode)
-        }
+        setAdSettings(data)
       } catch (error) {
-        console.error("Error fetching ad code:", error)
+        console.error("Error fetching ad settings:", error)
       }
     }
 
-    fetchAdCode()
+    fetchAdSettings()
   }, [initialMovies])
 
   const scroll = (direction: "left" | "right") => {
@@ -93,11 +96,13 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
     return null
   }
 
+  const shouldShowAds = adSettings?.homepageEnabled && adSettings?.horizontalAdCode
+
   const moviesWithAds: (Movie | { isAd: true; id: string })[] = []
   movies.forEach((movie, index) => {
     moviesWithAds.push(movie)
-    // Add ad after every 2nd movie (index 1, 3, 5, 7, etc.)
-    if ((index + 1) % 2 === 0 && adCode) {
+    // Add ad after every 4th movie (less intrusive)
+    if (shouldShowAds && (index + 1) % 4 === 0) {
       moviesWithAds.push({ isAd: true, id: `ad-${index}` })
     }
   })
@@ -145,7 +150,7 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
               transition={{ duration: 0.5, delay: index * 0.05 }}
               viewport={{ once: true }}
             >
-              {"isAd" in item ? <NativeAdCard adCode={adCode} /> : <MovieCard movie={item} />}
+              {"isAd" in item ? <NativeAdCard adCode={adSettings?.horizontalAdCode} /> : <MovieCard movie={item} />}
             </motion.div>
           ))}
         </div>

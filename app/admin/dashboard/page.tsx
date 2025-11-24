@@ -22,6 +22,7 @@ import {
   Ban,
   Inbox,
   CheckCircle,
+  RefreshCw,
 } from "lucide-react"
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
@@ -117,6 +118,9 @@ export default function AdminDashboard() {
   const [pinError, setPinError] = useState("")
   const [pinLoading, setPinLoading] = useState(false)
 
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+
   const { signOut } = useAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
   const [movieSearch, setMovieSearch] = useState("")
@@ -190,60 +194,74 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [
-          metricsData,
-          trendingData,
-          signupsData,
-          moviesData,
-          usersData,
-          adSettingsData,
-          feedbackData,
-          commentsData,
-        ] = await Promise.all([
-          getAdminMetrics(),
-          getTrendingMovies(),
-          getRecentSignups(),
-          getAdminMovies(),
-          getUsers(), // Using getUsers instead of getAdminUsers
-          getAdSettings(),
-          getFeedbackEntries(), // Added fetch for feedback
-          getAllComments(),
-        ])
-        setMetrics(metricsData)
-        setTrendingMovies(trendingData)
-        setRecentSignups(signupsData)
-        setMovies(moviesData)
-        setUsers(usersData) // This will now use the data from getUsers
-        setFeedback(feedbackData) // Set feedback state
-        setComments(commentsData)
+    let interval: NodeJS.Timeout | null = null
 
-        if (adSettingsData) {
-          setAdSettings({
-            horizontalAdCode: adSettingsData.horizontalAdCode || "",
-            verticalAdCode: adSettingsData.verticalAdCode || "",
-            vastUrl: adSettingsData.vastUrl || "",
-            smartLinkUrl: adSettingsData.smartLinkUrl || "",
-            adTimeout: adSettingsData.adTimeoutSeconds || 20,
-            showPrerollAds: adSettingsData.showPrerollAds ?? true,
-            showHomepageAds: adSettingsData.homepageEnabled ?? true,
-            showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
-          })
-        }
-
-        // const commentsResponse = await fetch("/api/admin/comments")
-        // const commentsData = await commentsResponse.json()
-        // setComments(commentsData)
-      } catch (error) {
-        console.error("Error fetching admin data:", error)
-      } finally {
-        setLoading(false)
-      }
+    if (autoRefresh && pinVerified) {
+      interval = setInterval(() => {
+        fetchDashboardData()
+        setLastRefresh(new Date())
+      }, 30000) // Refresh every 30 seconds
     }
 
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [autoRefresh, pinVerified])
+
+  // Refactor fetch to a named function
+  const fetchDashboardData = async () => {
+    try {
+      const [
+        metricsData,
+        trendingData,
+        signupsData,
+        moviesData,
+        usersData,
+        commentsData,
+        adSettingsData,
+        feedbackData,
+      ] = await Promise.all([
+        getAdminMetrics(),
+        getTrendingMovies(),
+        getRecentSignups(),
+        getAdminMovies(),
+        getUsers(),
+        getAllComments(),
+        getAdSettings(),
+        getFeedbackEntries(),
+      ])
+
+      setMetrics(metricsData)
+      setTrendingMovies(trendingData)
+      setRecentSignups(signupsData)
+      setMovies(moviesData)
+      setUsers(usersData)
+      setComments(commentsData)
+      setFeedback(feedbackData)
+
+      if (adSettingsData) {
+        setAdSettings({
+          horizontalAdCode: adSettingsData.horizontalAdCode || "",
+          verticalAdCode: adSettingsData.verticalAdCode || "",
+          vastUrl: adSettingsData.vastUrl || "",
+          smartLinkUrl: adSettingsData.smartLinkUrl || "",
+          adTimeout: adSettingsData.adTimeoutSeconds || 20,
+          showPrerollAds: adSettingsData.showPrerollAds ?? true,
+          showHomepageAds: adSettingsData.homepageEnabled ?? true,
+          showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
+        })
+      }
+      setLastRefresh(new Date())
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
     if (pinVerified) {
-      fetchData()
+      fetchDashboardData()
     }
   }, [pinVerified])
 
@@ -773,14 +791,30 @@ export default function AdminDashboard() {
               {activeTab === "overview" ? "Dashboard Overview" : activeTab.replace("-", " ")}
             </h2>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-white/50 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              System Operational
-            </div>
-            <div className="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold">
-              A
-            </div>
+          {/* Add refresh controls to the header area after the sidebar */}
+          {/* Find the main content area and add this after the tabs */}
+          {/* Refresh Controls - Add this after the tab buttons */}
+          <div className="flex items-center gap-4 ml-auto">
+            <label className="flex items-center gap-2 text-sm text-gray-400">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="w-4 h-4 accent-[#00FFFF]"
+              />
+              Auto-refresh
+            </label>
+            <button
+              onClick={() => {
+                setLoading(true)
+                fetchDashboardData()
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#2A2B33] text-white rounded hover:bg-[#3A3B43] transition text-sm"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <span className="text-xs text-gray-500">Last: {lastRefresh.toLocaleTimeString()}</span>
           </div>
         </header>
 

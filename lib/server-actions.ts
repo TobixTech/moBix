@@ -823,30 +823,57 @@ export async function updateUserProfile(data: { username: string; firstName: str
   }
 }
 
-export async function getUserStats(userId: string) {
+export async function getUserStats() {
   try {
-    // We need to find our internal DB user ID first (which corresponds to the Clerk ID)
-    // But our schema stores clerkId in users.clerkId and referenced by users.id in other tables.
-    // Wait, the likes/comments tables use our internal UUID (users.id), NOT the clerk ID.
-
-    const user = await db.query.users.findFirst({
-      where: eq(users.clerkId, userId),
-    })
-
-    if (!user) {
-      return { likesCount: 0, commentsCount: 0 }
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
     }
 
+    const user = await ensureUserExists(userId)
+
+    // Get likes count
     const [likesCount] = await db.select({ count: count() }).from(likes).where(eq(likes.userId, user.id))
+
+    // Get comments count
     const [commentsCount] = await db.select({ count: count() }).from(comments).where(eq(comments.userId, user.id))
 
+    // Get watchlist count
+    const [watchlistCount] = await db.select({ count: count() }).from(watchlist).where(eq(watchlist.userId, user.id))
+
+    // Get liked movies with full movie data
+    const likedMoviesData = await db.query.likes.findMany({
+      where: eq(likes.userId, user.id),
+      with: {
+        movie: true,
+      },
+      orderBy: [desc(likes.createdAt)],
+    })
+
+    // Get watchlist movies with full movie data
+    const watchlistData = await db.query.watchlist.findMany({
+      where: eq(watchlist.userId, user.id),
+      with: {
+        movie: true,
+      },
+      orderBy: [desc(watchlist.createdAt)],
+    })
+
     return {
-      likesCount: likesCount.count,
-      commentsCount: commentsCount.count,
+      success: true,
+      stats: {
+        email: user.email,
+        memberSince: user.createdAt,
+        totalLikes: likesCount.count,
+        totalComments: commentsCount.count,
+        totalWatchlist: watchlistCount.count,
+        likedMovies: likedMoviesData.map((item) => item.movie).filter(Boolean),
+        watchlistMovies: watchlistData.map((item) => item.movie).filter(Boolean),
+      },
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Error fetching user stats:", error)
-    return { likesCount: 0, commentsCount: 0 }
+    return { success: false, error: error.message || "Failed to fetch user stats" }
   }
 }
 
