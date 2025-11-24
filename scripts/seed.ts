@@ -3,6 +3,7 @@ import { movies, adSettings } from "../lib/db/schema"
 import { eq } from "drizzle-orm"
 import * as dotenv from "dotenv"
 
+// Load environment variables before any imports that might use them
 dotenv.config({ path: ".env.local" })
 
 async function seed() {
@@ -123,7 +124,7 @@ async function seed() {
       }
     }
 
-    // 3. Seed Ad Settings
+    // 2. Seed Ad Settings
     console.log("📢 Seeding ad settings...")
     const existingAdSettings = await db.query.adSettings.findFirst()
 

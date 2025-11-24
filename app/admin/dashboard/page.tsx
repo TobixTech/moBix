@@ -42,6 +42,7 @@ import {
   getFeedbackEntries, // Added import
   updateFeedbackStatus, // Added import
   deleteFeedback, // Added import
+  getAllComments,
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -69,10 +70,10 @@ interface Movie {
   useGlobalAd?: boolean
   description?: string
   thumbnail?: string
-  videoLink?: string
+  videoUrl?: string
   year?: number
   posterUrl?: string
-  videoUrl?: string
+  videoLink?: string // Added for edit modal compatibility
 }
 
 interface Signup {
@@ -191,22 +192,32 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsData, trendingData, signupsData, moviesData, usersData, adSettingsData, feedbackData] =
-          await Promise.all([
-            getAdminMetrics(),
-            getTrendingMovies(),
-            getRecentSignups(),
-            getAdminMovies(),
-            getUsers(), // Using getUsers instead of getAdminUsers
-            getAdSettings(),
-            getFeedbackEntries(), // Added fetch for feedback
-          ])
+        const [
+          metricsData,
+          trendingData,
+          signupsData,
+          moviesData,
+          usersData,
+          adSettingsData,
+          feedbackData,
+          commentsData,
+        ] = await Promise.all([
+          getAdminMetrics(),
+          getTrendingMovies(),
+          getRecentSignups(),
+          getAdminMovies(),
+          getUsers(), // Using getUsers instead of getAdminUsers
+          getAdSettings(),
+          getFeedbackEntries(), // Added fetch for feedback
+          getAllComments(),
+        ])
         setMetrics(metricsData)
         setTrendingMovies(trendingData)
         setRecentSignups(signupsData)
         setMovies(moviesData)
         setUsers(usersData) // This will now use the data from getUsers
         setFeedback(feedbackData) // Set feedback state
+        setComments(commentsData)
 
         if (adSettingsData) {
           setAdSettings({
@@ -221,9 +232,9 @@ export default function AdminDashboard() {
           })
         }
 
-        const commentsResponse = await fetch("/api/admin/comments")
-        const commentsData = await commentsResponse.json()
-        setComments(commentsData)
+        // const commentsResponse = await fetch("/api/admin/comments")
+        // const commentsData = await commentsResponse.json()
+        // setComments(commentsData)
       } catch (error) {
         console.error("Error fetching admin data:", error)
       } finally {
@@ -297,8 +308,8 @@ export default function AdminDashboard() {
       genre: movie.genre || "Action",
       posterUrl: movie.posterUrl || "",
       videoUrl: movie.videoUrl || "",
-      videoLink: movie.videoUrl || "",
-      thumbnail: movie.posterUrl || "",
+      videoLink: movie.videoUrl || "", // Ensure videoLink is populated for the form
+      thumbnail: movie.posterUrl || "", // Ensure thumbnail is populated for the form
       downloadEnabled: movie.downloadEnabled || false,
       downloadUrl: movie.downloadUrl || "",
       customVastUrl: movie.customVastUrl || "",
@@ -387,8 +398,8 @@ export default function AdminDashboard() {
     const result = await deleteComment(commentId)
 
     if (result.success) {
-      const commentsResponse = await fetch("/api/admin/comments")
-      const commentsData = await commentsResponse.json()
+      // Re-fetch comments to update the list
+      const commentsData = await getAllComments()
       setComments(commentsData)
       alert("Comment deleted successfully!")
     } else {
@@ -777,134 +788,64 @@ export default function AdminDashboard() {
           {/* ... other tabs content ... */}
           {activeTab === "feedback" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-white">Feedback & Requests</h2>
-              </div>
-
-              {/* Summary Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-cyan-500/20 rounded-xl">
-                      <Inbox className="w-6 h-6 text-cyan-400" />
-                    </div>
-                    <div>
-                      <p className="text-white/60 text-sm">Total Entries</p>
-                      <p className="text-2xl font-bold text-white">{feedback.length}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-yellow-500/20 rounded-xl">
-                      <Loader className="w-6 h-6 text-yellow-400" />
-                    </div>
-                    <div>
-                      <p className="text-white/60 text-sm">Pending</p>
-                      <p className="text-2xl font-bold text-white">
-                        {feedback.filter((f) => f.status === "NEW" || f.status === "IN_PROGRESS").length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-green-500/20 rounded-xl">
-                      <CheckCircle className="w-6 h-6 text-green-400" />
-                    </div>
-                    <div>
-                      <p className="text-white/60 text-sm">Completed</p>
-                      <p className="text-2xl font-bold text-white">
-                        {feedback.filter((f) => f.status === "COMPLETE").length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Feedback List */}
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Type</th>
-                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Title</th>
-                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Details</th>
-                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Email</th>
-                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Status</th>
-                        <th className="px-6 py-4 text-left text-sm font-medium text-white/60">Date</th>
-                        <th className="px-6 py-4 text-right text-sm font-medium text-white/60">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {feedback.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="px-6 py-8 text-center text-white/40">
-                            No feedback or requests yet
-                          </td>
-                        </tr>
-                      ) : (
-                        feedback.map((entry) => (
-                          <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="px-6 py-4">
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                  entry.type === "REQUEST"
-                                    ? "bg-purple-500/20 text-purple-400"
-                                    : "bg-orange-500/20 text-orange-400"
-                                }`}
-                              >
-                                {entry.type}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-white font-medium">{entry.title || "No Title"}</td>
-                            <td className="px-6 py-4 text-white/60 max-w-xs truncate">{entry.details || "—"}</td>
-                            <td className="px-6 py-4 text-white/60 text-sm">{entry.email || "—"}</td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                  entry.status === "NEW"
-                                    ? "bg-cyan-500/20 text-cyan-400"
-                                    : entry.status === "IN_PROGRESS"
-                                      ? "bg-yellow-500/20 text-yellow-400"
-                                      : "bg-green-500/20 text-green-400"
-                                }`}
-                              >
-                                {entry.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-white/60 text-sm">
+              <h3 className="text-2xl font-bold text-white mb-6">Feedback & Requests</h3>
+              <div className="grid gap-4">
+                {feedback.length === 0 ? (
+                  <p className="text-white/50 text-center py-8">No feedback or requests found.</p>
+                ) : (
+                  feedback.map((entry) => (
+                    <div key={entry.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl relative">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-bold border ${
+                                entry.type === "REQUEST"
+                                  ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                  : "bg-red-500/10 text-red-400 border-red-500/20"
+                              }`}
+                            >
+                              {entry.type}
+                            </span>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-bold border ${
+                                entry.status === "PENDING"
+                                  ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                                  : "bg-green-500/10 text-green-400 border-green-500/20"
+                              }`}
+                            >
+                              {entry.status}
+                            </span>
+                            <span className="text-white/40 text-xs">
                               {new Date(entry.createdAt).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-end gap-2">
-                                {entry.status !== "COMPLETE" && (
-                                  <button
-                                    onClick={() => handleUpdateFeedback(entry.id, "COMPLETE")}
-                                    className="p-2 hover:bg-green-500/20 rounded-lg transition-colors group"
-                                    title="Mark as Complete"
-                                  >
-                                    <CheckCircle className="w-4 h-4 text-white/40 group-hover:text-green-400" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteFeedback(entry.id)}
-                                  className="p-2 hover:bg-red-500/20 rounded-lg transition-colors group"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            </span>
+                          </div>
+                          <h4 className="text-lg font-bold text-white">{entry.title}</h4>
+                          {entry.email && <p className="text-cyan-400 text-sm">From: {entry.email}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                          {entry.status === "PENDING" && (
+                            <button
+                              onClick={() => handleUpdateFeedback(entry.id, "COMPLETE")}
+                              className="p-2 hover:bg-green-500/10 text-white/50 hover:text-green-400 rounded-lg transition-colors"
+                              title="Mark as Complete"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteFeedback(entry.id)}
+                            className="p-2 hover:bg-red-500/10 text-white/50 hover:text-red-400 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-white/80 text-sm whitespace-pre-wrap">{entry.details}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
