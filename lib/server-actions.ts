@@ -6,6 +6,7 @@ import { movies, users, likes, comments, adSettings, feedback, watchlist } from 
 import { eq, desc, and, or, ilike, count, sum, sql, not, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { getRedisClient } from "./redis"
+import { cookies } from "next/headers" // added cookies import
 
 interface CommentWithUser {
   id: string
@@ -857,6 +858,12 @@ export async function grantAdminAccessWithKey(accessKey: string) {
     const result = await assignAdminRole(userId)
 
     if (result.success) {
+      cookies().set("admin_access_verified", "true", {
+        path: "/",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+      })
       revalidatePath("/admin")
       revalidatePath("/profile")
     }
@@ -1338,5 +1345,26 @@ export async function seedDatabase() {
       success: false,
       error: error.message || "Failed to seed database",
     }
+  }
+}
+
+export async function getUsers() {
+  try {
+    const result = await db.query.users.findMany({
+      orderBy: [desc(users.createdAt)],
+    })
+    return result.map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      createdAt: user.createdAt.toISOString().split("T")[0],
+      clerkId: user.clerkId,
+    }))
+  } catch (error) {
+    console.error("[v0] Error fetching users:", error)
+    return []
   }
 }

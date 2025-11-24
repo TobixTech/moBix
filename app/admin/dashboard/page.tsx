@@ -30,7 +30,7 @@ import {
   getTrendingMovies,
   getRecentSignups,
   getAdminMovies,
-  getAdminUsers,
+  getUsers, // Added getUsers import
   uploadMovie,
   updateMovie,
   deleteMovie,
@@ -86,6 +86,7 @@ interface User {
   email: string
   dateJoined: string
   role: string
+  createdAt?: string // Added for getUsers response
 }
 
 interface Comment {
@@ -124,7 +125,7 @@ export default function AdminDashboard() {
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([])
   const [recentSignups, setRecentSignups] = useState<Signup[]>([])
   const [movies, setMovies] = useState<Movie[]>([])
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<User[]>([]) // Changed type to User[] to match potential getUsers response structure, assuming it aligns or is compatible with AdminUser. If not, 'any[]' would be a fallback.
   const [comments, setComments] = useState<Comment[]>([])
   const [feedback, setFeedback] = useState<Feedback[]>([]) // Added feedback state
   const [loading, setLoading] = useState(true)
@@ -195,7 +196,7 @@ export default function AdminDashboard() {
             getTrendingMovies(),
             getRecentSignups(),
             getAdminMovies(),
-            getAdminUsers(),
+            getUsers(), // Using getUsers instead of getAdminUsers
             getAdSettings(),
             getFeedbackEntries(), // Added fetch for feedback
           ])
@@ -203,7 +204,7 @@ export default function AdminDashboard() {
         setTrendingMovies(trendingData)
         setRecentSignups(signupsData)
         setMovies(moviesData)
-        setUsers(usersData)
+        setUsers(usersData) // This will now use the data from getUsers
         setFeedback(feedbackData) // Set feedback state
 
         if (adSettingsData) {
@@ -405,7 +406,7 @@ export default function AdminDashboard() {
     const result = await banUser(userId)
 
     if (result.success) {
-      const usersData = await getAdminUsers()
+      const usersData = await getUsers() // Using getUsers
       setUsers(usersData)
       alert("User banned successfully!")
     } else {
@@ -424,7 +425,7 @@ export default function AdminDashboard() {
     const result = await deleteUser(userId)
 
     if (result.success) {
-      const usersData = await getAdminUsers()
+      const usersData = await getUsers() // Using getUsers
       setUsers(usersData)
       alert("User deleted successfully!")
     } else {
@@ -1029,57 +1030,59 @@ export default function AdminDashboard() {
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-white/5 border-b border-white/10">
-                    <tr>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Movie</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Genre</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Date</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Views</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {filteredMovies.map((movie) => (
-                      <tr key={movie.id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-white">{movie.title}</div>
-                        </td>
-                        <td className="px-6 py-4 text-white/70">{movie.genre}</td>
-                        <td className="px-6 py-4 text-white/50">{movie.uploadDate}</td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-bold border ${
-                              movie.status === "Published"
-                                ? "bg-green-500/10 text-green-400 border-green-500/20"
-                                : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                            }`}
-                          >
-                            {movie.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-white font-mono">{movie.views}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEdit(movie)}
-                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(movie.id)}
-                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Movie</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Genre</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Date</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Views</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {filteredMovies.map((movie) => (
+                        <tr key={movie.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-white">{movie.title}</div>
+                          </td>
+                          <td className="px-6 py-4 text-white/70">{movie.genre}</td>
+                          <td className="px-6 py-4 text-white/50">{movie.uploadDate}</td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-bold border ${
+                                movie.status === "Published"
+                                  ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                  : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                              }`}
+                            >
+                              {movie.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-white font-mono">{movie.views}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleEdit(movie)}
+                                className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(movie.id)}
+                                className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -1294,60 +1297,63 @@ export default function AdminDashboard() {
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-white/5 border-b border-white/10">
-                    <tr>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Role</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Joined</th>
-                      <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
-                              {user.email.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="text-white">{user.email}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-bold border ${
-                              user.role === "Admin"
-                                ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                                : "bg-white/10 text-white/60 border-white/10"
-                            }`}
-                          >
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-white/50">{user.dateJoined}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleBanUser(user.id)}
-                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-yellow-400 transition-colors"
-                              title="Ban User"
-                            >
-                              <Ban className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(user.id)}
-                              className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
-                              title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Role</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Joined</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                                {user.email?.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="text-white">{user.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-bold border ${
+                                user.role === "ADMIN" // Role check changed to 'ADMIN' for case-insensitivity if necessary, or matching API response. Assuming 'ADMIN' is the correct constant.
+                                  ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                  : "bg-white/10 text-white/60 border-white/10"
+                              }`}
+                            >
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-white/50">{user.createdAt || user.dateJoined}</td>{" "}
+                          {/* Prefer createdAt if available, otherwise fall back to dateJoined */}
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleBanUser(user.id)}
+                                className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-yellow-400 transition-colors"
+                                title="Ban User"
+                              >
+                                <Ban className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
+                                title="Delete User"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

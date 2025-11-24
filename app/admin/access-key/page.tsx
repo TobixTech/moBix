@@ -28,7 +28,7 @@ export default function AdminAccessKeyPage() {
         setAccessKey("")
 
         setTimeout(() => {
-          window.location.replace("/admin/dashboard")
+          window.location.replace("/admin/point")
         }, 2000)
       } else {
         setError(result.error || "Invalid access key")

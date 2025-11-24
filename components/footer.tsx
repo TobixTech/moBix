@@ -1,9 +1,28 @@
 import Link from "next/link"
 import { ReportIssueModal } from "@/components/report-issue-modal"
+import { RequestMovieModal } from "@/components/request-movie-modal" // Added import
 
 export default function Footer() {
   return (
     <footer className="bg-[#0B0C10] border-t border-[#2A2B33] mt-16">
+      <div className="border-b border-[#2A2B33] bg-[#1A1B23]/50">
+        <div className="px-4 md:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div>
+            <h3 className="text-xl font-bold text-white mb-2">Can't find what you're looking for?</h3>
+            <p className="text-[#888888] text-sm">Request a movie and we'll try to add it to our collection.</p>
+          </div>
+          <div className="flex-shrink-0">
+            <RequestMovieModal
+              trigger={
+                <button className="px-6 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded hover:bg-[#00CCCC] hover:shadow-[0_0_20px_rgba(0,255,255,0.4)] transition-all">
+                  Request a Movie
+                </button>
+              }
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="px-4 md:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
