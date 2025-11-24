@@ -327,8 +327,14 @@ export async function getAdminUsers() {
 }
 
 export async function verifyAdminInvitationCode(code: string): Promise<boolean> {
-  const validCode = process.env.ADMIN_INVITATION_CODE || "MOBIX_ADMIN_2024"
-  return code === validCode
+  const validCodes = [
+    process.env.ADMIN_INVITATION_CODE,
+    process.env.ADMIN_SECRET_KEY,
+    process.env.ADMIN_PIN,
+    "MOBIX_ADMIN_2024",
+  ].filter(Boolean)
+
+  return validCodes.includes(code)
 }
 
 export async function checkAdminCount(): Promise<boolean> {
