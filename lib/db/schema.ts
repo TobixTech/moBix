@@ -1,5 +1,5 @@
 import { pgTable, text, integer, boolean, timestamp, primaryKey } from "drizzle-orm/pg-core"
-import { relations } from "drizzle-orm"
+import { relations, sql } from "drizzle-orm"
 
 // Users
 export const users = pgTable("User", {
@@ -27,10 +27,8 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 // Movies
 export const movies = pgTable("Movie", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  title: text("title").notNull(),
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  title: text("title").unique().notNull(),
   description: text("description").notNull(),
   year: integer("year").notNull(),
   genre: text("genre").notNull(),
