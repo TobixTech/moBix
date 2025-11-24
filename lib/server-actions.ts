@@ -1188,12 +1188,19 @@ export async function getContinueWatching() {
 }
 
 export async function seedDatabase() {
-  try {
-    console.log("[v0] Starting database seeding...")
+  const logs: string[] = []
+  const log = (msg: string) => {
+    console.log(`[v0] ${msg}`)
+    logs.push(msg)
+  }
 
-    // Sample movies to seed
+  try {
+    log("Starting database seeding...")
+
+    // Sample movies to seed with explicit UUIDs to ensure no ID generation issues
     const sampleMovies = [
       {
+        id: "11111111-1111-4111-8111-111111111111",
         title: "Inception",
         description:
           "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O.",
@@ -1206,6 +1213,7 @@ export async function seedDatabase() {
         views: 1523,
       },
       {
+        id: "22222222-2222-4222-8222-222222222222",
         title: "The Dark Knight",
         description:
           "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.",
@@ -1218,6 +1226,7 @@ export async function seedDatabase() {
         views: 2341,
       },
       {
+        id: "33333333-3333-4333-8333-333333333333",
         title: "Interstellar",
         description:
           "A team of explorers travel through a wormhole in space in an attempt to ensure humanity survival.",
@@ -1230,6 +1239,7 @@ export async function seedDatabase() {
         views: 1876,
       },
       {
+        id: "44444444-4444-4444-8444-444444444444",
         title: "The Shawshank Redemption",
         description:
           "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
@@ -1242,6 +1252,7 @@ export async function seedDatabase() {
         views: 3124,
       },
       {
+        id: "55555555-5555-4555-8555-555555555555",
         title: "Pulp Fiction",
         description:
           "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales of violence and redemption.",
@@ -1254,6 +1265,7 @@ export async function seedDatabase() {
         views: 2654,
       },
       {
+        id: "66666666-6666-4666-8666-666666666666",
         title: "The Matrix",
         description:
           "A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.",
@@ -1266,6 +1278,7 @@ export async function seedDatabase() {
         views: 2987,
       },
       {
+        id: "77777777-7777-4777-8777-777777777777",
         title: "Mad Max: Fury Road",
         description:
           "In a post-apocalyptic wasteland, a woman rebels against a tyrannical ruler in search for her homeland with the aid of a group of female prisoners.",
@@ -1278,6 +1291,7 @@ export async function seedDatabase() {
         views: 1789,
       },
       {
+        id: "88888888-8888-4888-8888-888888888888",
         title: "The Grand Budapest Hotel",
         description:
           "A writer encounters the owner of an aging high-class hotel, who tells him of his early years serving as a lobby boy.",
@@ -1294,42 +1308,59 @@ export async function seedDatabase() {
     let insertedCount = 0
     let skippedCount = 0
 
+    log(`Found ${sampleMovies.length} movies to process`)
+
     for (const movieData of sampleMovies) {
       // Check if movie already exists
-      const existing = await db.query.movies.findFirst({
-        where: eq(movies.title, movieData.title),
-      })
+      try {
+        const existing = await db.query.movies.findFirst({
+          where: eq(movies.title, movieData.title),
+        })
 
-      if (existing) {
-        console.log(`[v0] Movie already exists: ${movieData.title}`)
-        skippedCount++
-        continue
+        if (existing) {
+          log(`Skipping: ${movieData.title} (Already exists)`)
+          skippedCount++
+          continue
+        }
+
+        // Insert movie with explicit ID to prevent NULL violations
+        await db.insert(movies).values({
+          ...movieData,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        log(`Inserted: ${movieData.title}`)
+        insertedCount++
+      } catch (insertError: any) {
+        log(`ERROR inserting ${movieData.title}: ${insertError.message}`)
+        console.error(insertError)
       }
-
-      // Insert movie
-      await db.insert(movies).values(movieData)
-      console.log(`[v0] Inserted movie: ${movieData.title}`)
-      insertedCount++
     }
 
     // Ensure default ad settings exist
-    const existingAdSettings = await db.query.adSettings.findFirst()
-    if (!existingAdSettings) {
-      await db.insert(adSettings).values({
-        horizontalAdCode: "",
-        verticalAdCode: "",
-        vastUrl: "",
-        smartLinkUrl: "",
-        adTimeoutSeconds: 20,
-        showPrerollAds: true,
-        homepageEnabled: false,
-        movieDetailEnabled: false,
-        dashboardEnabled: false,
-      })
-      console.log("[v0] Created default ad settings")
+    try {
+      const existingAdSettings = await db.query.adSettings.findFirst()
+      if (!existingAdSettings) {
+        await db.insert(adSettings).values({
+          horizontalAdCode: "",
+          verticalAdCode: "",
+          vastUrl: "",
+          smartLinkUrl: "",
+          adTimeoutSeconds: 20,
+          showPrerollAds: true,
+          homepageEnabled: false,
+          movieDetailEnabled: false,
+          dashboardEnabled: false,
+        })
+        log("Created default ad settings")
+      } else {
+        log("Ad settings already exist")
+      }
+    } catch (adError: any) {
+      log(`ERROR checking ad settings: ${adError.message}`)
     }
 
-    console.log(`[v0] Seeding complete! Inserted: ${insertedCount}, Skipped: ${skippedCount}`)
+    log(`Seeding complete! Added: ${insertedCount}, Skipped: ${skippedCount}`)
     revalidatePath("/admin/dashboard")
     revalidatePath("/")
 
@@ -1338,12 +1369,15 @@ export async function seedDatabase() {
       message: `Successfully seeded ${insertedCount} movies (${skippedCount} already existed)`,
       inserted: insertedCount,
       skipped: skippedCount,
+      logs,
     }
   } catch (error: any) {
     console.error("[v0] Error seeding database:", error)
+    log(`CRITICAL ERROR: ${error.message}`)
     return {
       success: false,
       error: error.message || "Failed to seed database",
+      logs,
     }
   }
 }

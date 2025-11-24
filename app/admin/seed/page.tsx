@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Database, Check, AlertCircle, Loader, ArrowLeft, Film, ExternalLink } from "lucide-react"
+import { Database, Check, AlertCircle, Loader, ArrowLeft, Film, ExternalLink, Terminal } from "lucide-react"
 import { seedDatabase, getAdminMovies } from "@/lib/server-actions"
 import Link from "next/link"
 
@@ -14,6 +14,7 @@ export default function SeedDatabasePage() {
     inserted?: number
     skipped?: number
     error?: string
+    logs?: string[]
   } | null>(null)
   const [existingMovies, setExistingMovies] = useState<any[]>([])
   const router = useRouter()
@@ -46,11 +47,11 @@ export default function SeedDatabasePage() {
       <div className="w-full max-w-2xl">
         <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl">
           <Link
-            href="/admin/dashboard"
+            href="/admin/point"
             className="inline-flex items-center gap-2 text-[#00FFFF] hover:text-[#00CCCC] mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
+            Back to Admin Point
           </Link>
 
           <div className="text-center mb-8">
@@ -87,6 +88,24 @@ export default function SeedDatabasePage() {
                     </p>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Logs Terminal */}
+          {result?.logs && result.logs.length > 0 && (
+            <div className="mb-6 bg-black rounded-lg border border-[#333] overflow-hidden font-mono text-xs">
+              <div className="bg-[#1a1a1a] px-3 py-2 border-b border-[#333] flex items-center gap-2">
+                <Terminal className="w-3 h-3 text-[#666]" />
+                <span className="text-[#888]">Execution Logs</span>
+              </div>
+              <div className="p-3 max-h-40 overflow-y-auto space-y-1 text-[#aaa]">
+                {result.logs.map((log, i) => (
+                  <div key={i} className="whitespace-pre-wrap break-all">
+                    <span className="text-[#555] mr-2">{i + 1}.</span>
+                    {log.includes("ERROR") ? <span className="text-red-400">{log}</span> : <span>{log}</span>}
+                  </div>
+                ))}
               </div>
             </div>
           )}
