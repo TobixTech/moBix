@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Download, X, Smartphone } from "lucide-react"
+import { Download, X } from "lucide-react" // Removed Smartphone import
 import { Button } from "@/components/ui/button"
+// 1. Import your logo image
+import LogoImage from './IMG-20251117-WA0002.jpg' // **<--- CHECK THIS PATH!**
+import Image from 'next/image' // Assuming you are using Next.js Image component for optimization
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -15,6 +18,7 @@ export default function PWAInstallPrompt() {
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
 
+  // ... (rest of the useEffect, handleInstall, handleDismiss functions remain the same) ...
   useEffect(() => {
     // Check if already installed (standalone mode)
     const standalone = window.matchMedia("(display-mode: standalone)").matches
@@ -67,6 +71,7 @@ export default function PWAInstallPrompt() {
     setShowPrompt(false)
     localStorage.setItem("pwa-prompt-dismissed", Date.now().toString())
   }
+  // ...
 
   if (isStandalone || !showPrompt) return null
 
@@ -82,8 +87,16 @@ export default function PWAInstallPrompt() {
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-[#E50914] flex items-center justify-center">
-            <Smartphone className="w-6 h-6 text-white" />
+          {/* 2. Replace the icon with the imported image */}
+          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white overflow-hidden flex items-center justify-center">
+            {/* Using Next.js Image component for a clean fit */}
+            <Image 
+                src={LogoImage} 
+                alt="moBix App Logo"
+                width={48} // w-12 is 48px
+                height={48} // h-12 is 48px
+                className="w-full h-full object-cover" // Ensure the image fills the container
+            />
           </div>
 
           <div className="flex-1 min-w-0">
