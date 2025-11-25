@@ -1,33 +1,109 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/toaster"
+import PWAInstallPrompt from "@/components/pwa-install-prompt"
+import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/seo-structured-data"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "moBix - Stream Your Favorites",
-  description: "Premium streaming platform for movies and shows",
-  generator: "v0.app",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"),
-  icons: {
-    icon: "/favicon.svg",
+  title: {
+    default: "moBix - Stream Movies & Shows Online Free",
+    template: "%s | moBix",
   },
+  description:
+    "Watch unlimited movies, TV shows, and exclusive content on moBix. Stream free HD movies online - Action, Drama, Comedy, Nollywood & more. No subscription required.",
+  keywords: [
+    "free movies",
+    "stream movies online",
+    "watch movies free",
+    "HD movies",
+    "Nollywood movies",
+    "action movies",
+    "drama movies",
+    "comedy movies",
+    "movie streaming",
+    "moBix",
+    "free streaming",
+    "watch online",
+  ],
+  generator: "v0.app",
+  applicationName: "moBix",
+  authors: [{ name: "moBix Team" }],
+  creator: "moBix",
+  publisher: "moBix",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"),
+  alternates: {
+    canonical: "/",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-96x96.jpg", sizes: "96x96", type: "image/png" },
+      { url: "/icons/icon-192x192.jpg", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/icon-152x152.jpg", sizes: "152x152", type: "image/png" },
+      { url: "/icons/icon-192x192.jpg", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: "/favicon.svg",
+  },
+  manifest: "/manifest.json",
   openGraph: {
-    title: "moBix - Stream Your Favorites",
-    description: "Premium streaming platform for movies and shows",
+    title: "moBix - Stream Movies & Shows Online Free",
+    description: "Watch unlimited movies, TV shows, and exclusive content on moBix. Stream free HD movies online.",
     type: "website",
     siteName: "moBix",
+    locale: "en_US",
+    url: "/",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "moBix - Free Movie Streaming",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "moBix - Stream Your Favorites",
-    description: "Premium streaming platform for movies and shows",
+    title: "moBix - Stream Movies & Shows Online Free",
+    description: "Watch unlimited movies, TV shows, and exclusive content on moBix. Stream free HD movies online.",
+    images: ["/og-image.jpg"],
+    creator: "@mobix",
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    google: "your-google-verification-code",
+  },
+  category: "entertainment",
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#E50914" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0C10" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({
@@ -40,11 +116,49 @@ export default function RootLayout({
       <html lang="en" className="dark">
         <head>
           <meta name="6a97888e-site-verification" content="31d833de3e94dcf092ac2dec8b419b57" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+          <meta name="apple-mobile-web-app-title" content="moBix" />
+          <meta name="format-detection" content="telephone=no" />
+          <meta name="msapplication-TileColor" content="#E50914" />
+          <meta name="msapplication-tap-highlight" content="no" />
+          {/* Apple touch icons */}
+          <link rel="apple-touch-icon" href="/icons/icon-152x152.jpg" />
+          <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.jpg" />
+          {/* Splash screens for iOS */}
+          <link
+            rel="apple-touch-startup-image"
+            href="/icons/icon-512x512.jpg"
+            media="(device-width: 375px) and (device-height: 812px)"
+          />
+          {/* Structured Data */}
+          <WebsiteStructuredData />
+          <OrganizationStructuredData />
         </head>
         <body className={`font-sans antialiased bg-[#0B0C10] text-white`}>
           {children}
+          <PWAInstallPrompt />
           <Analytics />
           <Toaster />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').then(
+                      function(registration) {
+                        console.log('ServiceWorker registration successful');
+                      },
+                      function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                      }
+                    );
+                  });
+                }
+              `,
+            }}
+          />
         </body>
       </html>
     </ClerkProvider>

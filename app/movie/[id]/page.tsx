@@ -5,6 +5,7 @@ import Footer from "@/components/footer"
 import AdBanner from "@/components/ad-banner"
 import { getMovieById, getRelatedMovies, getAdSettings, getWatchlistStatus } from "@/lib/server-actions"
 import MovieDetailClient from "@/components/movie-detail-client"
+import { MovieStructuredData, VideoStructuredData, BreadcrumbStructuredData } from "@/components/seo-structured-data"
 
 export const dynamic = "force-dynamic"
 
@@ -23,12 +24,28 @@ export async function generateMetadata({
     }
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+
   return {
-    title: `${movie.title} (${movie.year}) - moBix`,
-    description: movie.description || `Watch ${movie.title} on moBix`,
+    title: `Watch ${movie.title} (${movie.year}) Online Free - moBix`,
+    description:
+      movie.description ||
+      `Watch ${movie.title} (${movie.year}) full movie online free on moBix. Stream ${movie.genre || "movies"} in HD quality.`,
+    keywords: [
+      movie.title,
+      `${movie.title} full movie`,
+      `watch ${movie.title} online`,
+      `${movie.title} free`,
+      movie.genre || "movies",
+      "stream free",
+      "HD movies",
+    ],
+    alternates: {
+      canonical: `/movie/${movie.id}`,
+    },
     openGraph: {
-      title: `${movie.title} (${movie.year})`,
-      description: movie.description || `Watch ${movie.title} on moBix`,
+      title: `${movie.title} (${movie.year}) - Watch Free on moBix`,
+      description: movie.description || `Watch ${movie.title} full movie online free on moBix`,
       images: [
         {
           url: movie.posterUrl || "/generic-movie-poster.png",
@@ -39,11 +56,12 @@ export async function generateMetadata({
       ],
       type: "video.movie",
       siteName: "moBix",
+      url: `/movie/${movie.id}`,
     },
     twitter: {
       card: "summary_large_image",
-      title: `${movie.title} (${movie.year})`,
-      description: movie.description || `Watch ${movie.title} on moBix`,
+      title: `${movie.title} (${movie.year}) - moBix`,
+      description: movie.description || `Watch ${movie.title} full movie online free on moBix`,
       images: [movie.posterUrl || "/generic-movie-poster.png"],
     },
   }
@@ -57,8 +75,6 @@ export default async function MovieDetail({
   const resolvedParams = await params
   const movieId = resolvedParams.id
 
-  console.log("[v0] Loading movie detail page for ID:", movieId)
-
   const [movie, adSettings, isInWatchlist] = await Promise.all([
     getMovieById(movieId),
     getAdSettings(),
@@ -66,21 +82,27 @@ export default async function MovieDetail({
   ])
 
   if (!movie) {
-    console.log("[v0] Movie not found, showing 404 for ID:", movieId)
     notFound()
   }
-
-  console.log("[v0] Movie loaded successfully:", movie.title)
-  console.log("[v0] Ad settings loaded, VAST URL:", adSettings?.vastUrl || "Not configured")
-  console.log("[v0] Smart Link URL:", adSettings?.smartLinkUrl || "Not configured")
 
   const adTimeout = adSettings?.adTimeoutSeconds || 20
   const showPrerollAds = adSettings?.showPrerollAds ?? true
 
   const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const breadcrumbs = [
+    { name: "Home", url: baseUrl },
+    { name: "Movies", url: `${baseUrl}/browse` },
+    { name: movie.title, url: `${baseUrl}/movie/${movie.id}` },
+  ]
+
   return (
     <main className="min-h-screen bg-[#0B0C10]">
+      <MovieStructuredData movie={movie} />
+      <VideoStructuredData movie={movie} />
+      <BreadcrumbStructuredData items={breadcrumbs} />
+
       <Navbar />
 
       <div className="pt-20 px-4 md:px-8">
