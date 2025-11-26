@@ -1,12 +1,16 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
-import { db } from "./db"
-import { movies, users, likes, comments, adSettings, feedback, watchlist } from "./db/schema"
-import { eq, desc, and, or, ilike, count, sum, sql, not, inArray } from "drizzle-orm"
+import { db } from "@/lib/db"
+import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
+import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
+import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
-import { getRedisClient } from "./redis"
-import { cookies } from "next/headers" // added cookies import
+import { Redis } from "@upstash/redis"
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
 
 interface CommentWithUser {
   id: string
@@ -21,45 +25,52 @@ interface CommentWithUser {
   }
 }
 
+// Upload a new movie
 export async function uploadMovie(formData: {
   title: string
-  description: string
-  year: number
   genre: string
+  releaseYear: number
+  rating: number
+  duration: string
+  description: string
   posterUrl: string
   videoUrl: string
   isTrending?: boolean
   isFeatured?: boolean
+  downloadEnabled?: boolean
+  downloadUrl?: string
+  customVastUrl?: string
+  useGlobalAd?: boolean
 }) {
   try {
-    console.log("[v0] Uploading movie:", formData.title)
+    const [movie] = await db
+      .insert(movies)
+      .values({
+        title: formData.title,
+        genre: formData.genre,
+        releaseYear: formData.releaseYear,
+        rating: formData.rating,
+        duration: formData.duration,
+        description: formData.description,
+        posterUrl: formData.posterUrl,
+        videoUrl: formData.videoUrl,
+        isTrending: formData.isTrending || false,
+        isFeatured: formData.isFeatured || false,
+        downloadEnabled: formData.downloadEnabled || false,
+        downloadUrl: formData.downloadUrl || null,
+        customVastUrl: formData.customVastUrl || null,
+        useGlobalAd: formData.useGlobalAd !== false,
+      })
+      .returning()
 
-    try {
-      const [movie] = await db
-        .insert(movies)
-        .values({
-          title: formData.title,
-          description: formData.description,
-          year: formData.year,
-          genre: formData.genre,
-          posterUrl: formData.posterUrl,
-          videoUrl: formData.videoUrl,
-          isTrending: formData.isTrending || false,
-          isFeatured: formData.isFeatured || false,
-        })
-        .returning()
+    revalidatePath("/")
+    revalidatePath("/home")
+    revalidatePath("/admin/dashboard")
 
-      console.log("[v0] Movie uploaded successfully:", movie.id)
-      revalidatePath("/admin/dashboard")
-      revalidatePath("/")
-      return { success: true, movie }
-    } catch (dbError: any) {
-      console.error("[v0] Database error uploading movie:", dbError)
-      throw dbError
-    }
-  } catch (error: any) {
-    console.error("[v0] Error uploading movie:", error)
-    return { success: false, error: error.message || "Failed to upload movie" }
+    return { success: true, movie }
+  } catch (error) {
+    console.error("Error uploading movie:", error)
+    return { success: false, error: "Failed to upload movie" }
   }
 }
 
@@ -71,7 +82,7 @@ export async function getPublicMovies() {
     })
     return result
   } catch (error) {
-    console.error("[v0] Error fetching public movies:", error)
+    console.error("Error fetching public movies:", error)
     return []
   }
 }
@@ -110,17 +121,14 @@ export async function getTrendingMovies() {
       likes: [], // Placeholder for compatibility
     }))
   } catch (error) {
-    console.error("[v0] Error fetching trending movies:", error)
+    console.error("Error fetching trending movies:", error)
     return []
   }
 }
 
 export async function getMovieById(id: string) {
   try {
-    console.log("[v0] Fetching movie by ID:", id)
-
     if (!id || id.trim() === "") {
-      console.log("[v0] Invalid movie ID provided")
       return null
     }
 
@@ -138,11 +146,8 @@ export async function getMovieById(id: string) {
     })
 
     if (!movie) {
-      console.log("[v0] Movie not found with ID:", id)
       return null
     }
-
-    console.log("[v0] Movie found successfully:", movie.title, "| ID:", movie.id)
 
     // Calculate average rating
     const avgRating =
@@ -174,8 +179,8 @@ export async function getMovieById(id: string) {
       likesCount: movie.likes.length,
       avgRating: Math.round(avgRating * 10) / 10,
     }
-  } catch (error: any) {
-    console.error("[v0] Error fetching movie by ID:", error)
+  } catch (error) {
+    console.error("Error fetching movie by ID:", error)
     return null
   }
 }
@@ -237,7 +242,7 @@ export async function getRelatedMovies(movieId: string, genre: string) {
 
     return related
   } catch (error) {
-    console.error("[v0] Error fetching related movies:", error)
+    console.error("Error fetching related movies:", error)
     return []
   }
 }
@@ -263,7 +268,7 @@ export async function getAdminMetrics() {
       { label: "Total Watch Hours", value: `${Math.floor((Number(viewsResult?.value) || 0) / 60)}h`, change: "+15.3%" },
     ]
   } catch (error) {
-    console.error("[v0] Error fetching admin metrics:", error)
+    console.error("Error fetching admin metrics:", error)
     return [
       { label: "Total Users", value: "0", change: "+0%" },
       { label: "New Users (30d)", value: "+0", change: "+0%" },
@@ -285,7 +290,7 @@ export async function getRecentSignups() {
       date: user.createdAt.toISOString().split("T")[0],
     }))
   } catch (error) {
-    console.error("[v0] Error fetching recent signups:", error)
+    console.error("Error fetching recent signups:", error)
     return []
   }
 }
@@ -304,7 +309,7 @@ export async function getAdminMovies() {
       views: movie.views.toLocaleString(),
     }))
   } catch (error) {
-    console.error("[v0] Error fetching admin movies:", error)
+    console.error("Error fetching admin movies:", error)
     return []
   }
 }
@@ -321,7 +326,7 @@ export async function getAdminUsers() {
       role: user.role === "ADMIN" ? "Admin" : "User",
     }))
   } catch (error) {
-    console.error("[v0] Error fetching admin users:", error)
+    console.error("Error fetching admin users:", error)
     return []
   }
 }
@@ -341,66 +346,54 @@ export async function verifyAdminInvitationCode(code: string): Promise<boolean> 
 
 export async function checkAdminCount(): Promise<boolean> {
   try {
-    const client = await clerkClient()
-    const usersList = await client.users.getUserList({
+    const client = await db.query.users.findMany({
       limit: 100,
     })
 
-    const adminCount = usersList.data.filter((user) => user.publicMetadata?.role === "admin").length
+    const adminCount = client.filter((user) => user.role === "ADMIN").length
 
     return adminCount < 2
   } catch (error) {
-    console.error("[v0] Error checking admin count:", error)
+    console.error("Error checking admin count:", error)
     return true
   }
 }
 
 export async function assignAdminRole(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const client = await clerkClient()
-
     // First, check if user already exists in database
     const existingUser = await db.query.users.findFirst({
       where: eq(users.clerkId, userId),
     })
 
     if (existingUser) {
-      await client.users.updateUser(userId, {
-        publicMetadata: {
-          role: "admin",
-        },
-      })
-
       await db.update(users).set({ role: "ADMIN" }).where(eq(users.clerkId, userId))
 
       return { success: true }
     }
 
-    const clerkUser = await client.users.getUser(userId)
-    const email = clerkUser.emailAddresses?.[0]?.emailAddress
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    })
+
+    const email = user.email
 
     if (!email) {
       return { success: false, error: "User email not found" }
     }
 
-    await client.users.updateUser(userId, {
-      publicMetadata: {
-        role: "admin",
-      },
-    })
-
     await db.insert(users).values({
       clerkId: userId,
       email: email,
-      username: clerkUser.username || null,
-      firstName: clerkUser.firstName || null,
-      lastName: clerkUser.lastName || null,
+      username: user.username || null,
+      firstName: user.firstName || null,
+      lastName: user.lastName || null,
       role: "ADMIN",
     })
 
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error assigning admin role:", error)
+    console.error("Error assigning admin role:", error)
     return { success: false, error: error.message || "Failed to assign admin role" }
   }
 }
@@ -423,8 +416,6 @@ export async function updateMovie(
   },
 ) {
   try {
-    console.log("[v0] Updating movie:", id, formData)
-
     const [movie] = await db
       .update(movies)
       .set({
@@ -444,27 +435,23 @@ export async function updateMovie(
       .where(eq(movies.id, id))
       .returning()
 
-    console.log("[v0] Movie updated successfully")
     revalidatePath("/admin/dashboard")
     revalidatePath(`/movie/${id}`)
     return { success: true, movie }
   } catch (error: any) {
-    console.error("[v0] Error updating movie:", error)
+    console.error("Error updating movie:", error)
     return { success: false, error: error.message || "Failed to update movie" }
   }
 }
 
 export async function deleteMovie(id: string) {
   try {
-    console.log("[v0] Deleting movie:", id)
-
     await db.delete(movies).where(eq(movies.id, id))
 
-    console.log("[v0] Movie deleted successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error deleting movie:", error)
+    console.error("Error deleting movie:", error)
     return { success: false, error: error.message || "Failed to delete movie" }
   }
 }
@@ -476,41 +463,37 @@ export async function ensureUserExists(userId: string) {
     })
 
     if (!user) {
-      console.log("[v0] User not found in database, creating new user...")
-      const client = await clerkClient()
-      const clerkUser = await client.users.getUser(userId)
+      const userFromClerk = await currentUser()
+      const email = userFromClerk.emailAddresses?.[0]?.emailAddress || ""
 
       const [newUser] = await db
         .insert(users)
         .values({
           clerkId: userId,
-          email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
-          username: clerkUser.username || null,
-          firstName: clerkUser.firstName || null,
-          lastName: clerkUser.lastName || null,
+          email: email,
+          username: userFromClerk.username || null,
+          firstName: userFromClerk.firstName || null,
+          lastName: userFromClerk.lastName || null,
           role: "user",
         })
         .returning()
 
       user = newUser
-      console.log("[v0] Created new user:", user.id)
     }
 
     return user
   } catch (error: any) {
-    console.error("[v0] Error ensuring user exists:", error)
+    console.error("Error ensuring user exists:", error)
     throw error
   }
 }
 
 export async function toggleLike(movieId: string) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Please sign in to like movies" }
     }
-
-    console.log("[v0] Toggle like for movie:", movieId, "user:", userId)
 
     const user = await ensureUserExists(userId)
 
@@ -533,19 +516,17 @@ export async function toggleLike(movieId: string) {
       return { success: true, liked: true }
     }
   } catch (error: any) {
-    console.error("[v0] Error toggling like:", error)
+    console.error("Error toggling like:", error)
     return { success: false, error: error.message || "Failed to toggle like" }
   }
 }
 
 export async function addComment(movieId: string, text: string, rating: number) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Please sign in to comment" }
     }
-
-    console.log("[v0] Adding comment for movie:", movieId, "user:", userId)
 
     const user = await ensureUserExists(userId)
 
@@ -559,11 +540,10 @@ export async function addComment(movieId: string, text: string, rating: number) 
       })
       .returning()
 
-    console.log("[v0] Comment created:", comment.id)
     revalidatePath(`/movie/${movieId}`)
     return { success: true, comment }
   } catch (error: any) {
-    console.error("[v0] Error adding comment:", error)
+    console.error("Error adding comment:", error)
     return { success: false, error: error.message || "Failed to add comment" }
   }
 }
@@ -579,10 +559,9 @@ export async function getMoviesByGenre(genre: string) {
       },
     })
 
-    console.log(`[v0] Found ${result.length} movies for genre: ${genre}`)
     return result
   } catch (error) {
-    console.error("[v0] Error fetching movies by genre:", error)
+    console.error("Error fetching movies by genre:", error)
     return []
   }
 }
@@ -595,7 +574,7 @@ export async function getFeaturedMovie() {
     })
     return movie || null
   } catch (error) {
-    console.error("[v0] Error fetching featured movie:", error)
+    console.error("Error fetching featured movie:", error)
     return null
   }
 }
@@ -618,7 +597,7 @@ export async function searchMovies(query: string) {
 
     return result
   } catch (error) {
-    console.error("[v0] Error searching movies:", error)
+    console.error("Error searching movies:", error)
     return []
   }
 }
@@ -644,52 +623,43 @@ export async function getAllComments() {
       createdAt: comment.createdAt.toISOString().split("T")[0],
     }))
   } catch (error) {
-    console.error("[v0] Error fetching all comments:", error)
+    console.error("Error fetching all comments:", error)
     return []
   }
 }
 
 export async function deleteComment(commentId: string) {
   try {
-    console.log("[v0] Deleting comment:", commentId)
-
     await db.delete(comments).where(eq(comments.id, commentId))
 
-    console.log("[v0] Comment deleted successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error deleting comment:", error)
+    console.error("Error deleting comment:", error)
     return { success: false, error: error.message || "Failed to delete comment" }
   }
 }
 
 export async function banUser(userId: string) {
   try {
-    console.log("[v0] Banning user:", userId)
-
     await db.update(users).set({ role: "BANNED" }).where(eq(users.id, userId))
 
-    console.log("[v0] User banned successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error banning user:", error)
+    console.error("Error banning user:", error)
     return { success: false, error: error.message || "Failed to ban user" }
   }
 }
 
 export async function deleteUser(userId: string) {
   try {
-    console.log("[v0] Deleting user:", userId)
-
     await db.delete(users).where(eq(users.id, userId))
 
-    console.log("[v0] User deleted successfully")
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error deleting user:", error)
+    console.error("Error deleting user:", error)
     return { success: false, error: error.message || "Failed to delete user" }
   }
 }
@@ -699,7 +669,7 @@ export async function getAdSettings() {
     const settings = await db.query.adSettings.findFirst()
     return settings || null
   } catch (error) {
-    console.error("[v0] Error fetching ad settings:", error)
+    console.error("Error fetching ad settings:", error)
     return null
   }
 }
@@ -715,8 +685,6 @@ export async function updateAdSettings(settings: {
   movieDetailEnabled?: boolean
 }) {
   try {
-    console.log("[v0] Updating ad settings:", settings)
-
     const currentSettings = await db.query.adSettings.findFirst()
 
     if (!currentSettings) {
@@ -747,59 +715,49 @@ export async function updateAdSettings(settings: {
         .where(eq(adSettings.id, currentSettings.id))
     }
 
-    console.log("[v0] Ad settings updated successfully")
     revalidatePath("/admin/dashboard")
     revalidatePath("/")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error updating ad settings:", error)
+    console.error("Error updating ad settings:", error)
     return { success: false, error: error.message || "Failed to update ad settings" }
   }
 }
 
 export async function getUserProfile() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
 
     const user = await ensureUserExists(userId)
-    const client = await clerkClient()
-    const clerkUser = await client.users.getUser(userId)
+    const userFromClerk = await currentUser()
 
     return {
       success: true,
       user: {
         ...user,
-        username: clerkUser.username,
-        firstName: clerkUser.firstName,
-        lastName: clerkUser.lastName,
-        imageUrl: clerkUser.imageUrl,
+        username: userFromClerk.username,
+        firstName: userFromClerk.firstName,
+        lastName: userFromClerk.lastName,
+        imageUrl: userFromClerk.imageUrl,
       },
     }
   } catch (error: any) {
-    console.error("[v0] Error fetching user profile:", error)
+    console.error("Error fetching user profile:", error)
     return { success: false, error: error.message || "Failed to fetch profile" }
   }
 }
 
 export async function updateUserProfile(data: { username: string; firstName: string; lastName: string }) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
 
-    const client = await clerkClient()
-
     try {
-      await client.users.updateUser(userId, {
-        username: data.username || undefined,
-        firstName: data.firstName || undefined,
-        lastName: data.lastName || undefined,
-      })
-
       await db
         .update(users)
         .set({
@@ -809,23 +767,21 @@ export async function updateUserProfile(data: { username: string; firstName: str
         })
         .where(eq(users.clerkId, userId))
     } catch (clerkError: any) {
-      // Handle case where username might be taken or other Clerk validation errors
-      console.error("[v0] Clerk update error:", clerkError)
-      return { success: false, error: clerkError.errors?.[0]?.message || "Failed to update profile in Clerk" }
+      return { success: false, error: clerkError.errors?.[0]?.message || "Failed to update profile" }
     }
 
     revalidatePath("/profile")
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error updating user profile:", error)
+    console.error("Error updating user profile:", error)
     return { success: false, error: error.message || "Failed to update profile" }
   }
 }
 
 export async function getUserStats() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -872,7 +828,7 @@ export async function getUserStats() {
       },
     }
   } catch (error: any) {
-    console.error("[v0] Error fetching user stats:", error)
+    console.error("Error fetching user stats:", error)
     return { success: false, error: error.message || "Failed to fetch user stats" }
   }
 }
@@ -885,19 +841,23 @@ export async function grantAdminAccessWithKey(accessKey: string) {
       return { success: false, error: "Invalid access key" }
     }
 
-    const cookieStore = await cookies()
-    cookieStore.set("admin_access_verified", "true", {
-      path: "/",
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+    const user = await currentUser()
+    const userEmail = user.emailAddresses?.[0]?.emailAddress || ""
+
+    await db.insert(users).values({
+      clerkId: user.id,
+      email: userEmail,
+      username: user.username || null,
+      firstName: user.firstName || null,
+      lastName: user.lastName || null,
+      role: "ADMIN",
     })
 
     revalidatePath("/admin")
 
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error granting admin access:", error)
+    console.error("Error granting admin access:", error)
     return { success: false, error: error.message || "Failed to grant access" }
   }
 }
@@ -909,8 +869,6 @@ export async function submitFeedback(data: {
   email?: string
 }) {
   try {
-    console.log("[v0] Submitting feedback:", data)
-
     await db.insert(feedback).values({
       type: data.type,
       title: data.title,
@@ -918,17 +876,16 @@ export async function submitFeedback(data: {
       email: data.email || "",
     })
 
-    console.log("[v0] Feedback submitted successfully")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error submitting feedback:", error)
+    console.error("Error submitting feedback:", error)
     return { success: false, error: error.message || "Failed to submit feedback" }
   }
 }
 
 export async function getWatchlist() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -951,14 +908,14 @@ export async function getWatchlist() {
       })),
     }
   } catch (error: any) {
-    console.error("[v0] Error fetching watchlist:", error)
+    console.error("Error fetching watchlist:", error)
     return { success: false, error: error.message || "Failed to fetch watchlist" }
   }
 }
 
 export async function toggleWatchlist(movieId: string) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Please sign in to manage watchlist" }
     }
@@ -986,14 +943,14 @@ export async function toggleWatchlist(movieId: string) {
       return { success: true, added: true }
     }
   } catch (error: any) {
-    console.error("[v0] Error toggling watchlist:", error)
+    console.error("Error toggling watchlist:", error)
     return { success: false, error: error.message || "Failed to update watchlist" }
   }
 }
 
 export async function getWatchlistStatus(movieId: string) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return false
     }
@@ -1006,7 +963,7 @@ export async function getWatchlistStatus(movieId: string) {
 
     return !!existing
   } catch (error) {
-    console.error("[v0] Error checking watchlist status:", error)
+    console.error("Error checking watchlist status:", error)
     return false
   }
 }
@@ -1018,7 +975,7 @@ export async function getFeedbackEntries() {
     })
     return result
   } catch (error) {
-    console.error("[v0] Error fetching feedback:", error)
+    console.error("Error fetching feedback:", error)
     return []
   }
 }
@@ -1029,7 +986,7 @@ export async function updateFeedbackStatus(id: string, status: string) {
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error updating feedback status:", error)
+    console.error("Error updating feedback status:", error)
     return { success: false, error: error.message || "Failed to update status" }
   }
 }
@@ -1040,14 +997,14 @@ export async function deleteFeedback(id: string) {
     revalidatePath("/admin/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error deleting feedback:", error)
+    console.error("Error deleting feedback:", error)
     return { success: false, error: error.message || "Failed to delete feedback" }
   }
 }
 
 export async function getRecommendedMovies() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
 
     // If no user, return popular movies
     if (!userId) {
@@ -1104,7 +1061,7 @@ export async function getRecommendedMovies() {
 
     return recommendations.length > 0 ? recommendations : await getTrendingMovies()
   } catch (error) {
-    console.error("[v0] Error fetching recommendations:", error)
+    console.error("Error fetching recommendations:", error)
     return []
   }
 }
@@ -1134,14 +1091,14 @@ export async function getTopRatedMovies() {
 
     return topRated
   } catch (error) {
-    console.error("[v0] Error fetching top rated movies:", error)
+    console.error("Error fetching top rated movies:", error)
     return []
   }
 }
 
 export async function saveWatchProgress(movieId: string, progress: number) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -1152,21 +1109,20 @@ export async function saveWatchProgress(movieId: string, progress: number) {
     }
 
     // Store watch progress in Redis for fast retrieval
-    const redis = await getRedisClient()
     await redis.set(`watch:${dbUser.id}:${movieId}`, progress.toString(), {
       ex: 60 * 60 * 24 * 30, // Expire after 30 days
     })
 
     return { success: true }
   } catch (error) {
-    console.error("[v0] Error saving watch progress:", error)
+    console.error("Error saving watch progress:", error)
     return { success: false, error: "Failed to save progress" }
   }
 }
 
 export async function getContinueWatching() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return []
     }
@@ -1177,7 +1133,6 @@ export async function getContinueWatching() {
     }
 
     // Get all watch progress keys for this user
-    const redis = await getRedisClient()
     const keys = await redis.keys(`watch:${dbUser.id}:*`)
 
     const continueWatching = []
@@ -1209,7 +1164,7 @@ export async function getContinueWatching() {
 
     return continueWatching
   } catch (error) {
-    console.error("[v0] Error getting continue watching:", error)
+    console.error("Error getting continue watching:", error)
     return []
   }
 }
@@ -1217,7 +1172,6 @@ export async function getContinueWatching() {
 export async function seedDatabase() {
   const logs: string[] = []
   const log = (msg: string) => {
-    console.log(`[v0] ${msg}`)
     logs.push(msg)
   }
 
@@ -1399,7 +1353,7 @@ export async function seedDatabase() {
       logs,
     }
   } catch (error: any) {
-    console.error("[v0] Error seeding database:", error)
+    console.error("Error seeding database:", error)
     log(`CRITICAL ERROR: ${error.message}`)
     return {
       success: false,
@@ -1429,7 +1383,7 @@ export async function getUsers() {
       commentsCount: user.comments.length,
     }))
   } catch (error) {
-    console.error("[v0] Error fetching users:", error)
+    console.error("Error fetching users:", error)
     return []
   }
 }
@@ -1456,7 +1410,7 @@ export async function getAllGenres(): Promise<string[]> {
 
     return Array.from(genreSet).sort()
   } catch (error) {
-    console.error("[v0] Error fetching genres:", error)
+    console.error("Error fetching genres:", error)
     return []
   }
 }
@@ -1493,7 +1447,7 @@ export async function getMoviesPaginated(options: {
       hasMore: offset + result.length < total,
     }
   } catch (error) {
-    console.error("[v0] Error fetching paginated movies:", error)
+    console.error("Error fetching paginated movies:", error)
     return { movies: [], total: 0, hasMore: false }
   }
 }

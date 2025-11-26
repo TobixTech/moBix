@@ -11,8 +11,6 @@ const isHomeRoute = createRouteMatcher(["/home(.*)"])
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth()
 
-  console.log("[v0] Middleware checking route:", req.nextUrl.pathname)
-
   if (isHomeRoute(req)) {
     if (!userId) {
       return NextResponse.redirect(new URL("/", req.url))

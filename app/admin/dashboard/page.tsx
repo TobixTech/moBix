@@ -317,7 +317,6 @@ export default function AdminDashboard() {
   }
 
   const handleEdit = (movie: Movie) => {
-    console.log("[v0] Editing movie:", movie)
     setEditingMovie({
       ...movie,
       title: movie.title || "",

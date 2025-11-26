@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Mail, Loader, ArrowLeft, Clock } from 'lucide-react'
+import { Mail, Loader, ArrowLeft, Clock } from "lucide-react"
 import { useSignUp } from "@clerk/nextjs"
 
 interface EmailVerificationProps {
@@ -18,7 +18,7 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
-  const [countdown, setCountdown] = useState(120) // 2 minutes in seconds
+  const [countdown, setCountdown] = useState(120)
   const [canResend, setCanResend] = useState(false)
   const { signUp } = useSignUp()
 
@@ -36,7 +36,7 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
+    return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
   const handleResend = async () => {
@@ -50,12 +50,11 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
       }
 
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-      
+
       // Reset countdown
       setCountdown(120)
       setCanResend(false)
     } catch (err: any) {
-      console.log("[v0] Resend error:", err)
       setError(err.errors?.[0]?.message || "Failed to resend code. Please try again.")
     }
   }
@@ -89,7 +88,6 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
         setIsVerifying(false)
       }
     } catch (err: any) {
-      console.log("[v0] Verification error:", err)
       setError(err.errors?.[0]?.message || "Verification failed. Please check your code.")
       setIsVerifying(false)
     }
@@ -175,7 +173,7 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
             <span>Resend code in {formatTime(countdown)}</span>
           </div>
         ) : null}
-        
+
         <p className="text-[#666666] text-xs">
           Didn't receive the code?{" "}
           <button
@@ -183,9 +181,7 @@ export default function EmailVerification({ email, onVerified, onBack, isLoading
             onClick={handleResend}
             disabled={!canResend}
             className={`${
-              canResend
-                ? "text-[#00FFFF] hover:text-[#00CCCC] cursor-pointer"
-                : "text-[#444444] cursor-not-allowed"
+              canResend ? "text-[#00FFFF] hover:text-[#00CCCC] cursor-pointer" : "text-[#444444] cursor-not-allowed"
             } transition`}
           >
             Resend

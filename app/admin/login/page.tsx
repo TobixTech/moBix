@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState and useEffect } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff, Loader, AlertTriangle } from 'lucide-react'
+import { Loader, AlertTriangle } from 'lucide-react'
 import { useSignIn, useAuth, useClerk } from "@clerk/nextjs"
 import { useRouter } from 'next/navigation'
-import { useEffect } from "react"
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("")
@@ -36,7 +35,6 @@ export default function AdminLoginPage() {
     setIsLoading(true)
 
     try {
-      console.log("[v0] Starting admin login process...")
       
       if (!signIn) {
         setError("Sign in is not available")
@@ -44,25 +42,19 @@ export default function AdminLoginPage() {
         return
       }
 
-      console.log("[v0] Attempting sign in...")
       const result = await signIn.create({
         identifier: email,
         password,
       })
 
-      console.log("[v0] Sign in result:", result.status)
-
       if (result.status === "complete") {
-        console.log("[v0] Setting active session...")
         await setActive({ session: result.createdSessionId })
-        
-        console.log("[v0] Redirecting to admin dashboard...")
         window.location.href = "/admin/dashboard"
       } else {
         setError("Sign in incomplete. Please try again.")
       }
     } catch (err: any) {
-      console.error("[v0] Login error:", err)
+      console.error("Login error:", err)
       setError(err.errors?.[0]?.message || "Invalid email or password")
     } finally {
       setIsLoading(false)
@@ -73,9 +65,8 @@ export default function AdminLoginPage() {
     try {
       await signOut()
       setError("")
-      console.log("[v0] User signed out successfully")
     } catch (err: any) {
-      console.error("[v0] Sign out error:", err)
+      console.error("Sign out error:", err)
       setError("Failed to sign out")
     }
   }

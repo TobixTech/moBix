@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Film, Loader2 } from "lucide-react"
@@ -29,22 +29,18 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  const [offset, setOffset] = useState(0)
+  const [page, setPage] = useState(0)
   const limit = 24
 
-  const fetchMovies = useCallback(
-    async (reset = false) => {
+  useEffect(() => {
+    const fetchInitialMovies = async () => {
       try {
-        const currentOffset = reset ? 0 : offset
-        if (reset) {
-          setLoading(true)
-        } else {
-          setLoadingMore(true)
-        }
+        setLoading(true)
+        setPage(0)
 
         const params = new URLSearchParams({
           limit: limit.toString(),
-          offset: currentOffset.toString(),
+          offset: "0",
           random: "true",
         })
 
@@ -53,29 +49,25 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
         }
 
         const response = await fetch(`/api/movies?${params}`)
-        const data = await response.json()
 
-        if (reset) {
-          setMovies(data.movies)
-        } else {
-          setMovies((prev) => [...prev, ...data.movies])
+        if (!response.ok) {
+          throw new Error("Failed to fetch movies")
         }
 
-        setHasMore(data.hasMore)
-        setOffset(currentOffset + data.movies.length)
+        const data = await response.json()
+        setMovies(data.movies || [])
+        setHasMore(data.hasMore || false)
+        setPage(1)
       } catch (error) {
         console.error("Error fetching movies:", error)
+        setMovies([])
+        setHasMore(false)
       } finally {
         setLoading(false)
-        setLoadingMore(false)
       }
-    },
-    [selectedGenre, offset],
-  )
+    }
 
-  useEffect(() => {
-    setOffset(0)
-    fetchMovies(true)
+    fetchInitialMovies()
   }, [selectedGenre])
 
   const handleGenreChange = (genre: string) => {
@@ -87,9 +79,36 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
     router.push(`/movies${params.toString() ? `?${params}` : ""}`, { scroll: false })
   }
 
-  const loadMore = () => {
-    if (!loadingMore && hasMore) {
-      fetchMovies(false)
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: (page * limit).toString(),
+        random: "true",
+      })
+
+      if (selectedGenre) {
+        params.set("genre", selectedGenre)
+      }
+
+      const response = await fetch(`/api/movies?${params}`)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch more movies")
+      }
+
+      const data = await response.json()
+      setMovies((prev) => [...prev, ...(data.movies || [])])
+      setHasMore(data.hasMore || false)
+      setPage((prev) => prev + 1)
+    } catch (error) {
+      console.error("Error fetching more movies:", error)
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -155,7 +174,7 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
                 key={`${movie.id}-${index}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: (index % limit) * 0.02 }}
+                transition={{ duration: 0.3, delay: Math.min(index, 12) * 0.02 }}
               >
                 <MovieCard movie={movie} />
               </motion.div>

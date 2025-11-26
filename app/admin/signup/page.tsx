@@ -1,10 +1,11 @@
 "use client"
 
-import React, { useState } from "react"
+import type React from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff, Loader, Key, ArrowLeft, AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from "lucide-react"
 import { useSignUp, useClerk } from "@clerk/nextjs"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import EmailVerification from "@/components/email-verification"
 import { verifyAdminInvitationCode, checkAdminCount, assignAdminRole } from "@/lib/server-actions"
 
@@ -28,8 +29,6 @@ export default function AdminSignupPage() {
     setIsLoading(true)
 
     try {
-      console.log("[v0] Starting admin signup process...")
-      
       // Validate passwords match
       if (password !== confirmPassword) {
         setError("Passwords do not match")
@@ -44,7 +43,6 @@ export default function AdminSignupPage() {
         return
       }
 
-      console.log("[v0] Verifying invitation code...")
       const isValidCode = await verifyAdminInvitationCode(invitationCode)
       if (!isValidCode) {
         setError("Invalid invitation code")
@@ -52,7 +50,6 @@ export default function AdminSignupPage() {
         return
       }
 
-      console.log("[v0] Checking admin count...")
       // Check admin count
       const canRegister = await checkAdminCount()
       if (!canRegister) {
@@ -67,23 +64,20 @@ export default function AdminSignupPage() {
         return
       }
 
-      console.log("[v0] Creating user account...")
       // Create the user
       const result = await signUp.create({
         emailAddress: email,
         password,
       })
 
-      console.log("[v0] User created, preparing email verification...")
       // Prepare email verification
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
 
-      console.log("[v0] Moving to verification step...")
       // Move to verification step
       setStep("verification")
       setIsLoading(false)
     } catch (err: any) {
-      console.error("[v0] Signup error:", err)
+      console.error("Signup error:", err)
       setError(err.errors?.[0]?.message || "Sign up failed. Please try again.")
       setIsLoading(false)
     }
@@ -92,7 +86,6 @@ export default function AdminSignupPage() {
   const handleVerificationComplete = async (code: string) => {
     try {
       setIsLoading(true)
-      console.log("[v0] Starting verification process...")
 
       if (!signUp) {
         setError("Sign up is not available")
@@ -100,38 +93,30 @@ export default function AdminSignupPage() {
         return
       }
 
-      console.log("[v0] Attempting email verification...")
       const completeSignUp = await signUp.attemptEmailAddressVerification({
         code: code,
       })
 
-      console.log("[v0] Verification result:", completeSignUp.status)
-
       if (completeSignUp.status === "complete") {
-        console.log("[v0] Setting active session...")
         await setActive({ session: completeSignUp.createdSessionId })
 
         const userId = completeSignUp.createdUserId
-        console.log("[v0] User ID:", userId)
 
         if (userId) {
-          console.log("[v0] Assigning admin role...")
           const result = await assignAdminRole(userId)
-          
+
           if (!result.success) {
-            console.error("[v0] Failed to assign admin role:", result.error)
+            console.error("Failed to assign admin role:", result.error)
             setError(result.error || "Failed to assign admin role")
             setIsLoading(false)
             return
           }
-          console.log("[v0] Admin role assigned successfully")
         }
 
-        console.log("[v0] Redirecting to admin dashboard...")
         window.location.href = "/admin/dashboard"
       }
     } catch (err: any) {
-      console.error("[v0] Verification error:", err)
+      console.error("Verification error:", err)
       setError(err.errors?.[0]?.message || "Verification failed")
       setIsLoading(false)
     }
@@ -141,9 +126,8 @@ export default function AdminSignupPage() {
     try {
       await signOut()
       setError("")
-      console.log("[v0] User signed out successfully")
     } catch (err: any) {
-      console.error("[v0] Sign out error:", err)
+      console.error("Sign out error:", err)
       setError("Failed to sign out")
     }
   }
@@ -179,15 +163,13 @@ export default function AdminSignupPage() {
             <div className="text-center p-6">
               <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
               <h2 className="text-3xl font-bold text-white mb-2">UNDER DEVELOPMENT</h2>
-              <p className="text-[#888888] mb-4">
-                This admin sign-up page is currently under maintenance.
-              </p>
+              <p className="text-[#888888] mb-4">This admin sign-up page is currently under maintenance.</p>
               <p className="text-[#00FFFF] text-sm">
                 Please use the{" "}
                 <a href="/admin/access-key" className="underline hover:text-[#00CCCC]">
                   Admin Access Key
-                </a>
-                {" "}method instead.
+                </a>{" "}
+                method instead.
               </p>
             </div>
           </div>

@@ -62,7 +62,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setStep("verification")
       setIsLoading(false)
     } catch (err: any) {
-      console.log("[v0] Signup error:", err)
       setError(err.errors?.[0]?.message || "Sign up failed")
       setIsLoading(false)
     }
@@ -93,7 +92,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setError("Sign in incomplete. Please try again.")
       }
     } catch (err: any) {
-      console.log("[v0] Login error:", err)
       setError(err.errors?.[0]?.message || "Sign in failed")
     } finally {
       setIsLoading(false)
@@ -119,7 +117,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         redirectUrlComplete: "/home",
       })
     } catch (err: any) {
-      console.log("[v0] Google auth error:", err)
       setError(err.errors?.[0]?.message || "Google authentication failed")
       setIsLoading(false)
     }
@@ -145,7 +142,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         onClose()
       }
     } catch (err: any) {
-      console.log("[v0] Verification error:", err)
       setError(err.errors?.[0]?.message || "Verification failed")
       setIsLoading(false)
     }

@@ -13,22 +13,13 @@ async function HomepageContent() {
     const [featuredMovie, trendingMovies, actionMovies, dramaMovies, sciFiMovies, comedyMovies, nollywoodMovies] =
       await Promise.all([
         getFeaturedMovie(),
-        getTrendingMovies(), // Now returns random movies
+        getTrendingMovies(),
         getMoviesByGenre("Action"),
         getMoviesByGenre("Drama"),
         getMoviesByGenre("Sci-Fi"),
         getMoviesByGenre("Comedy"),
         getMoviesByGenre("Nollywood"),
       ])
-
-    console.log("[v0] Movies fetched:", {
-      trending: trendingMovies.length,
-      action: actionMovies.length,
-      drama: dramaMovies.length,
-      scifi: sciFiMovies.length,
-      comedy: comedyMovies.length,
-      nollywood: nollywoodMovies.length,
-    })
 
     return (
       <>
@@ -44,7 +35,7 @@ async function HomepageContent() {
 
           {actionMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Action & Adventure" movies={actionMovies} />
+              <MovieCarousel title="Action" movies={actionMovies} />
               <AdBanner type="horizontal" placement="homepage" className="my-8" />
             </div>
           )}
@@ -91,7 +82,7 @@ async function HomepageContent() {
       </>
     )
   } catch (error) {
-    console.error("[v0] Error loading homepage content:", error)
+    console.error("Error loading homepage content:", error)
     return (
       <div className="px-4 md:px-8 py-24">
         <ErrorMessage
