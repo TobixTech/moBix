@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState and useEffect } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Loader, AlertTriangle } from 'lucide-react'
+import { Loader, AlertTriangle } from "lucide-react"
 import { useSignIn, useAuth, useClerk } from "@clerk/nextjs"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("")
@@ -35,7 +35,6 @@ export default function AdminLoginPage() {
     setIsLoading(true)
 
     try {
-      
       if (!signIn) {
         setError("Sign in is not available")
         setIsLoading(false)
@@ -93,15 +92,13 @@ export default function AdminLoginPage() {
             <div className="text-center p-6">
               <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
               <h2 className="text-3xl font-bold text-white mb-2">UNDER DEVELOPMENT</h2>
-              <p className="text-[#888888] mb-4">
-                This admin login page is currently under maintenance.
-              </p>
+              <p className="text-[#888888] mb-4">This admin login page is currently under maintenance.</p>
               <p className="text-[#00FFFF] text-sm">
                 Please use the{" "}
                 <a href="/admin/access-key" className="underline hover:text-[#00CCCC]">
                   Admin Access Key
-                </a>
-                {" "}method instead.
+                </a>{" "}
+                method instead.
               </p>
             </div>
           </div>
