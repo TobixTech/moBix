@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { updateUserProfile } from "@/lib/server-actions"
+import { updateUserProfile, saveUserSettings } from "@/lib/server-actions"
 import { useClerk } from "@clerk/nextjs"
 
 interface SettingsPageClientProps {
@@ -29,6 +29,8 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
   const { signOut } = useClerk()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [savingNotifications, setSavingNotifications] = useState(false)
+  const [savingPrivacy, setSavingPrivacy] = useState(false)
 
   const [profile, setProfile] = useState({
     username: user?.username || "",
@@ -41,6 +43,12 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
     newReleases: true,
     watchlistReminders: false,
     promotions: false,
+  })
+
+  const [privacy, setPrivacy] = useState({
+    profileVisibility: true,
+    watchHistory: true,
+    showActivityStatus: false,
   })
 
   const handleSaveProfile = async () => {
@@ -69,6 +77,60 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSaveNotifications = async () => {
+    setSavingNotifications(true)
+    try {
+      const result = await saveUserSettings({ type: "notifications", settings: notifications })
+      if (result.success) {
+        toast({
+          title: "Preferences Saved",
+          description: "Your notification preferences have been updated.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to save preferences.",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingNotifications(false)
+    }
+  }
+
+  const handleSavePrivacy = async () => {
+    setSavingPrivacy(true)
+    try {
+      const result = await saveUserSettings({ type: "privacy", settings: privacy })
+      if (result.success) {
+        toast({
+          title: "Privacy Settings Saved",
+          description: "Your privacy settings have been updated.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to save settings.",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingPrivacy(false)
     }
   }
 
@@ -258,9 +320,22 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                 />
               </div>
 
-              <Button className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold">
-                <Save className="w-4 h-4 mr-2" />
-                Save Preferences
+              <Button
+                onClick={handleSaveNotifications}
+                disabled={savingNotifications}
+                className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
+              >
+                {savingNotifications ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Preferences
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -281,7 +356,10 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                   <Label className="text-white">Profile Visibility</Label>
                   <p className="text-sm text-white/40">Allow others to see your profile</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={privacy.profileVisibility}
+                  onCheckedChange={(checked) => setPrivacy({ ...privacy, profileVisibility: checked })}
+                />
               </div>
 
               <div className="flex items-center justify-between">
@@ -289,7 +367,10 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                   <Label className="text-white">Watch History</Label>
                   <p className="text-sm text-white/40">Save your watch history for recommendations</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  checked={privacy.watchHistory}
+                  onCheckedChange={(checked) => setPrivacy({ ...privacy, watchHistory: checked })}
+                />
               </div>
 
               <div className="flex items-center justify-between">
@@ -297,8 +378,29 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                   <Label className="text-white">Show Activity Status</Label>
                   <p className="text-sm text-white/40">Show when you're online</p>
                 </div>
-                <Switch />
+                <Switch
+                  checked={privacy.showActivityStatus}
+                  onCheckedChange={(checked) => setPrivacy({ ...privacy, showActivityStatus: checked })}
+                />
               </div>
+
+              <Button
+                onClick={handleSavePrivacy}
+                disabled={savingPrivacy}
+                className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
+              >
+                {savingPrivacy ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Privacy Settings
+                  </>
+                )}
+              </Button>
 
               <div className="border-t border-white/10 pt-6">
                 <h3 className="text-white font-medium mb-4">Account Actions</h3>

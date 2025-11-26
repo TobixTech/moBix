@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Film, Loader2 } from "lucide-react"
 import MovieCard from "@/components/movie-card"
-import AdBanner from "@/components/ad-banner"
 import { Button } from "@/components/ui/button"
 
 interface Movie {
@@ -36,6 +35,7 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
     const fetchInitialMovies = async () => {
       try {
         setLoading(true)
+        setMovies([])
         setPage(0)
 
         const params = new URLSearchParams({
@@ -48,7 +48,7 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
           params.set("genre", selectedGenre)
         }
 
-        const response = await fetch(`/api/movies?${params}`)
+        const response = await fetch(`/api/movies?${params.toString()}`)
 
         if (!response.ok) {
           throw new Error("Failed to fetch movies")
@@ -76,7 +76,7 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
     if (genre) {
       params.set("genre", genre)
     }
-    router.push(`/movies${params.toString() ? `?${params}` : ""}`, { scroll: false })
+    router.push(`/movies${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false })
   }
 
   const loadMore = async () => {
@@ -95,7 +95,7 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
         params.set("genre", selectedGenre)
       }
 
-      const response = await fetch(`/api/movies?${params}`)
+      const response = await fetch(`/api/movies?${params.toString()}`)
 
       if (!response.ok) {
         throw new Error("Failed to fetch more movies")
@@ -180,9 +180,6 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
               </motion.div>
             ))}
           </div>
-
-          {/* Ad Banner after movies */}
-          <AdBanner type="horizontal" placement="homepage" className="my-8" />
 
           {/* Load More Button */}
           {hasMore && (

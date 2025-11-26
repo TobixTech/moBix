@@ -3,7 +3,7 @@
 import { db } from "@/lib/db"
 import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { Redis } from "@upstash/redis"
 
@@ -1449,5 +1449,43 @@ export async function getMoviesPaginated(options: {
   } catch (error) {
     console.error("Error fetching paginated movies:", error)
     return { movies: [], total: 0, hasMore: false }
+  }
+}
+
+export async function saveUserSettings(data: {
+  type: "notifications" | "privacy"
+  settings: Record<string, boolean>
+}) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    // Store settings in Redis for fast access
+    const key = `user:${userId}:${data.type}`
+    await redis.set(key, JSON.stringify(data.settings))
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error saving user settings:", error)
+    return { success: false, error: error.message || "Failed to save settings" }
+  }
+}
+
+export async function getUserSettings(type: "notifications" | "privacy") {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated", settings: null }
+    }
+
+    const key = `user:${userId}:${type}`
+    const settings = await redis.get(key)
+
+    return { success: true, settings: settings || null }
+  } catch (error: any) {
+    console.error("Error getting user settings:", error)
+    return { success: false, error: error.message, settings: null }
   }
 }
