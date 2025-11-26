@@ -17,7 +17,7 @@ import {
   PlayCircle,
   RefreshCw,
 } from "lucide-react"
-import { getUserStats, updateUserProfile, getContinueWatching } from "@/lib/server-actions"
+import { getUserStats, updateUserProfile, getContinueWatching, getAdSettings } from "@/lib/server-actions"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
 
+  const [adSettings, setAdSettings] = useState<any>(null)
+
   const fetchUserData = async () => {
     if (clerkUser) {
       setFirstName(clerkUser.firstName || "")
@@ -45,12 +47,17 @@ export default function Dashboard() {
       setUsername(clerkUser.username || "")
     }
 
-    const [statsResult, continueResult] = await Promise.all([getUserStats(), getContinueWatching()])
+    const [statsResult, continueResult, adSettingsResult] = await Promise.all([
+      getUserStats(),
+      getContinueWatching(),
+      getAdSettings(),
+    ])
 
     if (statsResult.success) {
       setUserStats(statsResult.stats)
     }
     setContinueWatching(continueResult || [])
+    setAdSettings(adSettingsResult)
     setLoading(false)
     setRefreshing(false)
   }
@@ -91,11 +98,39 @@ export default function Dashboard() {
     }
   }
 
+  const DashboardAdBanner = ({ className = "" }: { className?: string }) => {
+    if (!adSettings?.dashboardEnabled || !adSettings?.horizontalAdCode) return null
+
+    return (
+      <div className={`bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden ${className}`}>
+        <iframe
+          srcDoc={`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { margin: 0; padding: 8px; display: flex; align-items: center; justify-content: center; background: transparent; }
+              </style>
+            </head>
+            <body>${adSettings.horizontalAdCode}</body>
+            </html>
+          `}
+          className="w-full min-h-[90px]"
+          style={{ border: "none" }}
+          scrolling="no"
+          title="Advertisement"
+        />
+      </div>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-[#0B0C10]">
       <Navbar />
 
       <div className="pt-20 px-4 md:px-8 py-8">
+        <DashboardAdBanner className="mb-6" />
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="md:col-span-1">
@@ -335,6 +370,10 @@ export default function Dashboard() {
                     </Link>
                   </div>
                 )}
+
+                {userStats?.watchlistMovies && userStats.watchlistMovies.length > 0 && (
+                  <DashboardAdBanner className="mt-6" />
+                )}
               </div>
             )}
 
@@ -375,6 +414,8 @@ export default function Dashboard() {
                     </Link>
                   </div>
                 )}
+
+                {userStats?.likedMovies && userStats.likedMovies.length > 0 && <DashboardAdBanner className="mt-6" />}
               </div>
             )}
 
@@ -501,6 +542,8 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        <DashboardAdBanner className="mt-8" />
       </div>
 
       <Footer />

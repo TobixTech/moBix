@@ -25,22 +25,25 @@ export default async function AuthenticatedHomePage() {
       <HeroBanner movie={trending[0] || recent[0] || null} />
 
       <div className="px-4 md:px-8 py-8 space-y-12">
+        <AdBanner type="horizontal" placement="homepage" className="mb-4" />
+
         {/* Trending Section */}
         {trending.length > 0 && (
           <div>
             <MovieCarousel title="Trending Now" movies={trending} showSeeMore={false} />
-            <AdBanner type="horizontal" placement="homepage" className="my-8" />
           </div>
         )}
+
+        <AdBanner type="horizontal" placement="homepage" />
 
         {/* Recently Added Section */}
         {recent.length > 0 && (
           <div>
             <MovieCarousel title="Recently Added" movies={recent} showSeeMore={false} />
-            <AdBanner type="horizontal" placement="homepage" className="my-8" />
           </div>
         )}
 
+        {/* Genre Sections with strategic ad placement */}
         {genresWithMovies.map((genreData, index) => (
           <div key={genreData.genre}>
             <MovieCarousel
@@ -49,10 +52,13 @@ export default async function AuthenticatedHomePage() {
               genre={genreData.genre}
               showSeeMore={true}
             />
-            {/* Show ad after every 2 genre sections */}
-            {(index + 1) % 2 === 0 && <AdBanner type="horizontal" placement="homepage" className="my-8" />}
+            {(index + 1) % 2 === 0 && index < genresWithMovies.length - 1 && (
+              <AdBanner type="horizontal" placement="homepage" className="mt-8" />
+            )}
           </div>
         ))}
+
+        <AdBanner type="horizontal" placement="homepage" className="mt-8" />
       </div>
 
       <Footer />

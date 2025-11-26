@@ -2,25 +2,30 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
+import AdBanner from "@/components/ad-banner"
 import MoviesPageClient from "./movies-page-client"
-import { getAllGenres } from "@/lib/server-actions"
+import { getAllGenres, getAdSettings } from "@/lib/server-actions"
 
 export const metadata: Metadata = {
-  title: "Browse All Movies",
+  title: "Browse All Movies - moBix",
   description: "Browse and discover all movies on moBix. Filter by genre and find your next favorite film.",
 }
 
 export default async function MoviesPage() {
-  const genres = await getAllGenres()
+  const [genres, adSettings] = await Promise.all([getAllGenres(), getAdSettings()])
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
       <Navbar showAuthButtons={false} />
 
       <div className="pt-20 px-4 md:px-8">
+        <AdBanner type="horizontal" placement="homepage" className="mb-6" />
+
         <Suspense fallback={<MoviesSkeleton />}>
-          <MoviesPageClient genres={genres} />
+          <MoviesPageClient genres={genres} adSettings={adSettings} />
         </Suspense>
+
+        <AdBanner type="horizontal" placement="homepage" className="mt-8 mb-8" />
       </div>
 
       <Footer />

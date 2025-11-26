@@ -1,5 +1,6 @@
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
+import AdBanner from "@/components/ad-banner"
 import { getWatchlist } from "@/lib/server-actions"
 import Link from "next/link"
 import { Clock, Film } from "lucide-react"
@@ -14,6 +15,8 @@ export default async function WatchlistPage() {
       <Navbar />
 
       <div className="container mx-auto px-4 pt-24 pb-12">
+        <AdBanner type="horizontal" placement="dashboard" className="mb-6" />
+
         <div className="flex items-center gap-3 mb-8">
           <div className="p-3 bg-[#00FFFF]/10 rounded-full">
             <Clock className="w-8 h-8 text-[#00FFFF]" />
@@ -39,32 +42,36 @@ export default async function WatchlistPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {movies.map((movie, index) => (
-              <Link key={movie.id} href={`/movie/${movie.id}`} className="group">
-                <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-[#2A2B33] bg-[#1A1B23]">
-                  {movie.posterUrl ? (
-                    <img
-                      src={movie.posterUrl || "/placeholder.svg"}
-                      alt={movie.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[#888888]">No Image</div>
-                  )}
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {movies.map((movie, index) => (
+                <Link key={movie.id} href={`/movie/${movie.id}`} className="group">
+                  <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-[#2A2B33] bg-[#1A1B23]">
+                    {movie.posterUrl ? (
+                      <img
+                        src={movie.posterUrl || "/placeholder.svg"}
+                        alt={movie.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[#888888]">No Image</div>
+                    )}
 
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                    <h3 className="text-white font-bold text-lg leading-tight mb-1">{movie.title}</h3>
-                    <div className="flex items-center justify-between text-xs text-[#CCCCCC]">
-                      <span>{movie.year}</span>
-                      <span className="bg-[#00FFFF]/20 text-[#00FFFF] px-2 py-0.5 rounded">{movie.genre}</span>
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                      <h3 className="text-white font-bold text-lg leading-tight mb-1">{movie.title}</h3>
+                      <div className="flex items-center justify-between text-xs text-[#CCCCCC]">
+                        <span>{movie.year}</span>
+                        <span className="bg-[#00FFFF]/20 text-[#00FFFF] px-2 py-0.5 rounded">{movie.genre}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+
+            <AdBanner type="horizontal" placement="dashboard" className="mt-8" />
+          </>
         )}
       </div>
 

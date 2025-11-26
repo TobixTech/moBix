@@ -4,8 +4,8 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react" // Added Plus, Check icons
-import { toggleLike, addComment, toggleWatchlist } from "@/lib/server-actions" // Added toggleWatchlist
+import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react"
+import { toggleLike, addComment, toggleWatchlist } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
@@ -52,10 +52,10 @@ export default function MovieDetailClient({
   adBannerVertical,
   adBannerHorizontal,
   vastUrl,
-  smartLinkUrl, // Added smartLinkUrl prop
-  adTimeout = 20, // Added adTimeout prop with default
+  smartLinkUrl,
+  adTimeout = 20,
   showPrerollAds = true,
-  isInWatchlist = false, // Added prop with default
+  isInWatchlist = false,
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
@@ -63,9 +63,9 @@ export default function MovieDetailClient({
   adBannerHorizontal?: React.ReactNode
   vastUrl?: string
   smartLinkUrl?: string
-  adTimeout?: number // Added adTimeout type
+  adTimeout?: number
   showPrerollAds?: boolean
-  isInWatchlist?: boolean // Added type definition
+  isInWatchlist?: boolean
 }) {
   const { userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
@@ -79,38 +79,6 @@ export default function MovieDetailClient({
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
-
-  const [adClickCount, setAdClickCount] = useState(0)
-  const [showDownloadLink, setShowDownloadLink] = useState(false)
-
-  const isEmbedUrl = (url: string) => {
-    return (
-      url.includes("youtube.com/embed") ||
-      url.includes("youtu.be") ||
-      url.includes("vimeo.com") ||
-      url.includes("dailymotion.com") ||
-      url.includes("drive.google.com")
-    )
-  }
-
-  const getEmbedUrl = (url: string) => {
-    // YouTube watch URL to embed
-    if (url.includes("youtube.com/watch")) {
-      const videoId = new URL(url).searchParams.get("v")
-      return `https://www.youtube.com/embed/${videoId}`
-    }
-    // YouTube short URL to embed
-    if (url.includes("youtu.be/")) {
-      const videoId = url.split("youtu.be/")[1].split("?")[0]
-      return `https://www.youtube.com/embed/${videoId}`
-    }
-    // Vimeo URL to embed
-    if (url.includes("vimeo.com/") && !url.includes("/video/")) {
-      const videoId = url.split("vimeo.com/")[1].split("?")[0]
-      return `https://player.vimeo.com/video/${videoId}`
-    }
-    return url
-  }
 
   const handleLike = async () => {
     if (!userId) {
@@ -168,10 +136,8 @@ export default function MovieDetailClient({
     const result = await addComment(movie.id, commentText, commentRating)
 
     if (result.success) {
-      // Reset form
       setCommentText("")
       setCommentRating(5)
-      // Refresh page to show new comment
       window.location.reload()
     } else {
       setCommentError(result.error || "Failed to post comment")
@@ -181,25 +147,6 @@ export default function MovieDetailClient({
   }
 
   const finalVastUrl = movie.useGlobalAd !== false ? vastUrl : movie.customVastUrl
-
-  const handleDownload = () => {
-    if (!movie.downloadUrl) return
-
-    const adUrl =
-      smartLinkUrl || "https://www.profitablecreativegatetocontent.com/smartlink/?a=259210&sm=27962918&co=&mt=8"
-
-    if (adClickCount < 2) {
-      setAdClickCount((prev) => prev + 1)
-      console.log(`[v0] Ad shown ${adClickCount + 1} of 2 times`)
-      window.open(adUrl, "_blank")
-
-      if (adClickCount + 1 >= 2) {
-        setShowDownloadLink(true)
-      }
-    } else {
-      window.open(movie.downloadUrl, "_blank")
-    }
-  }
 
   return (
     <>
@@ -217,7 +164,7 @@ export default function MovieDetailClient({
               posterUrl={movie.posterUrl}
               title={movie.title}
               vastUrl={finalVastUrl}
-              adTimeout={adTimeout} // Pass timeout to player
+              adTimeout={adTimeout}
               showPrerollAds={showPrerollAds}
             />
           </motion.div>
@@ -243,13 +190,13 @@ export default function MovieDetailClient({
 
             <div className="flex flex-wrap gap-3 mb-6">
               {movie.downloadEnabled && movie.downloadUrl && (
-                <button
-                  onClick={handleDownload}
+                <Link
+                  href={`/download/${movie.id}`}
                   className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] rounded-lg font-bold hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all"
                 >
                   <Download className="w-5 h-5" />
-                  {adClickCount < 2 ? `Download (Step ${adClickCount + 1}/2)` : "Download Now"}
-                </button>
+                  Download
+                </Link>
               )}
 
               <button
@@ -295,6 +242,8 @@ export default function MovieDetailClient({
               <p className="text-[#CCCCCC] leading-relaxed">{movie.description}</p>
             </div>
           </motion.div>
+
+          <div className="mb-8">{adBannerHorizontal}</div>
 
           {/* Reviews & Comments */}
           <motion.div
@@ -430,6 +379,8 @@ export default function MovieDetailClient({
               </div>
             </div>
           </motion.div>
+
+          {adBannerVertical}
         </div>
       </div>
 
