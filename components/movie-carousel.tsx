@@ -3,9 +3,9 @@
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
+import Link from "next/link"
 import MovieCard from "./movie-card"
 import NativeAdCard from "./native-ad-card"
-import { getPublicMovies } from "@/lib/server-actions"
 
 interface Movie {
   id: string
@@ -17,6 +17,8 @@ interface Movie {
 interface MovieCarouselProps {
   title: string
   movies?: Movie[]
+  genre?: string
+  showSeeMore?: boolean
 }
 
 interface AdSettings {
@@ -24,7 +26,7 @@ interface AdSettings {
   homepageEnabled?: boolean
 }
 
-export default function MovieCarousel({ title, movies: initialMovies }: MovieCarouselProps) {
+export default function MovieCarousel({ title, movies: initialMovies, genre, showSeeMore = true }: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
   const [movies, setMovies] = useState<Movie[]>(initialMovies || [])
   const [loading, setLoading] = useState(!initialMovies)
@@ -32,18 +34,7 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
 
   useEffect(() => {
     if (!initialMovies) {
-      const fetchMovies = async () => {
-        try {
-          const data = await getPublicMovies()
-          setMovies(data)
-        } catch (error) {
-          console.error("Error fetching movies:", error)
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      fetchMovies()
+      setLoading(false)
     }
 
     const fetchAdSettings = async () => {
@@ -101,8 +92,7 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
   const moviesWithAds: (Movie | { isAd: true; id: string })[] = []
   movies.forEach((movie, index) => {
     moviesWithAds.push(movie)
-    // Add ad after every 4th movie (less intrusive)
-    if (shouldShowAds && (index + 1) % 4 === 0) {
+    if (shouldShowAds && (index + 1) % 2 === 0) {
       moviesWithAds.push({ isAd: true, id: `ad-${index}` })
     }
   })
@@ -115,18 +105,27 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
       transition={{ duration: 0.6 }}
       viewport={{ once: true }}
     >
-      <motion.h2
-        className="text-2xl font-bold text-white"
-        initial={{ opacity: 0, x: -20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-        viewport={{ once: true }}
-      >
-        {title}
-      </motion.h2>
+      <div className="flex items-center justify-between">
+        <motion.h2
+          className="text-2xl font-bold text-white"
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true }}
+        >
+          {title}
+        </motion.h2>
+        {showSeeMore && genre && (
+          <Link
+            href={`/movies?genre=${encodeURIComponent(genre)}`}
+            className="text-[#00FFFF] hover:text-[#00CCCC] text-sm font-medium transition-colors"
+          >
+            See More
+          </Link>
+        )}
+      </div>
 
       <div className="relative group">
-        {/* Left Arrow */}
         <motion.button
           onClick={() => scroll("left")}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 p-2 rounded-full transition opacity-0 group-hover:opacity-100"
@@ -136,7 +135,6 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
           <ChevronLeft className="w-6 h-6 text-[#00FFFF]" />
         </motion.button>
 
-        {/* Carousel */}
         <div
           id={`carousel-${title}`}
           className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
@@ -155,7 +153,6 @@ export default function MovieCarousel({ title, movies: initialMovies }: MovieCar
           ))}
         </div>
 
-        {/* Right Arrow */}
         <motion.button
           onClick={() => scroll("right")}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 p-2 rounded-full transition opacity-0 group-hover:opacity-100"

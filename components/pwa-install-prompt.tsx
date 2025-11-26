@@ -16,33 +16,27 @@ export default function PWAInstallPrompt() {
   const [isStandalone, setIsStandalone] = useState(false)
 
   useEffect(() => {
-    // Check if already installed (standalone mode)
     const standalone = window.matchMedia("(display-mode: standalone)").matches
     setIsStandalone(standalone)
 
-    // Check if iOS
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     setIsIOS(iOS)
 
-    // Check if dismissed recently
     const dismissed = localStorage.getItem("pwa-prompt-dismissed")
     if (dismissed) {
       const dismissedTime = Number.parseInt(dismissed, 10)
       const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24)
-      if (daysSinceDismissed < 7) return // Don't show for 7 days after dismissal
+      if (daysSinceDismissed < 7) return
     }
 
-    // Listen for beforeinstallprompt event (Chrome, Edge, etc.)
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
-      // Show prompt after a delay
       setTimeout(() => setShowPrompt(true), 3000)
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstall)
 
-    // For iOS, show custom prompt after delay
     if (iOS && !standalone) {
       setTimeout(() => setShowPrompt(true), 5000)
     }
@@ -82,8 +76,8 @@ export default function PWAInstallPrompt() {
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-[#E50914] flex items-center justify-center">
-            <Smartphone className="w-6 h-6 text-white" />
+          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-[#00FFFF] flex items-center justify-center">
+            <Smartphone className="w-6 h-6 text-[#0B0C10]" />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -97,7 +91,7 @@ export default function PWAInstallPrompt() {
             {!isIOS && deferredPrompt && (
               <Button
                 onClick={handleInstall}
-                className="mt-3 bg-[#E50914] hover:bg-[#F40612] text-white w-full"
+                className="mt-3 bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold w-full"
                 size="sm"
               >
                 <Download className="w-4 h-4 mr-2" />

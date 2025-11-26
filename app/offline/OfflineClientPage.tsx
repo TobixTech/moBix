@@ -19,7 +19,10 @@ export default function OfflineClientPage() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button onClick={() => window.location.reload()} className="bg-[#E50914] hover:bg-[#F40612] text-white">
+          <Button
+            onClick={() => window.location.reload()}
+            className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
+          >
             <RefreshCw className="w-4 h-4 mr-2" />
             Try Again
           </Button>

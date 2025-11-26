@@ -1433,3 +1433,67 @@ export async function getUsers() {
     return []
   }
 }
+
+export async function getAllGenres(): Promise<string[]> {
+  try {
+    const result = await db.query.movies.findMany({
+      columns: {
+        genre: true,
+      },
+    })
+
+    // Extract unique genres (some movies may have multiple genres)
+    const genreSet = new Set<string>()
+    result.forEach((movie) => {
+      if (movie.genre) {
+        // Split by common separators and add each genre
+        const genres = movie.genre.split(/[,/]/).map((g) => g.trim())
+        genres.forEach((g) => {
+          if (g) genreSet.add(g)
+        })
+      }
+    })
+
+    return Array.from(genreSet).sort()
+  } catch (error) {
+    console.error("[v0] Error fetching genres:", error)
+    return []
+  }
+}
+
+export async function getMoviesPaginated(options: {
+  genre?: string
+  limit?: number
+  offset?: number
+  random?: boolean
+}) {
+  try {
+    const { genre, limit = 20, offset = 0, random = false } = options
+
+    const query = db.query.movies.findMany({
+      where: genre ? ilike(movies.genre, `%${genre}%`) : undefined,
+      limit,
+      offset,
+      orderBy: random ? sql`RANDOM()` : [desc(movies.createdAt)],
+    })
+
+    const result = await query
+
+    // Get total count for pagination
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(movies)
+      .where(genre ? ilike(movies.genre, `%${genre}%`) : undefined)
+
+    const total = Number(countResult[0]?.count || 0)
+
+    return {
+      movies: result,
+      total,
+      hasMore: offset + result.length < total,
+    }
+  } catch (error) {
+    console.error("[v0] Error fetching paginated movies:", error)
+    return { movies: [], total: 0, hasMore: false }
+  }
+}

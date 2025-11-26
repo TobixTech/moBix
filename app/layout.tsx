@@ -96,7 +96,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#E50914" },
+    { media: "(prefers-color-scheme: light)", color: "#00FFFF" },
     { media: "(prefers-color-scheme: dark)", color: "#0B0C10" },
   ],
   width: "device-width",
@@ -121,18 +121,15 @@ export default function RootLayout({
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
           <meta name="apple-mobile-web-app-title" content="moBix" />
           <meta name="format-detection" content="telephone=no" />
-          <meta name="msapplication-TileColor" content="#E50914" />
+          <meta name="msapplication-TileColor" content="#00FFFF" />
           <meta name="msapplication-tap-highlight" content="no" />
-          {/* Apple touch icons */}
           <link rel="apple-touch-icon" href="/icons/icon-152x152.jpg" />
           <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.jpg" />
-          {/* Splash screens for iOS */}
           <link
             rel="apple-touch-startup-image"
             href="/icons/icon-512x512.jpg"
             media="(device-width: 375px) and (device-height: 812px)"
           />
-          {/* Structured Data */}
           <WebsiteStructuredData />
           <OrganizationStructuredData />
         </head>

@@ -5,7 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B0C10",
-  "theme_color": "#E50914",
+  "theme_color": "#00FFFF",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
@@ -81,7 +81,7 @@
       "name": "Browse Movies",
       "short_name": "Browse",
       "description": "Browse all available movies",
-      "url": "/browse",
+      "url": "/movies",
       "icons": [{ "src": "/icons/browse-icon.jpg", "sizes": "96x96" }]
     },
     {
