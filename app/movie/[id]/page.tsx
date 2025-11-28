@@ -114,6 +114,10 @@ export default async function MovieDetail({
           adTimeout={adTimeout}
           showPrerollAds={showPrerollAds}
           isInWatchlist={isInWatchlist}
+          adSettings={{
+            horizontalAdCode: adSettings?.horizontalAdCode,
+            verticalAdCode: adSettings?.verticalAdCode,
+          }}
           adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
           adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}
         />

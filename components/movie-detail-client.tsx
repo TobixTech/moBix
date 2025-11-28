@@ -10,6 +10,8 @@ import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
 
+// ... existing code for interfaces ...
+
 interface Comment {
   id: string
   text: string
@@ -56,6 +58,7 @@ export default function MovieDetailClient({
   adTimeout = 20,
   showPrerollAds = true,
   isInWatchlist = false,
+  adSettings,
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
@@ -66,8 +69,12 @@ export default function MovieDetailClient({
   adTimeout?: number
   showPrerollAds?: boolean
   isInWatchlist?: boolean
+  adSettings?: {
+    horizontalAdCode?: string
+    verticalAdCode?: string
+  }
 }) {
-  const { userId } = useAuth()
+  const { userId, isSignedIn } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(movie.likesCount)
   const [isLiking, setIsLiking] = useState(false)
@@ -81,8 +88,8 @@ export default function MovieDetailClient({
   const [commentError, setCommentError] = useState("")
 
   const handleLike = async () => {
-    if (!userId) {
-      alert("Please sign in to like movies")
+    if (!isSignedIn || !userId) {
+      setCommentError("Please sign in to like movies")
       return
     }
 
@@ -93,15 +100,15 @@ export default function MovieDetailClient({
       setIsLiked(result.liked || false)
       setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
     } else {
-      alert(result.error || "Failed to like movie")
+      setCommentError(result.error || "Failed to like movie")
     }
 
     setIsLiking(false)
   }
 
   const handleWatchlistToggle = async () => {
-    if (!userId) {
-      alert("Please sign in to manage your watchlist")
+    if (!isSignedIn || !userId) {
+      setCommentError("Please sign in to manage your watchlist")
       return
     }
 
@@ -111,7 +118,7 @@ export default function MovieDetailClient({
     if (result.success) {
       setInWatchlist(result.added || false)
     } else {
-      alert(result.error || "Failed to update watchlist")
+      setCommentError(result.error || "Failed to update watchlist")
     }
 
     setIsWatchlistLoading(false)
@@ -120,7 +127,7 @@ export default function MovieDetailClient({
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!userId) {
+    if (!isSignedIn || !userId) {
       setCommentError("Please sign in to comment")
       return
     }
@@ -166,6 +173,7 @@ export default function MovieDetailClient({
               vastUrl={finalVastUrl}
               adTimeout={adTimeout}
               showPrerollAds={showPrerollAds}
+              adSettings={adSettings}
             />
           </motion.div>
 
@@ -187,6 +195,12 @@ export default function MovieDetailClient({
                 {movie.avgRating.toFixed(1)}/5
               </span>
             </div>
+
+            {commentError && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                {commentError}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-3 mb-6">
               {movie.downloadEnabled && movie.downloadUrl && (
@@ -281,21 +295,16 @@ export default function MovieDetailClient({
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Share your thoughts about this movie..."
+                  placeholder={isSignedIn ? "Share your thoughts about this movie..." : "Please sign in to comment"}
                   rows={4}
-                  className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all resize-none"
+                  disabled={!isSignedIn}
+                  className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all resize-none disabled:opacity-50"
                 />
               </div>
 
-              {commentError && (
-                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
-                  {commentError}
-                </div>
-              )}
-
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isSignedIn}
                 className="w-full px-6 py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
@@ -303,6 +312,8 @@ export default function MovieDetailClient({
                     <Loader className="w-5 h-5 animate-spin" />
                     <span>Posting...</span>
                   </>
+                ) : !isSignedIn ? (
+                  <span>Sign In to Comment</span>
                 ) : (
                   <>
                     <Send className="w-5 h-5" />
