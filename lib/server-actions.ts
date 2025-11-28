@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
+import { movies, users, comments, likes, adSettings, watchlist, feedback } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
@@ -25,13 +25,21 @@ interface CommentWithUser {
   }
 }
 
+// Helper to ensure movie exists before operations
+async function ensureMovieExists(movieId: string) {
+  const movie = await db.query.movies.findFirst({
+    where: eq(movies.id, movieId),
+  })
+  return movie
+}
+
 // Upload a new movie
 export async function uploadMovie(formData: {
   title: string
   genre: string
-  releaseYear: number
-  rating: number
-  duration: string
+  year: number
+  rating?: number
+  duration?: string
   description: string
   posterUrl: string
   videoUrl: string
@@ -48,9 +56,7 @@ export async function uploadMovie(formData: {
       .values({
         title: formData.title,
         genre: formData.genre,
-        releaseYear: formData.releaseYear,
-        rating: formData.rating,
-        duration: formData.duration,
+        year: formData.year,
         description: formData.description,
         posterUrl: formData.posterUrl,
         videoUrl: formData.videoUrl,
@@ -68,9 +74,9 @@ export async function uploadMovie(formData: {
     revalidatePath("/admin/dashboard")
 
     return { success: true, movie }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error uploading movie:", error)
-    return { success: false, error: "Failed to upload movie" }
+    return { success: false, error: error.message || "Failed to upload movie" }
   }
 }
 
@@ -128,59 +134,21 @@ export async function getTrendingMovies() {
 
 export async function getMovieById(id: string) {
   try {
-    if (!id || id.trim() === "") {
-      return null
-    }
-
-    const movie = await db.query.movies.findFirst({
+    const result = await db.query.movies.findFirst({
       where: eq(movies.id, id),
       with: {
         comments: {
+          orderBy: [desc(comments.createdAt)],
           with: {
             user: true,
           },
-          orderBy: [desc(comments.createdAt)],
         },
-        likes: true, // We need the count
+        likes: true,
       },
     })
-
-    if (!movie) {
-      return null
-    }
-
-    // Calculate average rating
-    const avgRating =
-      movie.comments.length > 0
-        ? movie.comments.reduce((acc, comment) => acc + comment.rating, 0) / movie.comments.length
-        : 0
-
-    // Increment views
-    await db
-      .update(movies)
-      .set({ views: sql`${movies.views} + 1` })
-      .where(eq(movies.id, id))
-
-    const transformedComments = movie.comments.map((comment: any) => ({
-      ...comment,
-      user: {
-        email: comment.user.email,
-        firstName: comment.user.firstName,
-        lastName: comment.user.lastName,
-        username: comment.user.username,
-        // Helper property for frontend
-        displayName: comment.user.firstName || comment.user.username || comment.user.email.split("@")[0] || "Anonymous",
-      },
-    }))
-
-    return {
-      ...movie,
-      comments: transformedComments,
-      likesCount: movie.likes.length,
-      avgRating: Math.round(avgRating * 10) / 10,
-    }
+    return result
   } catch (error) {
-    console.error("Error fetching movie by ID:", error)
+    console.error("Error fetching movie:", error)
     return null
   }
 }
@@ -400,13 +368,13 @@ export async function assignAdminRole(userId: string): Promise<{ success: boolea
 
 export async function updateMovie(
   id: string,
-  formData: {
-    title: string
-    description: string
-    year: number
-    genre: string
-    posterUrl: string
-    videoUrl: string
+  data: {
+    title?: string
+    genre?: string
+    year?: number
+    description?: string
+    posterUrl?: string
+    videoUrl?: string
     isTrending?: boolean
     isFeatured?: boolean
     downloadEnabled?: boolean
@@ -419,24 +387,17 @@ export async function updateMovie(
     const [movie] = await db
       .update(movies)
       .set({
-        title: formData.title,
-        description: formData.description,
-        year: formData.year,
-        genre: formData.genre,
-        posterUrl: formData.posterUrl,
-        videoUrl: formData.videoUrl,
-        isTrending: formData.isTrending || false,
-        isFeatured: formData.isFeatured || false,
-        downloadEnabled: formData.downloadEnabled || false,
-        downloadUrl: formData.downloadUrl || "",
-        customVastUrl: formData.customVastUrl || "",
-        useGlobalAd: formData.useGlobalAd ?? true,
+        ...data,
+        updatedAt: new Date(),
       })
       .where(eq(movies.id, id))
       .returning()
 
-    revalidatePath("/admin/dashboard")
+    revalidatePath("/")
+    revalidatePath("/home")
     revalidatePath(`/movie/${id}`)
+    revalidatePath("/admin/dashboard")
+
     return { success: true, movie }
   } catch (error: any) {
     console.error("Error updating movie:", error)
@@ -448,7 +409,10 @@ export async function deleteMovie(id: string) {
   try {
     await db.delete(movies).where(eq(movies.id, id))
 
+    revalidatePath("/")
+    revalidatePath("/home")
     revalidatePath("/admin/dashboard")
+
     return { success: true }
   } catch (error: any) {
     console.error("Error deleting movie:", error)
@@ -456,24 +420,24 @@ export async function deleteMovie(id: string) {
   }
 }
 
-export async function ensureUserExists(userId: string) {
+export async function ensureUserExists(clerkUserId: string) {
   try {
     let user = await db.query.users.findFirst({
-      where: eq(users.clerkId, userId),
+      where: eq(users.clerkId, clerkUserId),
     })
 
     if (!user) {
       const userFromClerk = await currentUser()
-      const email = userFromClerk.emailAddresses?.[0]?.emailAddress || ""
+      const email = userFromClerk?.emailAddresses?.[0]?.emailAddress || ""
 
       const [newUser] = await db
         .insert(users)
         .values({
-          clerkId: userId,
+          clerkId: clerkUserId,
           email: email,
-          username: userFromClerk.username || null,
-          firstName: userFromClerk.firstName || null,
-          lastName: userFromClerk.lastName || null,
+          username: userFromClerk?.username || null,
+          firstName: userFromClerk?.firstName || null,
+          lastName: userFromClerk?.lastName || null,
           role: "user",
         })
         .returning()
@@ -490,7 +454,7 @@ export async function ensureUserExists(userId: string) {
 
 export async function toggleLike(movieId: string) {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Please sign in to like movies" }
     }
@@ -523,7 +487,7 @@ export async function toggleLike(movieId: string) {
 
 export async function addComment(movieId: string, text: string, rating: number) {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Please sign in to comment" }
     }
@@ -1487,5 +1451,36 @@ export async function getUserSettings(type: "notifications" | "privacy") {
   } catch (error: any) {
     console.error("Error getting user settings:", error)
     return { success: false, error: error.message, settings: null }
+  }
+}
+
+export async function getMovies() {
+  try {
+    const result = await db.query.movies.findMany({
+      orderBy: [desc(movies.createdAt)],
+      with: {
+        likes: true,
+      },
+    })
+    return result
+  } catch (error) {
+    console.error("Error fetching movies:", error)
+    return []
+  }
+}
+
+export async function incrementMovieViews(movieId: string) {
+  try {
+    await db
+      .update(movies)
+      .set({
+        views: sql`${movies.views} + 1`,
+      })
+      .where(eq(movies.id, movieId))
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error incrementing views:", error)
+    return { success: false }
   }
 }

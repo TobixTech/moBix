@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Download, Shield, Clock, CheckCircle, ExternalLink, Film, Calendar, Tag } from "lucide-react"
+import { Download, Shield, Clock, CheckCircle, ExternalLink, Film, Calendar, Tag, UserCheck } from "lucide-react"
 import Link from "next/link"
 
 interface Movie {
@@ -30,9 +30,10 @@ export default function DownloadPageClient({
 }) {
   const [step, setStep] = useState(1)
   const [countdown, setCountdown] = useState(0)
-  const [adClicks, setAdClicks] = useState(0)
+  const [verificationStep, setVerificationStep] = useState(1) // 1 or 2
+  const [verification1Complete, setVerification1Complete] = useState(false)
+  const [verification2Complete, setVerification2Complete] = useState(false)
   const [canDownload, setCanDownload] = useState(false)
-  const requiredAdClicks = 2
 
   const smartLinkUrl = adSettings?.smartLinkUrl || "https://www.profitablecreativegatetocontent.com/smartlink/?a=259210"
 
@@ -42,31 +43,37 @@ export default function DownloadPageClient({
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
     } else if (countdown === 0 && step === 2) {
-      // Countdown finished, move to next step
-      if (adClicks >= requiredAdClicks) {
+      if (verificationStep === 1) {
+        setVerification1Complete(true)
+        setVerificationStep(2)
+        setStep(1) // Go back to step 1 for second verification
+      } else if (verificationStep === 2) {
+        setVerification2Complete(true)
         setStep(3)
         setCanDownload(true)
       }
     }
-  }, [countdown, step, adClicks])
+  }, [countdown, step, verificationStep])
 
-  const handleAdClick = () => {
+  const handleVerificationClick = () => {
     // Open ad in new tab
     window.open(smartLinkUrl, "_blank")
 
-    const newAdClicks = adClicks + 1
-    setAdClicks(newAdClicks)
-
-    if (newAdClicks >= requiredAdClicks) {
-      setStep(2)
-      setCountdown(10) // 10 second countdown after ads
-    }
+    // Start countdown after ad click
+    setStep(2)
+    setCountdown(10) // 10 second countdown
   }
 
   const handleDownload = () => {
     if (canDownload && movie.downloadUrl) {
       window.open(movie.downloadUrl, "_blank")
     }
+  }
+
+  const getCurrentVerificationNumber = () => {
+    if (!verification1Complete) return 1
+    if (!verification2Complete) return 2
+    return 2
   }
 
   return (
@@ -104,14 +111,32 @@ export default function DownloadPageClient({
           </div>
         </motion.div>
 
+        {/* Verification Progress */}
+        <motion.div
+          className="mb-8 p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-xl"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-white font-medium">Human Verification Progress</span>
+            <span className="text-[#00FFFF] font-bold">
+              {verification1Complete && verification2Complete ? "2/2" : verification1Complete ? "1/2" : "0/2"}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <div className={`flex-1 h-2 rounded-full ${verification1Complete ? "bg-green-500" : "bg-[#2A2B33]"}`} />
+            <div className={`flex-1 h-2 rounded-full ${verification2Complete ? "bg-green-500" : "bg-[#2A2B33]"}`} />
+          </div>
+        </motion.div>
+
         {/* Download Steps */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Step 1: Ad Clicks */}
+          {/* Step 1: Human Verification */}
           <motion.div
             className={`p-6 rounded-2xl border transition-all ${
-              step === 1
+              step === 1 && !canDownload
                 ? "bg-[#00FFFF]/10 border-[#00FFFF]"
-                : step > 1
+                : verification1Complete && verification2Complete
                   ? "bg-green-500/10 border-green-500"
                   : "bg-[#1A1B23] border-[#2A2B33]"
             }`}
@@ -122,47 +147,48 @@ export default function DownloadPageClient({
             <div className="flex items-center gap-3 mb-4">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  step > 1 ? "bg-green-500" : "bg-[#00FFFF]"
+                  verification1Complete && verification2Complete ? "bg-green-500" : "bg-[#00FFFF]"
                 }`}
               >
-                {step > 1 ? (
+                {verification1Complete && verification2Complete ? (
                   <CheckCircle className="w-5 h-5 text-white" />
                 ) : (
-                  <span className="text-[#0B0C10] font-bold">1</span>
+                  <UserCheck className="w-5 h-5 text-[#0B0C10]" />
                 )}
               </div>
               <h3 className="text-white font-bold">Verify You're Human</h3>
             </div>
-            <p className="text-[#888888] text-sm mb-4">
-              Click the button {requiredAdClicks} times to verify you're not a bot.
-            </p>
-            {step === 1 && (
+            <p className="text-[#888888] text-sm mb-4">Complete 2 quick verifications to confirm you're not a bot.</p>
+
+            {!canDownload && step === 1 && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#888888]">Progress</span>
-                  <span className="text-[#00FFFF] font-bold">
-                    {adClicks}/{requiredAdClicks}
-                  </span>
+                <div className="p-3 bg-[#0B0C10] rounded-lg">
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-[#888888]">Verification {getCurrentVerificationNumber()} of 2</span>
+                    <span className="text-[#00FFFF] font-bold">{verification1Complete ? "1" : "0"}/2 Complete</span>
+                  </div>
+                  {verification1Complete && (
+                    <p className="text-green-400 text-xs flex items-center gap-1 mb-2">
+                      <CheckCircle className="w-3 h-3" />
+                      First verification passed!
+                    </p>
+                  )}
                 </div>
-                <div className="w-full bg-[#2A2B33] rounded-full h-2">
-                  <div
-                    className="bg-[#00FFFF] h-2 rounded-full transition-all"
-                    style={{ width: `${(adClicks / requiredAdClicks) * 100}%` }}
-                  />
-                </div>
+
                 <button
-                  onClick={handleAdClick}
+                  onClick={handleVerificationClick}
                   className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all flex items-center justify-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Click to Verify ({adClicks}/{requiredAdClicks})
+                  Verify Step {getCurrentVerificationNumber()}
                 </button>
               </div>
             )}
-            {step > 1 && (
+
+            {verification1Complete && verification2Complete && (
               <p className="text-green-400 text-sm flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                Verification Complete
+                All Verifications Complete!
               </p>
             )}
           </motion.div>
@@ -172,7 +198,7 @@ export default function DownloadPageClient({
             className={`p-6 rounded-2xl border transition-all ${
               step === 2
                 ? "bg-[#00FFFF]/10 border-[#00FFFF]"
-                : step > 2
+                : canDownload
                   ? "bg-green-500/10 border-green-500"
                   : "bg-[#1A1B23] border-[#2A2B33]"
             }`}
@@ -183,18 +209,19 @@ export default function DownloadPageClient({
             <div className="flex items-center gap-3 mb-4">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  step > 2 ? "bg-green-500" : step === 2 ? "bg-[#00FFFF]" : "bg-[#2A2B33]"
+                  canDownload ? "bg-green-500" : step === 2 ? "bg-[#00FFFF]" : "bg-[#2A2B33]"
                 }`}
               >
-                {step > 2 ? (
+                {canDownload ? (
                   <CheckCircle className="w-5 h-5 text-white" />
                 ) : (
-                  <span className={step >= 2 ? "text-[#0B0C10]" : "text-[#666666]"}>2</span>
+                  <Clock className={`w-5 h-5 ${step === 2 ? "text-[#0B0C10]" : "text-[#666666]"}`} />
                 )}
               </div>
-              <h3 className="text-white font-bold">Prepare Download</h3>
+              <h3 className="text-white font-bold">Please Wait</h3>
             </div>
-            <p className="text-[#888888] text-sm mb-4">Please wait while we prepare your download link.</p>
+            <p className="text-[#888888] text-sm mb-4">Wait for verification to complete.</p>
+
             {step === 2 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-center">
@@ -218,16 +245,18 @@ export default function DownloadPageClient({
                     </div>
                   </div>
                 </div>
-                <p className="text-center text-[#888888] text-sm">Preparing download...</p>
+                <p className="text-center text-[#888888] text-sm">Verifying step {getCurrentVerificationNumber()}...</p>
               </div>
             )}
-            {step > 2 && (
+
+            {canDownload && (
               <p className="text-green-400 text-sm flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                Download Ready
+                Ready to Download
               </p>
             )}
-            {step < 2 && (
+
+            {step < 2 && !canDownload && (
               <div className="flex items-center justify-center h-20">
                 <Clock className="w-8 h-8 text-[#2A2B33]" />
               </div>
@@ -237,7 +266,7 @@ export default function DownloadPageClient({
           {/* Step 3: Download */}
           <motion.div
             className={`p-6 rounded-2xl border transition-all ${
-              step === 3 ? "bg-green-500/10 border-green-500" : "bg-[#1A1B23] border-[#2A2B33]"
+              canDownload ? "bg-green-500/10 border-green-500" : "bg-[#1A1B23] border-[#2A2B33]"
             }`}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -246,10 +275,10 @@ export default function DownloadPageClient({
             <div className="flex items-center gap-3 mb-4">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  step === 3 ? "bg-green-500" : "bg-[#2A2B33]"
+                  canDownload ? "bg-green-500" : "bg-[#2A2B33]"
                 }`}
               >
-                {step === 3 ? (
+                {canDownload ? (
                   <Download className="w-5 h-5 text-white" />
                 ) : (
                   <span className="text-[#666666] font-bold">3</span>
@@ -258,7 +287,8 @@ export default function DownloadPageClient({
               <h3 className="text-white font-bold">Download</h3>
             </div>
             <p className="text-[#888888] text-sm mb-4">Your download link is ready. Click to download.</p>
-            {step === 3 ? (
+
+            {canDownload ? (
               <button
                 onClick={handleDownload}
                 className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-green-500/50 transition-all flex items-center justify-center gap-2"

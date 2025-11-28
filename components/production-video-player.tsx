@@ -12,6 +12,10 @@ interface ProductionVideoPlayerProps {
   skipIntro?: boolean
   adTimeout?: number
   showPrerollAds?: boolean
+  adSettings?: {
+    horizontalAdCode?: string
+    verticalAdCode?: string
+  } | null
 }
 
 export default function ProductionVideoPlayer({
@@ -22,17 +26,19 @@ export default function ProductionVideoPlayer({
   skipIntro = false,
   adTimeout = 20,
   showPrerollAds = true,
+  adSettings,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
   const [showAd, setShowAd] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
 
+  const hasAdContent = adSettings?.horizontalAdCode || adSettings?.verticalAdCode
+
   const handleIntroComplete = () => {
     setShowIntro(false)
-    if (showPrerollAds && vastUrl) {
+    if (showPrerollAds && hasAdContent) {
       setShowAd(true)
     } else {
-      // Skip ads and go directly to video
       setShowVideo(true)
     }
   }
@@ -78,14 +84,15 @@ export default function ProductionVideoPlayer({
       {/* Intro Animation */}
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
-      {/* Pre-roll Ad - Only shows if showPrerollAds is enabled */}
+      {/* Pre-roll Ad - Now uses native banner ads */}
       {showAd && (
         <PrerollAdPlayer
-          vastUrl={vastUrl}
+          adSettings={adSettings}
           onComplete={handleAdComplete}
           onSkip={handleAdSkip}
-          maxDuration={adTimeout}
           skipDelay={5}
+          totalAds={4}
+          adDuration={5}
         />
       )}
 
