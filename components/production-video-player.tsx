@@ -8,7 +8,6 @@ interface ProductionVideoPlayerProps {
   videoUrl: string
   posterUrl: string
   title: string
-  vastUrl?: string
   skipIntro?: boolean
   adTimeout?: number
   showPrerollAds?: boolean
@@ -22,7 +21,6 @@ export default function ProductionVideoPlayer({
   videoUrl,
   posterUrl,
   title,
-  vastUrl,
   skipIntro = false,
   adTimeout = 20,
   showPrerollAds = true,
@@ -84,7 +82,7 @@ export default function ProductionVideoPlayer({
       {/* Intro Animation */}
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
-      {/* Pre-roll Ad - Now uses native banner ads */}
+      {/* Pre-roll Ad - Native banner ads */}
       {showAd && (
         <PrerollAdPlayer
           adSettings={adSettings}

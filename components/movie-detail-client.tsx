@@ -10,8 +10,6 @@ import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
 
-// ... existing code for interfaces ...
-
 interface Comment {
   id: string
   text: string
@@ -36,7 +34,6 @@ interface Movie {
   likesCount: number
   avgRating: number
   comments: Comment[]
-  customVastUrl?: string
   downloadUrl?: string
   downloadEnabled?: boolean
   useGlobalAd?: boolean
@@ -53,7 +50,6 @@ export default function MovieDetailClient({
   relatedMovies,
   adBannerVertical,
   adBannerHorizontal,
-  vastUrl,
   smartLinkUrl,
   adTimeout = 20,
   showPrerollAds = true,
@@ -64,7 +60,6 @@ export default function MovieDetailClient({
   relatedMovies: RelatedMovie[]
   adBannerVertical?: React.ReactNode
   adBannerHorizontal?: React.ReactNode
-  vastUrl?: string
   smartLinkUrl?: string
   adTimeout?: number
   showPrerollAds?: boolean
@@ -94,15 +89,18 @@ export default function MovieDetailClient({
     }
 
     setIsLiking(true)
-    const result = await toggleLike(movie.id)
-
-    if (result.success) {
-      setIsLiked(result.liked || false)
-      setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
-    } else {
-      setCommentError(result.error || "Failed to like movie")
+    try {
+      const result = await toggleLike(movie.id)
+      if (result.success) {
+        setIsLiked(result.liked || false)
+        setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
+        setCommentError("")
+      } else {
+        setCommentError(result.error || "Failed to like movie")
+      }
+    } catch (error) {
+      setCommentError("An error occurred. Please try again.")
     }
-
     setIsLiking(false)
   }
 
@@ -113,14 +111,17 @@ export default function MovieDetailClient({
     }
 
     setIsWatchlistLoading(true)
-    const result = await toggleWatchlist(movie.id)
-
-    if (result.success) {
-      setInWatchlist(result.added || false)
-    } else {
-      setCommentError(result.error || "Failed to update watchlist")
+    try {
+      const result = await toggleWatchlist(movie.id)
+      if (result.success) {
+        setInWatchlist(result.added || false)
+        setCommentError("")
+      } else {
+        setCommentError(result.error || "Failed to update watchlist")
+      }
+    } catch (error) {
+      setCommentError("An error occurred. Please try again.")
     }
-
     setIsWatchlistLoading(false)
   }
 
@@ -140,20 +141,21 @@ export default function MovieDetailClient({
     setIsSubmitting(true)
     setCommentError("")
 
-    const result = await addComment(movie.id, commentText, commentRating)
-
-    if (result.success) {
-      setCommentText("")
-      setCommentRating(5)
-      window.location.reload()
-    } else {
-      setCommentError(result.error || "Failed to post comment")
+    try {
+      const result = await addComment(movie.id, commentText, commentRating)
+      if (result.success) {
+        setCommentText("")
+        setCommentRating(5)
+        window.location.reload()
+      } else {
+        setCommentError(result.error || "Failed to post comment")
+      }
+    } catch (error) {
+      setCommentError("An error occurred. Please try again.")
     }
 
     setIsSubmitting(false)
   }
-
-  const finalVastUrl = movie.useGlobalAd !== false ? vastUrl : movie.customVastUrl
 
   return (
     <>
@@ -170,7 +172,6 @@ export default function MovieDetailClient({
               videoUrl={movie.videoUrl}
               posterUrl={movie.posterUrl}
               title={movie.title}
-              vastUrl={finalVastUrl}
               adTimeout={adTimeout}
               showPrerollAds={showPrerollAds}
               adSettings={adSettings}

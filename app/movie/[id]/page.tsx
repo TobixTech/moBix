@@ -75,11 +75,18 @@ export default async function MovieDetail({
   const resolvedParams = await params
   const movieId = resolvedParams.id
 
-  const [movie, adSettings, isInWatchlist] = await Promise.all([
-    getMovieById(movieId),
-    getAdSettings(),
-    getWatchlistStatus(movieId),
-  ])
+  let movie = null
+  let adSettings = null
+  let isInWatchlist = false
+
+  try {
+    const results = await Promise.all([getMovieById(movieId), getAdSettings(), getWatchlistStatus(movieId)])
+    movie = results[0]
+    adSettings = results[1]
+    isInWatchlist = results[2]
+  } catch (error) {
+    console.error("Error loading movie page:", error)
+  }
 
   if (!movie) {
     notFound()
@@ -88,7 +95,12 @@ export default async function MovieDetail({
   const adTimeout = adSettings?.adTimeoutSeconds || 20
   const showPrerollAds = adSettings?.showPrerollAds ?? true
 
-  const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
+  let relatedMovies: any[] = []
+  try {
+    relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
+  } catch (error) {
+    console.error("Error loading related movies:", error)
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
   const breadcrumbs = [
@@ -109,14 +121,13 @@ export default async function MovieDetail({
         <MovieDetailClient
           movie={movie}
           relatedMovies={relatedMovies}
-          vastUrl={adSettings?.vastUrl}
           smartLinkUrl={adSettings?.smartLinkUrl}
           adTimeout={adTimeout}
           showPrerollAds={showPrerollAds}
           isInWatchlist={isInWatchlist}
           adSettings={{
-            horizontalAdCode: adSettings?.horizontalAdCode,
-            verticalAdCode: adSettings?.verticalAdCode,
+            horizontalAdCode: adSettings?.horizontalAdCode || "",
+            verticalAdCode: adSettings?.verticalAdCode || "",
           }}
           adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
           adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}

@@ -1379,20 +1379,6 @@ export default function AdminDashboard() {
 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-white font-medium mb-2">VAST Tag URL (Video Ads)</label>
-                    <input
-                      type="url"
-                      value={adSettings.vastUrl}
-                      onChange={(e) => setAdSettings({ ...adSettings, vastUrl: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                      placeholder="https://..."
-                    />
-                    <p className="text-white/40 text-sm mt-2">
-                      URL for VAST-compliant video ads (pre-roll). Leave empty to disable.
-                    </p>
-                  </div>
-
-                  <div>
                     <label className="block text-white font-medium mb-2">Smart Link URL</label>
                     <input
                       type="url"
@@ -1407,7 +1393,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div>
-                    <label className="block text-white font-medium mb-2">Ad Timeout (Seconds)</label>
+                    <label className="block text-white font-medium mb-2">Skip Delay (Seconds)</label>
                     <input
                       type="number"
                       value={adSettings.adTimeout}
@@ -1416,29 +1402,28 @@ export default function AdminDashboard() {
                       min="5"
                       max="60"
                     />
+                    <p className="text-white/40 text-sm mt-2">Time before user can skip pre-roll ads (5-60 seconds).</p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-white font-medium mb-2">Horizontal Ad Code</label>
-                      <textarea
-                        value={adSettings.horizontalAdCode}
-                        onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
-                        rows={4}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                        placeholder="<!-- HTML/JS Code -->"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-white font-medium mb-2">Vertical Ad Code</label>
-                      <textarea
-                        value={adSettings.verticalAdCode}
-                        onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
-                        rows={4}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                        placeholder="<!-- HTML/JS Code -->"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-white font-medium mb-2">Horizontal Ad Code</label>
+                    <textarea
+                      value={adSettings.horizontalAdCode}
+                      onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                      placeholder="<!-- HTML/JS Code -->"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white font-medium mb-2">Vertical Ad Code</label>
+                    <textarea
+                      value={adSettings.verticalAdCode}
+                      onChange={(e) => setAdSettings({ ...adSettings, verticalAdCode: e.target.value })}
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                      placeholder="<!-- HTML/JS Code -->"
+                    />
                   </div>
 
                   <div className="space-y-4 pt-4 border-t border-white/10">
