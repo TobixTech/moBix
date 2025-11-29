@@ -15,7 +15,13 @@
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -23,38 +29,19 @@
       "name": "Browse Movies",
       "short_name": "Browse",
       "description": "Browse all available movies",
-      "url": "/movies",
-      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+      "url": "/movies"
     },
     {
       "name": "My Watchlist",
       "short_name": "Watchlist",
       "description": "View your watchlist",
-      "url": "/watchlist",
-      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
+      "url": "/watchlist"
     },
     {
       "name": "Search",
       "short_name": "Search",
       "description": "Search for movies",
-      "url": "/search",
-      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshots/home.jpg",
-      "sizes": "1280x720",
-      "type": "image/jpeg",
-      "form_factor": "wide",
-      "label": "moBix Home Screen"
-    },
-    {
-      "src": "/screenshots/movie.jpg",
-      "sizes": "1280x720",
-      "type": "image/jpeg",
-      "form_factor": "wide",
-      "label": "Movie Detail Page"
+      "url": "/search"
     }
   ],
   "related_applications": [],

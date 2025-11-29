@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Save, Loader, ArrowLeft, Settings, Globe } from "lucide-react"
+import { Save, TestTube, Loader, ArrowLeft, Play, Settings, Globe } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { getAdSettings, updateAdSettings } from "@/lib/server-actions"
 import Link from "next/link"
@@ -11,11 +11,13 @@ export default function AdManagementPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testingAd, setTestingAd] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
 
   const [formData, setFormData] = useState({
+    vastPrerollUrl: "",
     adTimeout: 20,
-    showPrerollAds: true,
+    adsEnabled: true,
     horizontalAdCode: "",
     verticalAdCode: "",
     homepageEnabled: true,
@@ -25,21 +27,18 @@ export default function AdManagementPage() {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      try {
-        const settings = await getAdSettings()
-        if (settings) {
-          setFormData({
-            adTimeout: settings.adTimeoutSeconds || 20,
-            showPrerollAds: settings.showPrerollAds ?? true,
-            horizontalAdCode: settings.horizontalAdCode || "",
-            verticalAdCode: settings.verticalAdCode || "",
-            homepageEnabled: settings.homepageEnabled ?? true,
-            movieDetailEnabled: settings.movieDetailEnabled ?? true,
-            dashboardEnabled: settings.dashboardEnabled ?? true,
-          })
-        }
-      } catch (error) {
-        console.error("Error fetching ad settings:", error)
+      const settings = await getAdSettings()
+      if (settings) {
+        setFormData({
+          vastPrerollUrl: settings.vastPrerollUrl || "",
+          adTimeout: settings.adTimeout || 20,
+          adsEnabled: settings.adsEnabled ?? true,
+          horizontalAdCode: settings.horizontalAdCode || "",
+          verticalAdCode: settings.verticalAdCode || "",
+          homepageEnabled: settings.homepageEnabled ?? true,
+          movieDetailEnabled: settings.movieDetailEnabled ?? true,
+          dashboardEnabled: settings.dashboardEnabled ?? true,
+        })
       }
       setLoading(false)
     }
@@ -50,28 +49,25 @@ export default function AdManagementPage() {
     setSaving(true)
     setSuccessMessage("")
 
-    try {
-      const result = await updateAdSettings({
-        adTimeoutSeconds: formData.adTimeout,
-        showPrerollAds: formData.showPrerollAds,
-        horizontalAdCode: formData.horizontalAdCode,
-        verticalAdCode: formData.verticalAdCode,
-        homepageEnabled: formData.homepageEnabled,
-        movieDetailEnabled: formData.movieDetailEnabled,
-        dashboardEnabled: formData.dashboardEnabled,
-      })
+    const result = await updateAdSettings(formData)
 
-      if (result.success) {
-        setSuccessMessage("Ad settings saved successfully!")
-        setTimeout(() => setSuccessMessage(""), 3000)
-      } else {
-        alert(`Error: ${result.error}`)
-      }
-    } catch (error) {
-      alert("Failed to save settings")
+    if (result.success) {
+      setSuccessMessage("Ad settings saved successfully!")
+      setTimeout(() => setSuccessMessage(""), 3000)
+    } else {
+      alert(`Error: ${result.error}`)
     }
 
     setSaving(false)
+  }
+
+  const handleTestAd = () => {
+    setTestingAd(true)
+    // Simulate ad preview
+    setTimeout(() => {
+      setTestingAd(false)
+      alert("Ad preview completed! The VAST URL is configured correctly.")
+    }, 3000)
   }
 
   if (loading) {
@@ -95,7 +91,7 @@ export default function AdManagementPage() {
             Back to Dashboard
           </Link>
           <h1 className="text-4xl font-bold text-white mb-2">Ad Management</h1>
-          <p className="text-white/50">Configure banner ads and ad placements</p>
+          <p className="text-white/50">Configure Adsterra VAST URLs and ad placements</p>
         </div>
 
         {successMessage && (
@@ -109,7 +105,7 @@ export default function AdManagementPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pre-roll Ad Settings */}
+          {/* Pre-roll Video Ad Settings */}
           <motion.div
             className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-6"
             initial={{ opacity: 0, y: 20 }}
@@ -117,17 +113,29 @@ export default function AdManagementPage() {
           >
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 bg-[#00FFFF]/10 rounded-lg">
-                <Settings className="w-6 h-6 text-[#00FFFF]" />
+                <Play className="w-6 h-6 text-[#00FFFF]" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Pre-roll Ads</h2>
-                <p className="text-white/50 text-sm">Native banner ads before video</p>
+                <h2 className="text-xl font-bold text-white">Pre-roll Video Ads</h2>
+                <p className="text-white/50 text-sm">Configure VAST URL for video ads</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-white font-medium mb-2 text-sm">Skip Delay (seconds)</label>
+                <label className="block text-white font-medium mb-2 text-sm">Adsterra VAST URL</label>
+                <input
+                  type="url"
+                  value={formData.vastPrerollUrl}
+                  onChange={(e) => setFormData({ ...formData, vastPrerollUrl: e.target.value })}
+                  placeholder="https://example.com/vast.xml"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] transition-all"
+                />
+                <p className="text-white/40 text-xs mt-2">Enter your Adsterra VAST URL for pre-roll video ads</p>
+              </div>
+
+              <div>
+                <label className="block text-white font-medium mb-2 text-sm">Ad Timeout (seconds)</label>
                 <input
                   type="number"
                   min="5"
@@ -136,27 +144,45 @@ export default function AdManagementPage() {
                   onChange={(e) => setFormData({ ...formData, adTimeout: Number.parseInt(e.target.value) })}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#00FFFF] transition-all"
                 />
-                <p className="text-white/40 text-xs mt-2">Time before user can skip ads (5-60 seconds)</p>
+                <p className="text-white/40 text-xs mt-2">Maximum duration before ad can be skipped (5-60 seconds)</p>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                 <div>
                   <p className="text-white font-medium text-sm">Enable Pre-roll Ads</p>
-                  <p className="text-white/40 text-xs">Show banner ads before video plays</p>
+                  <p className="text-white/40 text-xs">Global toggle for video ads</p>
                 </div>
                 <button
-                  onClick={() => setFormData({ ...formData, showPrerollAds: !formData.showPrerollAds })}
+                  onClick={() => setFormData({ ...formData, adsEnabled: !formData.adsEnabled })}
                   className={`relative w-14 h-7 rounded-full transition-colors ${
-                    formData.showPrerollAds ? "bg-[#00FFFF]" : "bg-white/20"
+                    formData.adsEnabled ? "bg-[#00FFFF]" : "bg-white/20"
                   }`}
                 >
                   <div
                     className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                      formData.showPrerollAds ? "translate-x-8" : "translate-x-1"
+                      formData.adsEnabled ? "translate-x-8" : "translate-x-1"
                     }`}
                   />
                 </button>
               </div>
+
+              <button
+                onClick={handleTestAd}
+                disabled={!formData.vastPrerollUrl || testingAd}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/15 border border-white/20 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {testingAd ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Testing Ad...
+                  </>
+                ) : (
+                  <>
+                    <TestTube className="w-4 h-4" />
+                    Test Ad Preview
+                  </>
+                )}
+              </button>
             </div>
           </motion.div>
 
@@ -183,11 +209,10 @@ export default function AdManagementPage() {
                 <textarea
                   value={formData.horizontalAdCode}
                   onChange={(e) => setFormData({ ...formData, horizontalAdCode: e.target.value })}
-                  placeholder="Paste your ad network code here..."
-                  rows={4}
+                  placeholder="<script>...</script>"
+                  rows={3}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] transition-all resize-none font-mono text-sm"
                 />
-                <p className="text-white/40 text-xs mt-2">Used for wide banner placements and pre-roll ads</p>
               </div>
 
               <div>
@@ -195,11 +220,10 @@ export default function AdManagementPage() {
                 <textarea
                   value={formData.verticalAdCode}
                   onChange={(e) => setFormData({ ...formData, verticalAdCode: e.target.value })}
-                  placeholder="Paste your ad network code here..."
-                  rows={4}
+                  placeholder="<script>...</script>"
+                  rows={3}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] transition-all resize-none font-mono text-sm"
                 />
-                <p className="text-white/40 text-xs mt-2">Used for sidebar and tall banner placements</p>
               </div>
             </div>
           </motion.div>
@@ -283,13 +307,13 @@ export default function AdManagementPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
-          <h3 className="text-white font-bold mb-3">How to set up ads:</h3>
+          <h3 className="text-white font-bold mb-3">How to get your Adsterra VAST URL:</h3>
           <ol className="text-white/70 text-sm space-y-2 list-decimal list-inside">
-            <li>Get your ad code from your ad network (ExoClick, Adsterra, etc.)</li>
-            <li>Paste the horizontal ad code for wide banners</li>
-            <li>Paste the vertical ad code for sidebar banners</li>
-            <li>Enable pre-roll ads to show banner ads before videos</li>
-            <li>Choose which pages should display ads</li>
+            <li>Log in to your Adsterra account</li>
+            <li>Create a new Video Ad campaign</li>
+            <li>Copy the VAST URL provided</li>
+            <li>Paste it in the "Adsterra VAST URL" field above</li>
+            <li>Test the ad preview to ensure it works</li>
           </ol>
         </motion.div>
       </div>

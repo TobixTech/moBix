@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { movies, users, comments, likes, adSettings, watchlist, feedback } from "@/lib/db/schema"
+import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
@@ -25,19 +25,11 @@ interface CommentWithUser {
   }
 }
 
-// Helper to ensure movie exists before operations
-async function ensureMovieExists(movieId: string) {
-  const movie = await db.query.movies.findFirst({
-    where: eq(movies.id, movieId),
-  })
-  return movie
-}
-
 // Upload a new movie
 export async function uploadMovie(formData: {
   title: string
   genre: string
-  year: number
+  year: number // Changed from releaseYear
   rating?: number
   duration?: string
   description: string
@@ -56,7 +48,7 @@ export async function uploadMovie(formData: {
       .values({
         title: formData.title,
         genre: formData.genre,
-        year: formData.year,
+        year: formData.year, // Changed from releaseYear
         description: formData.description,
         posterUrl: formData.posterUrl,
         videoUrl: formData.videoUrl,
@@ -134,21 +126,59 @@ export async function getTrendingMovies() {
 
 export async function getMovieById(id: string) {
   try {
-    const result = await db.query.movies.findFirst({
+    if (!id || id.trim() === "") {
+      return null
+    }
+
+    const movie = await db.query.movies.findFirst({
       where: eq(movies.id, id),
       with: {
         comments: {
-          orderBy: [desc(comments.createdAt)],
           with: {
             user: true,
           },
+          orderBy: [desc(comments.createdAt)],
         },
-        likes: true,
+        likes: true, // We need the count
       },
     })
-    return result
+
+    if (!movie) {
+      return null
+    }
+
+    // Calculate average rating
+    const avgRating =
+      movie.comments.length > 0
+        ? movie.comments.reduce((acc, comment) => acc + comment.rating, 0) / movie.comments.length
+        : 0
+
+    // Increment views
+    await db
+      .update(movies)
+      .set({ views: sql`${movies.views} + 1` })
+      .where(eq(movies.id, id))
+
+    const transformedComments = movie.comments.map((comment: any) => ({
+      ...comment,
+      user: {
+        email: comment.user.email,
+        firstName: comment.user.firstName,
+        lastName: comment.user.lastName,
+        username: comment.user.username,
+        // Helper property for frontend
+        displayName: comment.user.firstName || comment.user.username || comment.user.email.split("@")[0] || "Anonymous",
+      },
+    }))
+
+    return {
+      ...movie,
+      comments: transformedComments,
+      likesCount: movie.likes.length,
+      avgRating: Math.round(avgRating * 10) / 10,
+    }
   } catch (error) {
-    console.error("Error fetching movie:", error)
+    console.error("Error fetching movie by ID:", error)
     return null
   }
 }
@@ -368,13 +398,13 @@ export async function assignAdminRole(userId: string): Promise<{ success: boolea
 
 export async function updateMovie(
   id: string,
-  data: {
-    title?: string
-    genre?: string
-    year?: number
-    description?: string
-    posterUrl?: string
-    videoUrl?: string
+  formData: {
+    title: string
+    description: string
+    year: number
+    genre: string
+    posterUrl: string
+    videoUrl: string
     isTrending?: boolean
     isFeatured?: boolean
     downloadEnabled?: boolean
@@ -387,17 +417,24 @@ export async function updateMovie(
     const [movie] = await db
       .update(movies)
       .set({
-        ...data,
-        updatedAt: new Date(),
+        title: formData.title,
+        description: formData.description,
+        year: formData.year,
+        genre: formData.genre,
+        posterUrl: formData.posterUrl,
+        videoUrl: formData.videoUrl,
+        isTrending: formData.isTrending || false,
+        isFeatured: formData.isFeatured || false,
+        downloadEnabled: formData.downloadEnabled || false,
+        downloadUrl: formData.downloadUrl || "",
+        customVastUrl: formData.customVastUrl || "",
+        useGlobalAd: formData.useGlobalAd ?? true,
       })
       .where(eq(movies.id, id))
       .returning()
 
-    revalidatePath("/")
-    revalidatePath("/home")
-    revalidatePath(`/movie/${id}`)
     revalidatePath("/admin/dashboard")
-
+    revalidatePath(`/movie/${id}`)
     return { success: true, movie }
   } catch (error: any) {
     console.error("Error updating movie:", error)
@@ -409,10 +446,7 @@ export async function deleteMovie(id: string) {
   try {
     await db.delete(movies).where(eq(movies.id, id))
 
-    revalidatePath("/")
-    revalidatePath("/home")
     revalidatePath("/admin/dashboard")
-
     return { success: true }
   } catch (error: any) {
     console.error("Error deleting movie:", error)
@@ -420,10 +454,10 @@ export async function deleteMovie(id: string) {
   }
 }
 
-export async function ensureUserExists(clerkUserId: string) {
+export async function ensureUserExists(userId: string) {
   try {
-    let user = await db.query.users.findFirst({
-      where: eq(users.clerkId, clerkUserId),
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
     })
 
     if (!user) {
@@ -433,7 +467,7 @@ export async function ensureUserExists(clerkUserId: string) {
       const [newUser] = await db
         .insert(users)
         .values({
-          clerkId: clerkUserId,
+          clerkId: userId,
           email: email,
           username: userFromClerk?.username || null,
           firstName: userFromClerk?.firstName || null,
@@ -442,11 +476,11 @@ export async function ensureUserExists(clerkUserId: string) {
         })
         .returning()
 
-      user = newUser
+      return newUser
     }
 
     return user
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error ensuring user exists:", error)
     throw error
   }
@@ -641,12 +675,12 @@ export async function getAdSettings() {
 export async function updateAdSettings(settings: {
   horizontalAdCode?: string
   verticalAdCode?: string
+  vastUrl?: string
   smartLinkUrl?: string
   adTimeoutSeconds?: number
   showPrerollAds?: boolean
   homepageEnabled?: boolean
   movieDetailEnabled?: boolean
-  dashboardEnabled?: boolean
 }) {
   try {
     const currentSettings = await db.query.adSettings.findFirst()
@@ -655,12 +689,12 @@ export async function updateAdSettings(settings: {
       await db.insert(adSettings).values({
         horizontalAdCode: settings.horizontalAdCode || "",
         verticalAdCode: settings.verticalAdCode || "",
+        vastUrl: settings.vastUrl || "",
         smartLinkUrl: settings.smartLinkUrl || "",
         adTimeoutSeconds: settings.adTimeoutSeconds || 20,
         showPrerollAds: settings.showPrerollAds ?? true,
         homepageEnabled: settings.homepageEnabled ?? true,
         movieDetailEnabled: settings.movieDetailEnabled ?? true,
-        dashboardEnabled: settings.dashboardEnabled ?? true,
         showDownloadPageAds: true,
       })
     } else {
@@ -669,12 +703,12 @@ export async function updateAdSettings(settings: {
         .set({
           horizontalAdCode: settings.horizontalAdCode,
           verticalAdCode: settings.verticalAdCode,
+          vastUrl: settings.vastUrl,
           smartLinkUrl: settings.smartLinkUrl,
           adTimeoutSeconds: settings.adTimeoutSeconds,
           showPrerollAds: settings.showPrerollAds,
           homepageEnabled: settings.homepageEnabled,
           movieDetailEnabled: settings.movieDetailEnabled,
-          dashboardEnabled: settings.dashboardEnabled,
         })
         .where(eq(adSettings.id, currentSettings.id))
     }
@@ -690,7 +724,7 @@ export async function updateAdSettings(settings: {
 
 export async function getUserProfile() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -702,10 +736,10 @@ export async function getUserProfile() {
       success: true,
       user: {
         ...user,
-        username: userFromClerk?.username,
-        firstName: userFromClerk?.firstName,
-        lastName: userFromClerk?.lastName,
-        imageUrl: userFromClerk?.imageUrl,
+        username: userFromClerk.username,
+        firstName: userFromClerk.firstName,
+        lastName: userFromClerk.lastName,
+        imageUrl: userFromClerk.imageUrl,
       },
     }
   } catch (error: any) {
@@ -716,7 +750,7 @@ export async function getUserProfile() {
 
 export async function updateUserProfile(data: { username: string; firstName: string; lastName: string }) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -745,7 +779,7 @@ export async function updateUserProfile(data: { username: string; firstName: str
 
 export async function getUserStats() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -849,7 +883,7 @@ export async function submitFeedback(data: {
 
 export async function getWatchlist() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -879,7 +913,7 @@ export async function getWatchlist() {
 
 export async function toggleWatchlist(movieId: string) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Please sign in to manage watchlist" }
     }
@@ -914,7 +948,7 @@ export async function toggleWatchlist(movieId: string) {
 
 export async function getWatchlistStatus(movieId: string) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return false
     }
@@ -968,7 +1002,7 @@ export async function deleteFeedback(id: string) {
 
 export async function getRecommendedMovies() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
 
     // If no user, return popular movies
     if (!userId) {
@@ -1062,7 +1096,7 @@ export async function getTopRatedMovies() {
 
 export async function saveWatchProgress(movieId: string, progress: number) {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -1086,7 +1120,7 @@ export async function saveWatchProgress(movieId: string, progress: number) {
 
 export async function getContinueWatching() {
   try {
-    const { userId } = await auth()
+    const { userId } = await currentUser()
     if (!userId) {
       return []
     }
@@ -1451,36 +1485,5 @@ export async function getUserSettings(type: "notifications" | "privacy") {
   } catch (error: any) {
     console.error("Error getting user settings:", error)
     return { success: false, error: error.message, settings: null }
-  }
-}
-
-export async function getMovies() {
-  try {
-    const result = await db.query.movies.findMany({
-      orderBy: [desc(movies.createdAt)],
-      with: {
-        likes: true,
-      },
-    })
-    return result
-  } catch (error) {
-    console.error("Error fetching movies:", error)
-    return []
-  }
-}
-
-export async function incrementMovieViews(movieId: string) {
-  try {
-    await db
-      .update(movies)
-      .set({
-        views: sql`${movies.views} + 1`,
-      })
-      .where(eq(movies.id, movieId))
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error incrementing views:", error)
-    return { success: false }
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Download, Shield, Clock, CheckCircle, ExternalLink, Film, Calendar, Tag, UserCheck } from "lucide-react"
+import { Download, Shield, Clock, CheckCircle, ExternalLink, Film, Calendar, Tag } from "lucide-react"
 import Link from "next/link"
 
 interface Movie {
@@ -28,12 +28,13 @@ export default function DownloadPageClient({
   movie: Movie
   adSettings: AdSettings | null
 }) {
-  const [step, setStep] = useState(1)
+  const [verificationStep, setVerificationStep] = useState(1) // 1 = first verification, 2 = second verification, 3 = countdown, 4 = ready
   const [countdown, setCountdown] = useState(0)
-  const [verificationStep, setVerificationStep] = useState(1) // 1 or 2
-  const [verification1Complete, setVerification1Complete] = useState(false)
-  const [verification2Complete, setVerification2Complete] = useState(false)
+  const [firstVerificationClicks, setFirstVerificationClicks] = useState(0)
+  const [secondVerificationClicks, setSecondVerificationClicks] = useState(0)
   const [canDownload, setCanDownload] = useState(false)
+
+  const requiredClicks = 2 // Clicks required per verification
 
   const smartLinkUrl = adSettings?.smartLinkUrl || "https://www.profitablecreativegatetocontent.com/smartlink/?a=259210"
 
@@ -42,38 +43,38 @@ export default function DownloadPageClient({
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
-    } else if (countdown === 0 && step === 2) {
-      if (verificationStep === 1) {
-        setVerification1Complete(true)
-        setVerificationStep(2)
-        setStep(1) // Go back to step 1 for second verification
-      } else if (verificationStep === 2) {
-        setVerification2Complete(true)
-        setStep(3)
-        setCanDownload(true)
-      }
+    } else if (countdown === 0 && verificationStep === 3) {
+      // Countdown finished, enable download
+      setVerificationStep(4)
+      setCanDownload(true)
     }
-  }, [countdown, step, verificationStep])
+  }, [countdown, verificationStep])
 
-  const handleVerificationClick = () => {
-    // Open ad in new tab
+  const handleFirstVerificationClick = () => {
     window.open(smartLinkUrl, "_blank")
+    const newClicks = firstVerificationClicks + 1
+    setFirstVerificationClicks(newClicks)
 
-    // Start countdown after ad click
-    setStep(2)
-    setCountdown(10) // 10 second countdown
+    if (newClicks >= requiredClicks) {
+      setVerificationStep(2)
+    }
+  }
+
+  const handleSecondVerificationClick = () => {
+    window.open(smartLinkUrl, "_blank")
+    const newClicks = secondVerificationClicks + 1
+    setSecondVerificationClicks(newClicks)
+
+    if (newClicks >= requiredClicks) {
+      setVerificationStep(3)
+      setCountdown(15) // 15 second countdown
+    }
   }
 
   const handleDownload = () => {
     if (canDownload && movie.downloadUrl) {
       window.open(movie.downloadUrl, "_blank")
     }
-  }
-
-  const getCurrentVerificationNumber = () => {
-    if (!verification1Complete) return 1
-    if (!verification2Complete) return 2
-    return 2
   }
 
   return (
@@ -111,194 +112,240 @@ export default function DownloadPageClient({
           </div>
         </motion.div>
 
-        {/* Verification Progress */}
-        <motion.div
-          className="mb-8 p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-xl"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-white font-medium">Human Verification Progress</span>
-            <span className="text-[#00FFFF] font-bold">
-              {verification1Complete && verification2Complete ? "2/2" : verification1Complete ? "1/2" : "0/2"}
-            </span>
+        {/* Progress Indicator */}
+        <motion.div className="mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-white text-sm font-medium">Download Progress</span>
+            <span className="text-[#00FFFF] text-sm font-bold">Step {verificationStep} of 4</span>
           </div>
-          <div className="flex gap-2">
-            <div className={`flex-1 h-2 rounded-full ${verification1Complete ? "bg-green-500" : "bg-[#2A2B33]"}`} />
-            <div className={`flex-1 h-2 rounded-full ${verification2Complete ? "bg-green-500" : "bg-[#2A2B33]"}`} />
+          <div className="w-full bg-[#2A2B33] rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] h-2 rounded-full transition-all duration-500"
+              style={{ width: `${(verificationStep / 4) * 100}%` }}
+            />
           </div>
         </motion.div>
 
-        {/* Download Steps */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Step 1: Human Verification */}
+        {/* Download Steps - 4 Steps Now */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Step 1: First Verification */}
           <motion.div
-            className={`p-6 rounded-2xl border transition-all ${
-              step === 1 && !canDownload
+            className={`p-5 rounded-2xl border transition-all ${
+              verificationStep === 1
                 ? "bg-[#00FFFF]/10 border-[#00FFFF]"
-                : verification1Complete && verification2Complete
+                : verificationStep > 1
                   ? "bg-green-500/10 border-green-500"
                   : "bg-[#1A1B23] border-[#2A2B33]"
             }`}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-3">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  verification1Complete && verification2Complete ? "bg-green-500" : "bg-[#00FFFF]"
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  verificationStep > 1
+                    ? "bg-green-500 text-white"
+                    : verificationStep === 1
+                      ? "bg-[#00FFFF] text-[#0B0C10]"
+                      : "bg-[#2A2B33] text-[#666666]"
                 }`}
               >
-                {verification1Complete && verification2Complete ? (
-                  <CheckCircle className="w-5 h-5 text-white" />
-                ) : (
-                  <UserCheck className="w-5 h-5 text-[#0B0C10]" />
-                )}
+                {verificationStep > 1 ? <CheckCircle className="w-4 h-4" /> : "1"}
               </div>
-              <h3 className="text-white font-bold">Verify You're Human</h3>
+              <h3 className="text-white font-bold text-sm">Verify #1</h3>
             </div>
-            <p className="text-[#888888] text-sm mb-4">Complete 2 quick verifications to confirm you're not a bot.</p>
-
-            {!canDownload && step === 1 && (
-              <div className="space-y-3">
-                <div className="p-3 bg-[#0B0C10] rounded-lg">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-[#888888]">Verification {getCurrentVerificationNumber()} of 2</span>
-                    <span className="text-[#00FFFF] font-bold">{verification1Complete ? "1" : "0"}/2 Complete</span>
-                  </div>
-                  {verification1Complete && (
-                    <p className="text-green-400 text-xs flex items-center gap-1 mb-2">
-                      <CheckCircle className="w-3 h-3" />
-                      First verification passed!
-                    </p>
-                  )}
+            <p className="text-[#888888] text-xs mb-3">First human verification</p>
+            {verificationStep === 1 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[#888888]">Clicks</span>
+                  <span className="text-[#00FFFF] font-bold">
+                    {firstVerificationClicks}/{requiredClicks}
+                  </span>
                 </div>
-
+                <div className="w-full bg-[#2A2B33] rounded-full h-1.5">
+                  <div
+                    className="bg-[#00FFFF] h-1.5 rounded-full transition-all"
+                    style={{ width: `${(firstVerificationClicks / requiredClicks) * 100}%` }}
+                  />
+                </div>
                 <button
-                  onClick={handleVerificationClick}
-                  className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all flex items-center justify-center gap-2"
+                  onClick={handleFirstVerificationClick}
+                  className="w-full py-2 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all flex items-center justify-center gap-1 text-sm"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  Verify Step {getCurrentVerificationNumber()}
+                  <ExternalLink className="w-3 h-3" />
+                  Verify
                 </button>
               </div>
             )}
-
-            {verification1Complete && verification2Complete && (
-              <p className="text-green-400 text-sm flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                All Verifications Complete!
+            {verificationStep > 1 && (
+              <p className="text-green-400 text-xs flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                Complete
               </p>
             )}
           </motion.div>
 
-          {/* Step 2: Wait */}
+          {/* Step 2: Second Verification */}
           <motion.div
-            className={`p-6 rounded-2xl border transition-all ${
-              step === 2
+            className={`p-5 rounded-2xl border transition-all ${
+              verificationStep === 2
                 ? "bg-[#00FFFF]/10 border-[#00FFFF]"
-                : canDownload
+                : verificationStep > 2
                   ? "bg-green-500/10 border-green-500"
                   : "bg-[#1A1B23] border-[#2A2B33]"
             }`}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-3">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  canDownload ? "bg-green-500" : step === 2 ? "bg-[#00FFFF]" : "bg-[#2A2B33]"
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  verificationStep > 2
+                    ? "bg-green-500 text-white"
+                    : verificationStep === 2
+                      ? "bg-[#00FFFF] text-[#0B0C10]"
+                      : "bg-[#2A2B33] text-[#666666]"
                 }`}
               >
-                {canDownload ? (
-                  <CheckCircle className="w-5 h-5 text-white" />
-                ) : (
-                  <Clock className={`w-5 h-5 ${step === 2 ? "text-[#0B0C10]" : "text-[#666666]"}`} />
-                )}
+                {verificationStep > 2 ? <CheckCircle className="w-4 h-4" /> : "2"}
               </div>
-              <h3 className="text-white font-bold">Please Wait</h3>
+              <h3 className="text-white font-bold text-sm">Verify #2</h3>
             </div>
-            <p className="text-[#888888] text-sm mb-4">Wait for verification to complete.</p>
-
-            {step === 2 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-center">
-                  <div className="relative w-20 h-20">
-                    <svg className="w-20 h-20 transform -rotate-90">
-                      <circle cx="40" cy="40" r="36" stroke="#2A2B33" strokeWidth="4" fill="none" />
-                      <circle
-                        cx="40"
-                        cy="40"
-                        r="36"
-                        stroke="#00FFFF"
-                        strokeWidth="4"
-                        fill="none"
-                        strokeDasharray={226}
-                        strokeDashoffset={226 - (226 * (10 - countdown)) / 10}
-                        className="transition-all duration-1000"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-2xl font-bold text-[#00FFFF]">{countdown}</span>
-                    </div>
-                  </div>
+            <p className="text-[#888888] text-xs mb-3">Second human verification</p>
+            {verificationStep === 2 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[#888888]">Clicks</span>
+                  <span className="text-[#00FFFF] font-bold">
+                    {secondVerificationClicks}/{requiredClicks}
+                  </span>
                 </div>
-                <p className="text-center text-[#888888] text-sm">Verifying step {getCurrentVerificationNumber()}...</p>
+                <div className="w-full bg-[#2A2B33] rounded-full h-1.5">
+                  <div
+                    className="bg-[#00FFFF] h-1.5 rounded-full transition-all"
+                    style={{ width: `${(secondVerificationClicks / requiredClicks) * 100}%` }}
+                  />
+                </div>
+                <button
+                  onClick={handleSecondVerificationClick}
+                  className="w-full py-2 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition-all flex items-center justify-center gap-1 text-sm"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Verify
+                </button>
               </div>
             )}
-
-            {canDownload && (
-              <p className="text-green-400 text-sm flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Ready to Download
+            {verificationStep > 2 && (
+              <p className="text-green-400 text-xs flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                Complete
               </p>
             )}
-
-            {step < 2 && !canDownload && (
-              <div className="flex items-center justify-center h-20">
-                <Clock className="w-8 h-8 text-[#2A2B33]" />
+            {verificationStep < 2 && (
+              <div className="flex items-center justify-center h-12">
+                <Shield className="w-6 h-6 text-[#2A2B33]" />
               </div>
             )}
           </motion.div>
 
-          {/* Step 3: Download */}
+          {/* Step 3: Wait/Countdown */}
           <motion.div
-            className={`p-6 rounded-2xl border transition-all ${
-              canDownload ? "bg-green-500/10 border-green-500" : "bg-[#1A1B23] border-[#2A2B33]"
+            className={`p-5 rounded-2xl border transition-all ${
+              verificationStep === 3
+                ? "bg-[#00FFFF]/10 border-[#00FFFF]"
+                : verificationStep > 3
+                  ? "bg-green-500/10 border-green-500"
+                  : "bg-[#1A1B23] border-[#2A2B33]"
             }`}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-3">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  canDownload ? "bg-green-500" : "bg-[#2A2B33]"
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  verificationStep > 3
+                    ? "bg-green-500 text-white"
+                    : verificationStep === 3
+                      ? "bg-[#00FFFF] text-[#0B0C10]"
+                      : "bg-[#2A2B33] text-[#666666]"
                 }`}
               >
-                {canDownload ? (
-                  <Download className="w-5 h-5 text-white" />
-                ) : (
-                  <span className="text-[#666666] font-bold">3</span>
-                )}
+                {verificationStep > 3 ? <CheckCircle className="w-4 h-4" /> : "3"}
               </div>
-              <h3 className="text-white font-bold">Download</h3>
+              <h3 className="text-white font-bold text-sm">Prepare</h3>
             </div>
-            <p className="text-[#888888] text-sm mb-4">Your download link is ready. Click to download.</p>
+            <p className="text-[#888888] text-xs mb-3">Generating download link</p>
+            {verificationStep === 3 && (
+              <div className="flex flex-col items-center justify-center py-2">
+                <div className="relative w-14 h-14">
+                  <svg className="w-14 h-14 transform -rotate-90">
+                    <circle cx="28" cy="28" r="24" stroke="#2A2B33" strokeWidth="3" fill="none" />
+                    <circle
+                      cx="28"
+                      cy="28"
+                      r="24"
+                      stroke="#00FFFF"
+                      strokeWidth="3"
+                      fill="none"
+                      strokeDasharray={150}
+                      strokeDashoffset={150 - (150 * (15 - countdown)) / 15}
+                      className="transition-all duration-1000"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-bold text-[#00FFFF]">{countdown}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {verificationStep > 3 && (
+              <p className="text-green-400 text-xs flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                Ready
+              </p>
+            )}
+            {verificationStep < 3 && (
+              <div className="flex items-center justify-center h-12">
+                <Clock className="w-6 h-6 text-[#2A2B33]" />
+              </div>
+            )}
+          </motion.div>
 
-            {canDownload ? (
+          {/* Step 4: Download */}
+          <motion.div
+            className={`p-5 rounded-2xl border transition-all ${
+              verificationStep === 4 ? "bg-green-500/10 border-green-500" : "bg-[#1A1B23] border-[#2A2B33]"
+            }`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  verificationStep === 4 ? "bg-green-500 text-white" : "bg-[#2A2B33] text-[#666666]"
+                }`}
+              >
+                {verificationStep === 4 ? <Download className="w-4 h-4" /> : "4"}
+              </div>
+              <h3 className="text-white font-bold text-sm">Download</h3>
+            </div>
+            <p className="text-[#888888] text-xs mb-3">Get your file</p>
+            {verificationStep === 4 ? (
               <button
                 onClick={handleDownload}
-                className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-green-500/50 transition-all flex items-center justify-center gap-2"
+                className="w-full py-2 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:shadow-lg hover:shadow-green-500/50 transition-all flex items-center justify-center gap-1 text-sm"
               >
-                <Download className="w-5 h-5" />
-                Download Now
+                <Download className="w-4 h-4" />
+                Download
               </button>
             ) : (
               <div className="flex items-center justify-center h-12">
-                <Shield className="w-8 h-8 text-[#2A2B33]" />
+                <Download className="w-6 h-6 text-[#2A2B33]" />
               </div>
             )}
           </motion.div>
@@ -306,7 +353,7 @@ export default function DownloadPageClient({
 
         {/* Ad Banner Area */}
         {adSettings?.showDownloadPageAds && adSettings?.horizontalAdCode && (
-          <motion.div className="mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+          <motion.div className="mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
             <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden">
               <iframe
                 srcDoc={`
@@ -329,12 +376,37 @@ export default function DownloadPageClient({
           </motion.div>
         )}
 
+        {/* Vertical Ad */}
+        {adSettings?.showDownloadPageAds && adSettings?.verticalAdCode && (
+          <motion.div className="mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
+            <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden">
+              <iframe
+                srcDoc={`
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <style>
+                      body { margin: 0; padding: 8px; display: flex; align-items: center; justify-content: center; background: transparent; }
+                    </style>
+                  </head>
+                  <body>${adSettings.verticalAdCode}</body>
+                  </html>
+                `}
+                className="w-full min-h-[250px]"
+                style={{ border: "none" }}
+                scrolling="no"
+                title="Advertisement"
+              />
+            </div>
+          </motion.div>
+        )}
+
         {/* Info Section */}
         <motion.div
           className="p-6 bg-[#1A1B23] border border-[#2A2B33] rounded-2xl"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.7 }}
         >
           <h3 className="text-white font-bold mb-4 flex items-center gap-2">
             <Shield className="w-5 h-5 text-[#00FFFF]" />

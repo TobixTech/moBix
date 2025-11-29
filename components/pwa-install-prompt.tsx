@@ -66,7 +66,7 @@ export default function PWAInstallPrompt() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-4 duration-300">
-      <div className="bg-[#1a1a2e] border border-[#00FFFF]/30 rounded-xl p-4 shadow-2xl shadow-[#00FFFF]/10">
+      <div className="bg-[#1a1a2e] border border-white/10 rounded-xl p-4 shadow-2xl">
         <button
           onClick={handleDismiss}
           className="absolute top-3 right-3 text-white/40 hover:text-white transition-colors"
@@ -76,7 +76,7 @@ export default function PWAInstallPrompt() {
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#00FFFF] to-[#00CCCC] flex items-center justify-center shadow-lg shadow-[#00FFFF]/30">
+          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-[#00FFFF] flex items-center justify-center">
             <Smartphone className="w-6 h-6 text-[#0B0C10]" />
           </div>
 
@@ -91,7 +91,7 @@ export default function PWAInstallPrompt() {
             {!isIOS && deferredPrompt && (
               <Button
                 onClick={handleInstall}
-                className="mt-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] hover:from-[#00CCCC] hover:to-[#00AAAA] text-[#0B0C10] font-semibold w-full shadow-lg shadow-[#00FFFF]/30"
+                className="mt-3 bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold w-full"
                 size="sm"
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -102,7 +102,7 @@ export default function PWAInstallPrompt() {
             {isIOS && (
               <div className="mt-3 text-sm text-white/50">
                 <p>
-                  1. Tap <span className="inline-block px-1 text-[#00FFFF]">⎙</span> Share
+                  1. Tap <span className="inline-block px-1">⎙</span> Share
                 </p>
                 <p>2. Select "Add to Home Screen"</p>
               </div>
