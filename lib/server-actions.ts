@@ -641,12 +641,12 @@ export async function getAdSettings() {
 export async function updateAdSettings(settings: {
   horizontalAdCode?: string
   verticalAdCode?: string
-  vastUrl?: string
   smartLinkUrl?: string
   adTimeoutSeconds?: number
   showPrerollAds?: boolean
   homepageEnabled?: boolean
   movieDetailEnabled?: boolean
+  dashboardEnabled?: boolean
 }) {
   try {
     const currentSettings = await db.query.adSettings.findFirst()
@@ -655,12 +655,12 @@ export async function updateAdSettings(settings: {
       await db.insert(adSettings).values({
         horizontalAdCode: settings.horizontalAdCode || "",
         verticalAdCode: settings.verticalAdCode || "",
-        vastUrl: settings.vastUrl || "",
         smartLinkUrl: settings.smartLinkUrl || "",
         adTimeoutSeconds: settings.adTimeoutSeconds || 20,
         showPrerollAds: settings.showPrerollAds ?? true,
         homepageEnabled: settings.homepageEnabled ?? true,
         movieDetailEnabled: settings.movieDetailEnabled ?? true,
+        dashboardEnabled: settings.dashboardEnabled ?? true,
         showDownloadPageAds: true,
       })
     } else {
@@ -669,12 +669,12 @@ export async function updateAdSettings(settings: {
         .set({
           horizontalAdCode: settings.horizontalAdCode,
           verticalAdCode: settings.verticalAdCode,
-          vastUrl: settings.vastUrl,
           smartLinkUrl: settings.smartLinkUrl,
           adTimeoutSeconds: settings.adTimeoutSeconds,
           showPrerollAds: settings.showPrerollAds,
           homepageEnabled: settings.homepageEnabled,
           movieDetailEnabled: settings.movieDetailEnabled,
+          dashboardEnabled: settings.dashboardEnabled,
         })
         .where(eq(adSettings.id, currentSettings.id))
     }

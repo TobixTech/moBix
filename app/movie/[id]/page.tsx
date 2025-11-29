@@ -80,16 +80,26 @@ export default async function MovieDetail({
   let isInWatchlist = false
 
   try {
-    const results = await Promise.all([getMovieById(movieId), getAdSettings(), getWatchlistStatus(movieId)])
-    movie = results[0]
-    adSettings = results[1]
-    isInWatchlist = results[2]
+    movie = await getMovieById(movieId)
   } catch (error) {
-    console.error("Error loading movie page:", error)
+    console.error("Error loading movie:", error)
   }
 
   if (!movie) {
     notFound()
+  }
+
+  // Fetch ad settings and watchlist status separately to prevent one failure from breaking all
+  try {
+    adSettings = await getAdSettings()
+  } catch (error) {
+    console.error("Error loading ad settings:", error)
+  }
+
+  try {
+    isInWatchlist = await getWatchlistStatus(movieId)
+  } catch (error) {
+    console.error("Error checking watchlist status:", error)
   }
 
   const adTimeout = adSettings?.adTimeoutSeconds || 20

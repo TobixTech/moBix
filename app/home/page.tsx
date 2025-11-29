@@ -6,18 +6,36 @@ import Footer from "@/components/footer"
 import { getTrendingMovies, getPublicMovies, getMoviesByGenre, getAllGenres } from "@/lib/server-actions"
 
 export default async function AuthenticatedHomePage() {
-  const [trending, recent, allGenres] = await Promise.all([getTrendingMovies(), getPublicMovies(), getAllGenres()])
+  let trending: any[] = []
+  let recent: any[] = []
+  let allGenres: string[] = []
 
-  // Fetch movies for each genre in parallel
-  const genreMoviesPromises = allGenres.map(async (genre) => ({
-    genre,
-    movies: await getMoviesByGenre(genre),
-  }))
+  try {
+    const results = await Promise.all([getTrendingMovies(), getPublicMovies(), getAllGenres()])
+    trending = results[0] || []
+    recent = results[1] || []
+    allGenres = results[2] || []
+  } catch (error) {
+    console.error("Error loading home page data:", error)
+  }
 
-  const genreMovies = await Promise.all(genreMoviesPromises)
+  // Fetch movies for each genre in parallel with error handling
+  let genresWithMovies: { genre: string; movies: any[] }[] = []
+  try {
+    const genreMoviesPromises = allGenres.map(async (genre) => {
+      try {
+        const movies = await getMoviesByGenre(genre)
+        return { genre, movies: movies || [] }
+      } catch {
+        return { genre, movies: [] }
+      }
+    })
 
-  // Filter out genres with no movies
-  const genresWithMovies = genreMovies.filter((g) => g.movies.length > 0)
+    const genreMovies = await Promise.all(genreMoviesPromises)
+    genresWithMovies = genreMovies.filter((g) => g.movies.length > 0)
+  } catch (error) {
+    console.error("Error loading genre movies:", error)
+  }
 
   return (
     <main className="min-h-screen bg-[#0B0C10]">
