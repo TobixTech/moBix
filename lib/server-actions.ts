@@ -688,9 +688,11 @@ export async function getAdSettings() {
 export async function updateAdSettings(settings: {
   horizontalAdCode?: string
   verticalAdCode?: string
-  vastUrl?: string
+  prerollAdCodes?: string // JSON string of ad codes array [{code, name}]
   smartLinkUrl?: string
   adTimeoutSeconds?: number
+  skipDelaySeconds?: number
+  rotationIntervalSeconds?: number
   showPrerollAds?: boolean
   homepageEnabled?: boolean
   movieDetailEnabled?: boolean
@@ -702,9 +704,11 @@ export async function updateAdSettings(settings: {
       await db.insert(adSettings).values({
         horizontalAdCode: settings.horizontalAdCode || "",
         verticalAdCode: settings.verticalAdCode || "",
-        vastUrl: settings.vastUrl || "",
+        prerollAdCodes: settings.prerollAdCodes || "[]",
         smartLinkUrl: settings.smartLinkUrl || "",
         adTimeoutSeconds: settings.adTimeoutSeconds || 20,
+        skipDelaySeconds: settings.skipDelaySeconds || 10,
+        rotationIntervalSeconds: settings.rotationIntervalSeconds || 5,
         showPrerollAds: settings.showPrerollAds ?? true,
         homepageEnabled: settings.homepageEnabled ?? true,
         movieDetailEnabled: settings.movieDetailEnabled ?? true,
@@ -716,9 +720,11 @@ export async function updateAdSettings(settings: {
         .set({
           horizontalAdCode: settings.horizontalAdCode,
           verticalAdCode: settings.verticalAdCode,
-          vastUrl: settings.vastUrl,
+          prerollAdCodes: settings.prerollAdCodes,
           smartLinkUrl: settings.smartLinkUrl,
           adTimeoutSeconds: settings.adTimeoutSeconds,
+          skipDelaySeconds: settings.skipDelaySeconds,
+          rotationIntervalSeconds: settings.rotationIntervalSeconds,
           showPrerollAds: settings.showPrerollAds,
           homepageEnabled: settings.homepageEnabled,
           movieDetailEnabled: settings.movieDetailEnabled,

@@ -4,24 +4,33 @@ import { useState } from "react"
 import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
 
+interface PrerollAdCode {
+  code: string
+  name?: string
+}
+
 interface ProductionVideoPlayerProps {
   videoUrl: string
   posterUrl: string
   title: string
-  vastUrl?: string
   skipIntro?: boolean
-  adTimeout?: number
   showPrerollAds?: boolean
+  prerollAdCodes?: PrerollAdCode[] // Changed from prerollBannerAds
+  adTimeout?: number
+  skipDelay?: number
+  rotationInterval?: number
 }
 
 export default function ProductionVideoPlayer({
   videoUrl,
   posterUrl,
   title,
-  vastUrl,
   skipIntro = false,
-  adTimeout = 20,
   showPrerollAds = true,
+  prerollAdCodes = [], // Changed from prerollBannerAds
+  adTimeout = 20,
+  skipDelay = 10,
+  rotationInterval = 5,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
   const [showAd, setShowAd] = useState(false)
@@ -29,10 +38,10 @@ export default function ProductionVideoPlayer({
 
   const handleIntroComplete = () => {
     setShowIntro(false)
-    if (showPrerollAds && vastUrl) {
+    const hasAds = prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
+    if (showPrerollAds && hasAds) {
       setShowAd(true)
     } else {
-      // Skip ads and go directly to video
       setShowVideo(true)
     }
   }
@@ -78,14 +87,15 @@ export default function ProductionVideoPlayer({
       {/* Intro Animation */}
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
-      {/* Pre-roll Ad - Only shows if showPrerollAds is enabled */}
+      {/* Pre-roll Ads - now using ad codes */}
       {showAd && (
         <PrerollAdPlayer
-          vastUrl={vastUrl}
+          adCodes={prerollAdCodes}
           onComplete={handleAdComplete}
           onSkip={handleAdSkip}
           maxDuration={adTimeout}
-          skipDelay={5}
+          skipDelay={skipDelay}
+          rotationInterval={rotationInterval}
         />
       )}
 

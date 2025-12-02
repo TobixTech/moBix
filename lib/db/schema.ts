@@ -171,9 +171,11 @@ export const adSettings = pgTable("AdSettings", {
     .$defaultFn(() => crypto.randomUUID()),
   horizontalAdCode: text("horizontalAdCode"),
   verticalAdCode: text("verticalAdCode"),
-  vastUrl: text("vastUrl"),
+  prerollAdCodes: text("prerollAdCodes").default("[]"), // JSON array of {code, name}
   smartLinkUrl: text("smartLinkUrl"),
   adTimeoutSeconds: integer("adTimeoutSeconds").default(20).notNull(),
+  skipDelaySeconds: integer("skipDelaySeconds").default(10).notNull(),
+  rotationIntervalSeconds: integer("rotationIntervalSeconds").default(5).notNull(),
   showPrerollAds: boolean("showPrerollAds").default(true).notNull(),
   showDownloadPageAds: boolean("showDownloadPageAds").default(true).notNull(),
   homepageEnabled: boolean("homepageEnabled").default(true).notNull(),

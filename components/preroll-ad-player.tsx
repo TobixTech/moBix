@@ -1,31 +1,48 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { X } from "lucide-react"
 
+interface PrerollAdCode {
+  code: string
+  name?: string
+}
+
 interface PrerollAdPlayerProps {
-  vastUrl?: string
+  adCodes?: PrerollAdCode[]
   onComplete: () => void
   onSkip: () => void
   skipDelay?: number
   maxDuration?: number
+  rotationInterval?: number
 }
 
 export default function PrerollAdPlayer({
-  vastUrl,
+  adCodes = [],
   onComplete,
   onSkip,
-  skipDelay = 5,
+  skipDelay = 10,
   maxDuration = 20,
+  rotationInterval = 5,
 }: PrerollAdPlayerProps) {
   const [timeLeft, setTimeLeft] = useState(maxDuration)
   const [canSkip, setCanSkip] = useState(false)
-  const [showPlaceholder, setShowPlaceholder] = useState(false)
   const [skipTimeLeft, setSkipTimeLeft] = useState(skipDelay)
-  const [adLoaded, setAdLoaded] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [currentAdIndex, setCurrentAdIndex] = useState(0)
 
+  // Rotate through ad codes
+  useEffect(() => {
+    if (adCodes.length <= 1) return
+
+    const rotationTimer = setInterval(() => {
+      setCurrentAdIndex((prev) => (prev + 1) % adCodes.length)
+    }, rotationInterval * 1000)
+
+    return () => clearInterval(rotationTimer)
+  }, [adCodes.length, rotationInterval])
+
+  // Main countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
       setSkipTimeLeft((prev) => {
@@ -47,13 +64,17 @@ export default function PrerollAdPlayer({
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [skipDelay, maxDuration, onComplete])
+  }, [maxDuration, onComplete])
 
   const handleSkip = () => {
     onSkip()
   }
 
-  if (!vastUrl) {
+  const currentAd = adCodes[currentAdIndex]
+  const hasAds = adCodes.length > 0 && adCodes.some((ad) => ad.code && ad.code.trim() !== "")
+
+  // If no ads configured, show loading and auto-complete
+  if (!hasAds) {
     return (
       <div className="absolute inset-0 bg-[#0B0C10] z-40 flex items-center justify-center">
         <div className="max-w-2xl mx-auto p-8 text-center">
@@ -65,7 +86,7 @@ export default function PrerollAdPlayer({
             <div className="w-20 h-20 mx-auto mb-6 bg-[#00FFFF]/10 rounded-full flex items-center justify-center">
               <div className="w-12 h-12 border-4 border-[#00FFFF] border-t-transparent rounded-full animate-spin" />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-3">Advertisement</h3>
+            <h3 className="text-2xl font-bold text-white mb-3">Preparing Your Video</h3>
             <p className="text-[#CCCCCC] mb-6">Your video will start in {timeLeft} seconds...</p>
           </motion.div>
 
@@ -92,35 +113,50 @@ export default function PrerollAdPlayer({
     )
   }
 
+  // Generate iframe srcDoc for the current ad code
+  const getIframeSrcDoc = (adCode: string) => `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          background: transparent;
+          overflow: hidden;
+        }
+      </style>
+    </head>
+    <body>
+      ${adCode}
+    </body>
+    </html>
+  `
+
   return (
-    <div className="absolute inset-0 bg-black z-40">
-      <div className="relative w-full h-full bg-black flex items-center justify-center">
-        <iframe
-          ref={iframeRef}
-          src={vastUrl}
-          className="w-full h-full"
-          allow="autoplay; fullscreen"
-          allowFullScreen
-          style={{ border: "none" }}
-          onLoad={() => setAdLoaded(true)}
-          onError={() => {
-            console.error("Error loading VAST ad")
-            setShowPlaceholder(true)
-          }}
-        />
-
-        <div className="absolute top-4 right-4 flex items-center gap-4 z-50">
-          <div className="bg-black/80 px-4 py-2 rounded-lg">
-            <p className="text-white text-sm font-medium">Ad · {timeLeft}s</p>
-          </div>
-
+    <div className="absolute inset-0 bg-[#0B0C10] z-40 flex flex-col">
+      {/* Ad Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/60 uppercase tracking-wider">Advertisement</span>
+          {adCodes.length > 1 && (
+            <span className="text-xs text-[#00FFFF]">
+              {currentAdIndex + 1} / {adCodes.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-white text-sm font-medium bg-white/10 px-3 py-1 rounded-full">{timeLeft}s</span>
           <button
             onClick={canSkip ? handleSkip : undefined}
             disabled={!canSkip}
-            className={`px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 text-sm ${
               canSkip
                 ? "bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10]"
-                : "bg-black/50 text-white/50 cursor-not-allowed border border-white/20"
+                : "bg-white/10 text-white/50 cursor-not-allowed"
             }`}
           >
             {canSkip ? (
@@ -129,10 +165,50 @@ export default function PrerollAdPlayer({
                 Skip Ad
               </>
             ) : (
-              <span className="text-sm">Skip in {skipTimeLeft}s</span>
+              <span>Skip in {skipTimeLeft}s</span>
             )}
           </button>
         </div>
+      </div>
+
+      {/* Ad Content - Using iframe for HTML ad codes */}
+      <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+        {currentAd && currentAd.code && (
+          <div key={currentAdIndex} className="w-full max-w-4xl h-full flex items-center justify-center">
+            <iframe
+              srcDoc={getIframeSrcDoc(currentAd.code)}
+              className="w-full h-full min-h-[300px] max-h-[70vh]"
+              style={{ border: "none", background: "transparent" }}
+              scrolling="no"
+              title={currentAd.name || `Advertisement ${currentAdIndex + 1}`}
+              sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Progress dots for multiple ads */}
+      {adCodes.length > 1 && (
+        <div className="flex justify-center gap-2 py-3">
+          {adCodes.map((_, index) => (
+            <div
+              key={index}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                index === currentAdIndex ? "bg-[#00FFFF]" : "bg-white/30"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Progress bar */}
+      <div className="h-1 bg-white/10">
+        <motion.div
+          className="h-full bg-[#00FFFF]"
+          initial={{ width: "100%" }}
+          animate={{ width: "0%" }}
+          transition={{ duration: maxDuration, ease: "linear" }}
+        />
       </div>
     </div>
   )

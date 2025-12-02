@@ -34,10 +34,8 @@ interface Movie {
   likesCount: number
   avgRating: number
   comments: Comment[]
-  customVastUrl?: string
   downloadUrl?: string
   downloadEnabled?: boolean
-  useGlobalAd?: boolean
 }
 
 interface RelatedMovie {
@@ -46,14 +44,21 @@ interface RelatedMovie {
   posterUrl: string
 }
 
+interface PrerollAdCode {
+  code: string
+  name?: string
+}
+
 export default function MovieDetailClient({
   movie,
   relatedMovies,
   adBannerVertical,
   adBannerHorizontal,
-  vastUrl,
+  prerollAdCodes = [],
   smartLinkUrl,
   adTimeout = 20,
+  skipDelay = 10,
+  rotationInterval = 5,
   showPrerollAds = true,
   isInWatchlist = false,
 }: {
@@ -61,13 +66,15 @@ export default function MovieDetailClient({
   relatedMovies: RelatedMovie[]
   adBannerVertical?: React.ReactNode
   adBannerHorizontal?: React.ReactNode
-  vastUrl?: string
+  prerollAdCodes?: PrerollAdCode[]
   smartLinkUrl?: string
   adTimeout?: number
+  skipDelay?: number
+  rotationInterval?: number
   showPrerollAds?: boolean
   isInWatchlist?: boolean
 }) {
-  const { userId } = useAuth()
+  const { isSignedIn, userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(movie.likesCount)
   const [isLiking, setIsLiking] = useState(false)
@@ -81,7 +88,7 @@ export default function MovieDetailClient({
   const [commentError, setCommentError] = useState("")
 
   const handleLike = async () => {
-    if (!userId) {
+    if (!isSignedIn || !userId) {
       alert("Please sign in to like movies")
       return
     }
@@ -100,7 +107,7 @@ export default function MovieDetailClient({
   }
 
   const handleWatchlistToggle = async () => {
-    if (!userId) {
+    if (!isSignedIn || !userId) {
       alert("Please sign in to manage your watchlist")
       return
     }
@@ -120,7 +127,7 @@ export default function MovieDetailClient({
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!userId) {
+    if (!isSignedIn || !userId) {
       setCommentError("Please sign in to comment")
       return
     }
@@ -146,8 +153,6 @@ export default function MovieDetailClient({
     setIsSubmitting(false)
   }
 
-  const finalVastUrl = movie.useGlobalAd !== false ? vastUrl : movie.customVastUrl
-
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
@@ -163,9 +168,11 @@ export default function MovieDetailClient({
               videoUrl={movie.videoUrl}
               posterUrl={movie.posterUrl}
               title={movie.title}
-              vastUrl={finalVastUrl}
-              adTimeout={adTimeout}
               showPrerollAds={showPrerollAds}
+              prerollAdCodes={prerollAdCodes}
+              adTimeout={adTimeout}
+              skipDelay={skipDelay}
+              rotationInterval={rotationInterval}
             />
           </motion.div>
 

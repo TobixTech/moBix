@@ -23,6 +23,7 @@ import {
   Inbox,
   CheckCircle,
   RefreshCw,
+  Plus,
 } from "lucide-react"
 import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
@@ -140,15 +141,23 @@ export default function AdminDashboard() {
   const [editModalOpen, setEditModalOpen] = useState(false)
 
   // ... existing state ...
+  // FIND THE adSettings STATE AROUND LINE 143-165 AND UPDATE IT
   const [adSettings, setAdSettings] = useState({
     horizontalAdCode: "",
     verticalAdCode: "",
-    vastUrl: "",
+    prerollAdCodes: [] as { code: string; name: string }[],
     smartLinkUrl: "",
     adTimeout: 20,
+    skipDelay: 10, // Added skipDelay
+    rotationInterval: 5, // Added rotationInterval
     showPrerollAds: true,
     showHomepageAds: true,
     showMovieDetailAds: true,
+  })
+
+  const [newAdCode, setNewAdCode] = useState({
+    code: "",
+    name: "",
   })
 
   const [formData, setFormData] = useState({
@@ -243,9 +252,12 @@ export default function AdminDashboard() {
         setAdSettings({
           horizontalAdCode: adSettingsData.horizontalAdCode || "",
           verticalAdCode: adSettingsData.verticalAdCode || "",
-          vastUrl: adSettingsData.vastUrl || "",
+          // Parse prerollAdCodes from string to array
+          prerollAdCodes: adSettingsData.prerollAdCodes ? JSON.parse(adSettingsData.prerollAdCodes) : [],
           smartLinkUrl: adSettingsData.smartLinkUrl || "",
           adTimeout: adSettingsData.adTimeoutSeconds || 20,
+          skipDelay: adSettingsData.skipDelaySeconds || 10, // Added skipDelay
+          rotationInterval: adSettingsData.rotationIntervalSeconds || 5, // Added rotationInterval
           showPrerollAds: adSettingsData.showPrerollAds ?? true,
           showHomepageAds: adSettingsData.homepageEnabled ?? true,
           showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
@@ -365,15 +377,37 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  // FIND THE NEW ADD BANNER AD STATE AND UPDATE IT
+  const handleAddBannerAd = () => {
+    if (!newAdCode.code) {
+      alert("Please enter an ad code")
+      return
+    }
+    setAdSettings({
+      ...adSettings,
+      prerollAdCodes: [...adSettings.prerollAdCodes, { ...newAdCode }],
+    })
+    setNewAdCode({ code: "", name: "" })
+  }
+
+  const handleRemoveBannerAd = (index: number) => {
+    setAdSettings({
+      ...adSettings,
+      prerollAdCodes: adSettings.prerollAdCodes.filter((_, i) => i !== index),
+    })
+  }
+
   const handleSaveAdSettings = async () => {
     setLoading(true)
 
     const result = await updateAdSettings({
       horizontalAdCode: adSettings.horizontalAdCode,
       verticalAdCode: adSettings.verticalAdCode,
-      vastUrl: adSettings.vastUrl,
+      prerollAdCodes: JSON.stringify(adSettings.prerollAdCodes),
       smartLinkUrl: adSettings.smartLinkUrl,
       adTimeoutSeconds: adSettings.adTimeout,
+      skipDelaySeconds: adSettings.skipDelay,
+      rotationIntervalSeconds: adSettings.rotationInterval,
       showPrerollAds: adSettings.showPrerollAds,
       homepageEnabled: adSettings.showHomepageAds,
       movieDetailEnabled: adSettings.showMovieDetailAds,
@@ -949,7 +983,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Recent Activity */}
+                {/* Recent Signups */}
                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
                   <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                     <Users className="w-5 h-5 text-cyan-400" />
@@ -1378,18 +1412,103 @@ export default function AdminDashboard() {
                 </h3>
 
                 <div className="space-y-6">
-                  <div>
-                    <label className="block text-white font-medium mb-2">VAST Tag URL (Video Ads)</label>
-                    <input
-                      type="url"
-                      value={adSettings.vastUrl}
-                      onChange={(e) => setAdSettings({ ...adSettings, vastUrl: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
-                      placeholder="https://..."
-                    />
-                    <p className="text-white/40 text-sm mt-2">
-                      URL for VAST-compliant video ads (pre-roll). Leave empty to disable.
+                  {/* Pre-roll Banner Ads Section */}
+                  <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                    <h4 className="text-lg font-bold text-white mb-4">Pre-roll Ads</h4>
+                    <p className="text-white/60 text-sm mb-4">
+                      Add pre-roll ad codes. They will rotate based on the interval below.
                     </p>
+
+                    {/* Existing Pre-roll Ads */}
+                    {adSettings.prerollAdCodes.length > 0 && (
+                      <div className="space-y-3 mb-4">
+                        {adSettings.prerollAdCodes.map((ad, index) => (
+                          <div key={index} className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm truncate">{ad.name || `Ad ${index + 1}`}</p>
+                              <p className="text-white/40 text-xs truncate">{ad.code.substring(0, 50)}...</p>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveBannerAd(index)}
+                              className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add New Pre-roll Ad */}
+                    <div className="space-y-3 border-t border-white/10 pt-4">
+                      <div>
+                        <label className="block text-white/80 text-sm mb-1">Ad Name (optional)</label>
+                        <input
+                          type="text"
+                          value={newAdCode.name}
+                          onChange={(e) => setNewAdCode({ ...newAdCode, name: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                          placeholder="e.g. Google AdSense Unit 1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-white/80 text-sm mb-1">Ad Code *</label>
+                        <textarea
+                          rows={3}
+                          value={newAdCode.code}
+                          onChange={(e) => setNewAdCode({ ...newAdCode, code: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-cyan-500/50"
+                          placeholder="Paste your HTML or JS ad code here"
+                        />
+                      </div>
+                      <button
+                        onClick={handleAddBannerAd}
+                        className="w-full py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Ad Code
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Ad Timing Settings */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-white font-medium mb-2">Ad Duration (seconds)</label>
+                      <input
+                        type="number"
+                        value={adSettings.adTimeout}
+                        onChange={(e) => setAdSettings({ ...adSettings, adTimeout: Number(e.target.value) })}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                        min="10"
+                        max="60"
+                      />
+                      <p className="text-white/40 text-xs mt-1">Auto-skip after this time</p>
+                    </div>
+                    <div>
+                      <label className="block text-white font-medium mb-2">Skip Delay (seconds)</label>
+                      <input
+                        type="number"
+                        value={adSettings.skipDelay}
+                        onChange={(e) => setAdSettings({ ...adSettings, skipDelay: Number(e.target.value) })}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                        min="5"
+                        max="30"
+                      />
+                      <p className="text-white/40 text-xs mt-1">Skip button appears after</p>
+                    </div>
+                    <div>
+                      <label className="block text-white font-medium mb-2">Rotation Interval (seconds)</label>
+                      <input
+                        type="number"
+                        value={adSettings.rotationInterval}
+                        onChange={(e) => setAdSettings({ ...adSettings, rotationInterval: Number(e.target.value) })}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                        min="3"
+                        max="15"
+                      />
+                      <p className="text-white/40 text-xs mt-1">Change ad every</p>
+                    </div>
                   </div>
 
                   <div>
@@ -1406,21 +1525,9 @@ export default function AdminDashboard() {
                     </p>
                   </div>
 
-                  <div>
-                    <label className="block text-white font-medium mb-2">Ad Timeout (Seconds)</label>
-                    <input
-                      type="number"
-                      value={adSettings.adTimeout}
-                      onChange={(e) => setAdSettings({ ...adSettings, adTimeout: Number(e.target.value) })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
-                      min="5"
-                      max="60"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-white font-medium mb-2">Horizontal Ad Code</label>
+                      <label className="block text-white font-medium mb-2">Horizontal Ad Code (Fallback)</label>
                       <textarea
                         value={adSettings.horizontalAdCode}
                         onChange={(e) => setAdSettings({ ...adSettings, horizontalAdCode: e.target.value })}
@@ -1428,6 +1535,7 @@ export default function AdminDashboard() {
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
                         placeholder="<!-- HTML/JS Code -->"
                       />
+                      <p className="text-white/40 text-xs mt-1">Used if no banner images added</p>
                     </div>
                     <div>
                       <label className="block text-white font-medium mb-2">Vertical Ad Code</label>
@@ -1438,61 +1546,6 @@ export default function AdminDashboard() {
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
                         placeholder="<!-- HTML/JS Code -->"
                       />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 pt-4 border-t border-white/10">
-                    <h4 className="font-medium text-white">Display Settings</h4>
-
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                      <span className="text-white">Show Pre-roll Ads</span>
-                      <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
-                        <input
-                          type="checkbox"
-                          checked={adSettings.showPrerollAds}
-                          onChange={(e) => setAdSettings({ ...adSettings, showPrerollAds: e.target.checked })}
-                          className="peer absolute opacity-0 w-0 h-0"
-                          id="toggle-preroll"
-                        />
-                        <label
-                          htmlFor="toggle-preroll"
-                          className="block w-12 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-cyan-500 transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                      <span className="text-white">Show Homepage Ads</span>
-                      <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
-                        <input
-                          type="checkbox"
-                          checked={adSettings.showHomepageAds}
-                          onChange={(e) => setAdSettings({ ...adSettings, showHomepageAds: e.target.checked })}
-                          className="peer absolute opacity-0 w-0 h-0"
-                          id="toggle-homepage"
-                        />
-                        <label
-                          htmlFor="toggle-homepage"
-                          className="block w-12 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-cyan-500 transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                      <span className="text-white">Show Movie Detail Ads</span>
-                      <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
-                        <input
-                          type="checkbox"
-                          checked={adSettings.showMovieDetailAds}
-                          onChange={(e) => setAdSettings({ ...adSettings, showMovieDetailAds: e.target.checked })}
-                          className="peer absolute opacity-0 w-0 h-0"
-                          id="toggle-details"
-                        />
-                        <label
-                          htmlFor="toggle-details"
-                          className="block w-12 h-6 bg-white/10 rounded-full cursor-pointer peer-checked:bg-cyan-500 transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6"
-                        />
-                      </div>
                     </div>
                   </div>
 

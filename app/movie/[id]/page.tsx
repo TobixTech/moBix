@@ -9,6 +9,8 @@ import { MovieStructuredData, VideoStructuredData, BreadcrumbStructuredData } fr
 
 export const dynamic = "force-dynamic"
 
+// ... existing generateMetadata code ...
+
 export async function generateMetadata({
   params,
 }: {
@@ -86,7 +88,18 @@ export default async function MovieDetail({
   }
 
   const adTimeout = adSettings?.adTimeoutSeconds || 20
+  const skipDelay = adSettings?.skipDelaySeconds || 10
+  const rotationInterval = adSettings?.rotationIntervalSeconds || 5
   const showPrerollAds = adSettings?.showPrerollAds ?? true
+
+  let prerollAdCodes: { code: string; name?: string }[] = []
+  try {
+    if (adSettings?.prerollAdCodes) {
+      prerollAdCodes = JSON.parse(adSettings.prerollAdCodes)
+    }
+  } catch (e) {
+    console.error("Error parsing preroll ad codes:", e)
+  }
 
   const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
@@ -109,9 +122,11 @@ export default async function MovieDetail({
         <MovieDetailClient
           movie={movie}
           relatedMovies={relatedMovies}
-          vastUrl={adSettings?.vastUrl}
+          prerollAdCodes={prerollAdCodes}
           smartLinkUrl={adSettings?.smartLinkUrl}
           adTimeout={adTimeout}
+          skipDelay={skipDelay}
+          rotationInterval={rotationInterval}
           showPrerollAds={showPrerollAds}
           isInWatchlist={isInWatchlist}
           adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
