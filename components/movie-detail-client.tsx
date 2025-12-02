@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react"
 import { toggleLike, addComment, toggleWatchlist } from "@/lib/server-actions"
@@ -86,6 +86,25 @@ export default function MovieDetailClient({
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
+
+  const [viewTracked, setViewTracked] = useState(false)
+
+  useEffect(() => {
+    if (!viewTracked && movie?.id) {
+      const timer = setTimeout(async () => {
+        try {
+          await fetch(`/api/movies/${movie.id}/view`, {
+            method: "POST",
+          })
+          setViewTracked(true)
+        } catch (error) {
+          console.error("Failed to track view:", error)
+        }
+      }, 5000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [movie?.id, viewTracked])
 
   const handleLike = async () => {
     if (!isSignedIn || !userId) {
