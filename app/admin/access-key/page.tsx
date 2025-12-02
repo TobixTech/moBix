@@ -1,12 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Lock, Loader, Key } from "lucide-react"
 import { motion } from "framer-motion"
-import { grantAdminAccessWithKey } from "@/lib/server-actions"
 
 export default function AdminAccessKeyPage() {
   const router = useRouter()
@@ -21,15 +19,25 @@ export default function AdminAccessKeyPage() {
     setLoading(true)
 
     try {
-      const result = await grantAdminAccessWithKey(accessKey)
+      // Call API route to verify access key and set cookie
+      const response = await fetch("/api/admin/verify-access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ accessKey }),
+      })
+
+      const result = await response.json()
 
       if (result.success) {
         setSuccess(true)
         setAccessKey("")
 
+        // Redirect to admin dashboard after brief success message
         setTimeout(() => {
-          window.location.replace("/admin/point")
-        }, 2000)
+          window.location.href = "/admin/dashboard"
+        }, 1500)
       } else {
         setError(result.error || "Invalid access key")
       }
@@ -114,6 +122,8 @@ export default function AdminAccessKeyPage() {
               )}
             </button>
           </form>
+
+          <p className="text-center text-[#555555] text-xs mt-6">Session expires after 6 hours of inactivity</p>
         </div>
       </motion.div>
     </div>

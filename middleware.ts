@@ -18,14 +18,32 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isProtectedAdminRoute(req)) {
-    const adminVerified = req.cookies.get("admin_access_verified")
-    if (!adminVerified) {
+    const adminVerifiedCookie = req.cookies.get("admin_access_verified")
+
+    if (!adminVerifiedCookie?.value) {
       return NextResponse.redirect(new URL("/admin/access-key", req.url))
+    }
+
+    // Check if cookie has expired (6 hour session)
+    const expiryTime = Number.parseInt(adminVerifiedCookie.value, 10)
+    if (isNaN(expiryTime) || Date.now() > expiryTime) {
+      // Session expired, redirect to access key page
+      const response = NextResponse.redirect(new URL("/admin/access-key", req.url))
+      // Clear the expired cookie
+      response.cookies.set("admin_access_verified", "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+      })
+      return response
     }
   }
 
   if (isAdminAccessKeyRoute(req)) {
-    // No userId check needed here
+    // Allow access to access-key page without any auth
+    return NextResponse.next()
   }
 
   if (isDashboardRoute(req)) {

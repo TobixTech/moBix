@@ -25,7 +25,6 @@ import {
   RefreshCw,
   Plus,
 } from "lucide-react"
-import { useAuth, SignOutButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
 import {
   getAdminMetrics,
@@ -122,7 +121,12 @@ export default function AdminDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
-  const { signOut } = useAuth()
+  const handleAdminLogout = async () => {
+    // Use a simple API route for admin logout, assuming it exists
+    await fetch("/api/auth/admin-logout", { method: "POST" })
+    window.location.href = "/" // Redirect to home or login page
+  }
+
   const [activeTab, setActiveTab] = useState<AdminTab>("overview")
   const [movieSearch, setMovieSearch] = useState("")
   const [userSearch, setUserSearch] = useState("")
@@ -804,12 +808,15 @@ export default function AdminDashboard() {
         </nav>
 
         <div className="p-4 border-t border-white/10">
-          <SignOutButton signOutCallback={() => (window.location.href = "/")}>
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all border border-red-500/20">
-              <LogOut className="w-4 h-4" />
-              <span className="text-sm font-medium">Logout</span>
-            </button>
-          </SignOutButton>
+          {/* Update the logout button to call the logout API */}
+          {/* Removed SignOutButton from Clerk */}
+          <button
+            onClick={handleAdminLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all border border-red-500/20"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="text-sm font-medium">Logout</span>
+          </button>
         </div>
       </aside>
 
