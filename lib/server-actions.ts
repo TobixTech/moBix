@@ -1,10 +1,17 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { movies, users, likes, comments, feedback, watchlist, adSettings } from "@/lib/db/schema"
-import { eq, desc, and, ilike, count, or, sql, not, inArray, sum } from "drizzle-orm"
+import {
+  movies,
+  likes,
+  comments,
+  watchlist,
+  users,
+  adSettings,
+  feedback, // Import feedback table
+} from "@/lib/db/schema"
+import { eq, desc, and, sql, ilike, or, inArray, count, not, sum } from "drizzle-orm" // Import not, sum, count
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { revalidatePath } from "next/cache"
 import {
   cacheGet,
   cacheSet,
@@ -15,14 +22,9 @@ import {
   incrementViewCount as redisIncrementView,
   flushViewCountsToDb,
   checkRateLimit,
+  getRedisClient,
 } from "@/lib/redis"
-
-import Redis from "ioredis"
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+import { revalidatePath } from "next/cache" // Import revalidatePath
 
 interface CommentWithUser {
   id: string
@@ -1230,7 +1232,7 @@ export async function saveWatchProgress(movieId: string, progress: number) {
     }
 
     // Store watch progress in Redis for fast retrieval
-    await redis.set(`watch:${dbUser.id}:${movieId}`, progress.toString(), {
+    await getRedisClient().set(`watch:${dbUser.id}:${movieId}`, progress.toString(), {
       ex: 60 * 60 * 24 * 30, // Expire after 30 days
     })
 
@@ -1254,12 +1256,12 @@ export async function getContinueWatching() {
     }
 
     // Get all watch progress keys for this user
-    const keys = await redis.keys(`watch:${dbUser.id}:*`)
+    const keys = await getRedisClient().keys(`watch:${dbUser.id}:*`)
 
     const continueWatching = []
     for (const key of keys) {
       const movieId = key.split(":")[2]
-      const progress = await redis.get(key)
+      const progress = await getRedisClient().get(key)
 
       if (progress && Number(progress) > 0 && Number(progress) < 95) {
         const movie = await db.query.movies.findFirst({
@@ -1587,7 +1589,7 @@ export async function saveUserSettings(data: {
 
     // Store settings in Redis for fast access
     const key = `user:${userId}:${data.type}`
-    await redis.set(key, JSON.stringify(data.settings))
+    await getRedisClient().set(key, JSON.stringify(data.settings))
 
     return { success: true }
   } catch (error: any) {
@@ -1604,7 +1606,7 @@ export async function getUserSettings(type: "notifications" | "privacy") {
     }
 
     const key = `user:${userId}:${type}`
-    const settings = await redis.get(key)
+    const settings = await getRedisClient().get(key)
 
     return { success: true, settings: settings || null }
   } catch (error: any) {
