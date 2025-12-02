@@ -821,7 +821,17 @@ export async function getUserStats() {
         movie: true,
       },
       orderBy: [desc(likes.createdAt)],
-      limit: 10,
+      limit: 20,
+    })
+
+    // Get watchlist movies with full movie data
+    const watchlistMoviesData = await db.query.watchlist.findMany({
+      where: eq(watchlist.userId, user.id),
+      with: {
+        movie: true,
+      },
+      orderBy: [desc(watchlist.createdAt)],
+      limit: 20,
     })
 
     // Get user comments with movie data
@@ -837,16 +847,21 @@ export async function getUserStats() {
     return {
       success: true,
       stats: {
-        likes: likesCount?.count || 0,
-        comments: commentsCount?.count || 0,
-        watchlist: watchlistCount?.count || 0,
+        // Return in the format dashboard expects
+        totalLikes: likesCount?.count || 0,
+        totalComments: commentsCount?.count || 0,
+        totalWatchlist: watchlistCount?.count || 0,
+        email: user.email,
+        memberSince: user.createdAt,
+        // Include movies data inside stats for dashboard
+        likedMovies: likedMoviesData.map((l) => l.movie).filter(Boolean),
+        watchlistMovies: watchlistMoviesData.map((w) => w.movie).filter(Boolean),
+        recentComments: userComments.map((c) => ({
+          ...c,
+          movieTitle: c.movie?.title,
+          moviePoster: c.movie?.posterUrl,
+        })),
       },
-      likedMovies: likedMoviesData.map((l) => l.movie),
-      recentComments: userComments.map((c) => ({
-        ...c,
-        movieTitle: c.movie?.title,
-        moviePoster: c.movie?.posterUrl,
-      })),
     }
   } catch (error: any) {
     console.error("Error fetching user stats:", error)

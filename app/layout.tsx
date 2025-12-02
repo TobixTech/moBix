@@ -42,15 +42,8 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   icons: {
-    icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/icons/icon-96x96.jpg", sizes: "96x96", type: "image/png" },
-      { url: "/icons/icon-192x192.jpg", sizes: "192x192", type: "image/png" },
-    ],
-    apple: [
-      { url: "/icons/icon-152x152.jpg", sizes: "152x152", type: "image/png" },
-      { url: "/icons/icon-192x192.jpg", sizes: "192x192", type: "image/png" },
-    ],
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     shortcut: "/favicon.svg",
   },
   manifest: "/manifest.json",
@@ -123,13 +116,7 @@ export default function RootLayout({
           <meta name="format-detection" content="telephone=no" />
           <meta name="msapplication-TileColor" content="#00FFFF" />
           <meta name="msapplication-tap-highlight" content="no" />
-          <link rel="apple-touch-icon" href="/icons/icon-152x152.jpg" />
-          <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.jpg" />
-          <link
-            rel="apple-touch-startup-image"
-            href="/icons/icon-512x512.jpg"
-            media="(device-width: 375px) and (device-height: 812px)"
-          />
+          <link rel="apple-touch-icon" href="/favicon.svg" />
           <WebsiteStructuredData />
           <OrganizationStructuredData />
         </head>

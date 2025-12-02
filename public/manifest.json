@@ -29,19 +29,22 @@
       "name": "Browse Movies",
       "short_name": "Browse",
       "description": "Browse all available movies",
-      "url": "/movies"
+      "url": "/movies",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
     },
     {
       "name": "My Watchlist",
       "short_name": "Watchlist",
       "description": "View your watchlist",
-      "url": "/watchlist"
+      "url": "/watchlist",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
     },
     {
       "name": "Search",
       "short_name": "Search",
       "description": "Search for movies",
-      "url": "/search"
+      "url": "/search",
+      "icons": [{ "src": "/favicon.svg", "sizes": "96x96" }]
     }
   ],
   "related_applications": [],
