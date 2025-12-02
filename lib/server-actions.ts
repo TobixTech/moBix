@@ -1,23 +1,11 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { movies, users, likes, comments, feedback, watchlist, adSettings } from "@/lib/db/schema"
-import { eq, desc, and, ilike, count, or, sql, not, inArray, sum } from "drizzle-orm"
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
+import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
+import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
-import {
-  cacheGet,
-  cacheSet,
-  CACHE_KEYS,
-  CACHE_TTL,
-  invalidateMovieCaches,
-  invalidateAdSettingsCache,
-  incrementViewCount as redisIncrementView,
-  flushViewCountsToDb,
-  checkRateLimit,
-} from "@/lib/redis"
-
-import Redis from "ioredis"
+import { Redis } from "@upstash/redis"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -98,20 +86,10 @@ export async function uploadMovie(movieData: {
 
 export async function getPublicMovies() {
   try {
-    // Try cache first
-    const cached = await cacheGet<typeof result>(CACHE_KEYS.RECENT_MOVIES)
-    if (cached) {
-      return cached
-    }
-
     const result = await db.query.movies.findMany({
       orderBy: [desc(movies.createdAt)],
-      limit: 20,
+      limit: 12,
     })
-
-    // Cache the result
-    await cacheSet(CACHE_KEYS.RECENT_MOVIES, result, CACHE_TTL.RECENT)
-
     return result
   } catch (error) {
     console.error("Error fetching public movies:", error)
@@ -119,16 +97,8 @@ export async function getPublicMovies() {
   }
 }
 
-// Removed duplicate uploadMovie function
-
 export async function getTrendingMovies() {
   try {
-    // Try cache first
-    const cached = await cacheGet<any[]>(CACHE_KEYS.TRENDING_MOVIES)
-    if (cached) {
-      return cached
-    }
-
     // Get top 10 movies by like count
     const topLiked = await db
       .select({
@@ -136,10 +106,6 @@ export async function getTrendingMovies() {
         title: movies.title,
         genre: movies.genre,
         posterUrl: movies.posterUrl,
-        description: movies.description,
-        year: movies.year,
-        videoUrl: movies.videoUrl,
-        views: movies.views,
         likeCount: count(likes.id),
       })
       .from(movies)
@@ -156,20 +122,14 @@ export async function getTrendingMovies() {
       })
 
       const shuffled = allMovies.sort(() => 0.5 - Math.random()).slice(0, 10)
-      await cacheSet(CACHE_KEYS.TRENDING_MOVIES, shuffled, CACHE_TTL.TRENDING)
       return shuffled
     }
 
     // Map to expected format
-    const result = topLiked.map((m) => ({
+    return topLiked.map((m) => ({
       ...m,
-      likes: [],
+      likes: [], // Placeholder for compatibility
     }))
-
-    // Cache the result
-    await cacheSet(CACHE_KEYS.TRENDING_MOVIES, result, CACHE_TTL.TRENDING)
-
-    return result
   } catch (error) {
     console.error("Error fetching trending movies:", error)
     return []
@@ -182,31 +142,53 @@ export async function getMovieById(id: string) {
       return null
     }
 
-    const cacheKey = CACHE_KEYS.MOVIE_DETAIL(id)
-    const cached = await cacheGet<any>(cacheKey)
-    if (cached) {
-      return cached
-    }
-
     const movie = await db.query.movies.findFirst({
       where: eq(movies.id, id),
       with: {
-        likes: true,
         comments: {
           with: {
             user: true,
           },
           orderBy: [desc(comments.createdAt)],
         },
+        likes: true, // We need the count
       },
     })
 
-    if (movie) {
-      // Cache the result
-      await cacheSet(cacheKey, movie, CACHE_TTL.MOVIE_DETAIL)
+    if (!movie) {
+      return null
     }
 
-    return movie || null
+    // Calculate average rating
+    const avgRating =
+      movie.comments.length > 0
+        ? movie.comments.reduce((acc, comment) => acc + comment.rating, 0) / movie.comments.length
+        : 0
+
+    // Increment views
+    await db
+      .update(movies)
+      .set({ views: sql`${movies.views} + 1` })
+      .where(eq(movies.id, id))
+
+    const transformedComments = movie.comments.map((comment: any) => ({
+      ...comment,
+      user: {
+        email: comment.user.email,
+        firstName: comment.user.firstName,
+        lastName: comment.user.lastName,
+        username: comment.user.username,
+        // Helper property for frontend
+        displayName: comment.user.firstName || comment.user.username || comment.user.email.split("@")[0] || "Anonymous",
+      },
+    }))
+
+    return {
+      ...movie,
+      comments: transformedComments,
+      likesCount: movie.likes.length,
+      avgRating: Math.round(avgRating * 10) / 10,
+    }
   } catch (error) {
     console.error("Error fetching movie by ID:", error)
     return null
@@ -428,42 +410,47 @@ export async function assignAdminRole(userId: string): Promise<{ success: boolea
 
 export async function updateMovie(
   id: string,
-  data: {
-    title?: string
-    description?: string
-    year?: number
-    genre?: string
-    posterUrl?: string
-    videoUrl?: string
-    downloadUrl?: string
-    downloadEnabled?: boolean
-    isFeatured?: boolean
+  formData: {
+    title: string
+    description: string
+    year: number
+    genre: string
+    posterUrl: string
+    videoUrl: string
     isTrending?: boolean
+    isFeatured?: boolean
+    downloadEnabled?: boolean
+    downloadUrl?: string
     customVastUrl?: string
     useGlobalAd?: boolean
   },
 ) {
   try {
-    const [updated] = await db
+    const [movie] = await db
       .update(movies)
       .set({
-        ...data,
-        updatedAt: new Date(),
+        title: formData.title,
+        description: formData.description,
+        year: formData.year,
+        genre: formData.genre,
+        posterUrl: formData.posterUrl,
+        videoUrl: formData.videoUrl,
+        isTrending: formData.isTrending || false,
+        isFeatured: formData.isFeatured || false,
+        downloadEnabled: formData.downloadEnabled || false,
+        downloadUrl: formData.downloadUrl || "",
+        customVastUrl: formData.customVastUrl || "",
+        useGlobalAd: formData.useGlobalAd ?? true,
       })
       .where(eq(movies.id, id))
       .returning()
 
-    await invalidateMovieCaches()
-
     revalidatePath("/admin/dashboard")
     revalidatePath(`/movie/${id}`)
-    revalidatePath("/home")
-    revalidatePath("/movies")
-
-    return updated
+    return { success: true, movie }
   } catch (error: any) {
     console.error("Error updating movie:", error)
-    throw error
+    return { success: false, error: error.message || "Failed to update movie" }
   }
 }
 
@@ -471,16 +458,11 @@ export async function deleteMovie(id: string) {
   try {
     await db.delete(movies).where(eq(movies.id, id))
 
-    await invalidateMovieCaches()
-
     revalidatePath("/admin/dashboard")
-    revalidatePath("/home")
-    revalidatePath("/movies")
-
     return { success: true }
   } catch (error: any) {
     console.error("Error deleting movie:", error)
-    throw error
+    return { success: false, error: error.message || "Failed to delete movie" }
   }
 }
 
@@ -579,13 +561,6 @@ export async function addComment(movieId: string, content: string, rating?: numb
 
 export async function getMoviesByGenre(genre: string) {
   try {
-    // Try cache first
-    const cacheKey = CACHE_KEYS.GENRE_MOVIES(genre)
-    const cached = await cacheGet<any[]>(cacheKey)
-    if (cached) {
-      return cached
-    }
-
     const result = await db.query.movies.findMany({
       where: ilike(movies.genre, `%${genre}%`),
       orderBy: [desc(movies.createdAt)],
@@ -594,9 +569,6 @@ export async function getMoviesByGenre(genre: string) {
         likes: true, // Need counts for UI often
       },
     })
-
-    // Cache the result
-    await cacheSet(cacheKey, result, CACHE_TTL.GENRE)
 
     return result
   } catch (error) {
@@ -607,21 +579,10 @@ export async function getMoviesByGenre(genre: string) {
 
 export async function getFeaturedMovie() {
   try {
-    // Try cache first
-    const cached = await cacheGet<any>(CACHE_KEYS.FEATURED_MOVIE)
-    if (cached) {
-      return cached
-    }
-
     const movie = await db.query.movies.findFirst({
       where: eq(movies.isFeatured, true),
       orderBy: [desc(movies.createdAt)],
     })
-
-    if (movie) {
-      await cacheSet(CACHE_KEYS.FEATURED_MOVIE, movie, CACHE_TTL.FEATURED)
-    }
-
     return movie || null
   } catch (error) {
     console.error("Error fetching featured movie:", error)
@@ -635,13 +596,6 @@ export async function searchMovies(query: string) {
       return []
     }
 
-    // Try cache first
-    const cacheKey = CACHE_KEYS.SEARCH_RESULTS(query)
-    const cached = await cacheGet<any[]>(cacheKey)
-    if (cached) {
-      return cached
-    }
-
     const result = await db.query.movies.findMany({
       where: or(
         ilike(movies.title, `%${query}%`),
@@ -651,9 +605,6 @@ export async function searchMovies(query: string) {
       limit: 10,
       orderBy: [desc(movies.createdAt)],
     })
-
-    // Cache the result
-    await cacheSet(cacheKey, result, CACHE_TTL.SEARCH)
 
     return result
   } catch (error) {
@@ -726,18 +677,7 @@ export async function deleteUser(userId: string) {
 
 export async function getAdSettings() {
   try {
-    // Try cache first
-    const cached = await cacheGet<any>(CACHE_KEYS.AD_SETTINGS)
-    if (cached) {
-      return cached
-    }
-
     const settings = await db.query.adSettings.findFirst()
-
-    if (settings) {
-      await cacheSet(CACHE_KEYS.AD_SETTINGS, settings, CACHE_TTL.AD_SETTINGS)
-    }
-
     return settings || null
   } catch (error) {
     console.error("Error fetching ad settings:", error)
@@ -745,48 +685,59 @@ export async function getAdSettings() {
   }
 }
 
-export async function updateAdSettings(data: {
+export async function updateAdSettings(settings: {
   horizontalAdCode?: string
   verticalAdCode?: string
-  prerollAdCodes?: string
+  prerollAdCodes?: string // JSON string of ad codes array [{code, name}]
   smartLinkUrl?: string
   adTimeoutSeconds?: number
   skipDelaySeconds?: number
   rotationIntervalSeconds?: number
   showPrerollAds?: boolean
-  showDownloadPageAds?: boolean
   homepageEnabled?: boolean
   movieDetailEnabled?: boolean
-  dashboardEnabled?: boolean
 }) {
   try {
-    const existing = await db.query.adSettings.findFirst()
+    const currentSettings = await db.query.adSettings.findFirst()
 
-    if (existing) {
-      const [updated] = await db
+    if (!currentSettings) {
+      await db.insert(adSettings).values({
+        horizontalAdCode: settings.horizontalAdCode || "",
+        verticalAdCode: settings.verticalAdCode || "",
+        prerollAdCodes: settings.prerollAdCodes || "[]",
+        smartLinkUrl: settings.smartLinkUrl || "",
+        adTimeoutSeconds: settings.adTimeoutSeconds || 20,
+        skipDelaySeconds: settings.skipDelaySeconds || 10,
+        rotationIntervalSeconds: settings.rotationIntervalSeconds || 5,
+        showPrerollAds: settings.showPrerollAds ?? true,
+        homepageEnabled: settings.homepageEnabled ?? true,
+        movieDetailEnabled: settings.movieDetailEnabled ?? true,
+        showDownloadPageAds: true,
+      })
+    } else {
+      await db
         .update(adSettings)
         .set({
-          ...data,
-          updatedAt: new Date(),
+          horizontalAdCode: settings.horizontalAdCode,
+          verticalAdCode: settings.verticalAdCode,
+          prerollAdCodes: settings.prerollAdCodes,
+          smartLinkUrl: settings.smartLinkUrl,
+          adTimeoutSeconds: settings.adTimeoutSeconds,
+          skipDelaySeconds: settings.skipDelaySeconds,
+          rotationIntervalSeconds: settings.rotationIntervalSeconds,
+          showPrerollAds: settings.showPrerollAds,
+          homepageEnabled: settings.homepageEnabled,
+          movieDetailEnabled: settings.movieDetailEnabled,
         })
-        .where(eq(adSettings.id, existing.id))
-        .returning()
-
-      await invalidateAdSettingsCache()
-
-      revalidatePath("/admin/dashboard")
-      return updated
-    } else {
-      const [created] = await db.insert(adSettings).values(data).returning()
-
-      await invalidateAdSettingsCache()
-
-      revalidatePath("/admin/dashboard")
-      return created
+        .where(eq(adSettings.id, currentSettings.id))
     }
-  } catch (error) {
+
+    revalidatePath("/admin/dashboard")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error: any) {
     console.error("Error updating ad settings:", error)
-    throw error
+    return { success: false, error: error.message || "Failed to update ad settings" }
   }
 }
 
@@ -1181,42 +1132,6 @@ export async function getTopRatedMovies() {
   }
 }
 
-export async function incrementMovieView(movieId: string) {
-  try {
-    // Increment in Redis (fast)
-    const count = await redisIncrementView(movieId)
-    return count
-  } catch (error) {
-    console.error("Error incrementing movie view:", error)
-    return 0
-  }
-}
-
-export async function syncViewCountsToDatabase() {
-  try {
-    const viewCounts = await flushViewCountsToDb()
-
-    // Update database in batch
-    for (const { movieId, count } of viewCounts) {
-      await db
-        .update(movies)
-        .set({
-          views: sql`${movies.views} + ${count}`,
-        })
-        .where(eq(movies.id, movieId))
-    }
-
-    return { synced: viewCounts.length }
-  } catch (error) {
-    console.error("Error syncing view counts to database:", error)
-    return { synced: 0 }
-  }
-}
-
-export async function rateLimitedAction(ip: string, action: string, maxRequests = 10, windowSeconds = 60) {
-  return await checkRateLimit(ip, action, maxRequests, windowSeconds)
-}
-
 export async function saveWatchProgress(movieId: string, progress: number) {
   try {
     const { userId } = await auth()
@@ -1437,14 +1352,13 @@ export async function seedDatabase() {
         await db.insert(adSettings).values({
           horizontalAdCode: "",
           verticalAdCode: "",
-          prerollAdCodes: "", // Corrected from "vastUrl" to "prerollAdCodes" to match updateAdSettings
+          vastUrl: "",
           smartLinkUrl: "",
           adTimeoutSeconds: 20,
           showPrerollAds: true,
           homepageEnabled: false,
           movieDetailEnabled: false,
           dashboardEnabled: false,
-          showDownloadPageAds: true,
         })
         log("Created default ad settings")
       } else {
@@ -1476,43 +1390,6 @@ export async function seedDatabase() {
   }
 }
 
-export async function getAllGenres() {
-  try {
-    // Try cache first
-    const cached = await cacheGet<string[]>(CACHE_KEYS.ALL_GENRES)
-    if (cached) {
-      return cached
-    }
-
-    const allMovies = await db.query.movies.findMany({
-      columns: {
-        genre: true,
-      },
-    })
-
-    const genreSet = new Set<string>()
-    allMovies.forEach((movie) => {
-      if (movie.genre) {
-        // Split by common separators and add each genre
-        const genres = movie.genre.split(/[,/]/).map((g) => g.trim())
-        genres.forEach((g) => {
-          if (g) genreSet.add(g)
-        })
-      }
-    })
-
-    const result = Array.from(genreSet).sort()
-
-    // Cache the result
-    await cacheSet(CACHE_KEYS.ALL_GENRES, result, CACHE_TTL.GENRES_LIST)
-
-    return result
-  } catch (error) {
-    console.error("Error fetching genres:", error)
-    return []
-  }
-}
-
 export async function getUsers() {
   try {
     const result = await db.query.users.findMany({
@@ -1534,6 +1411,33 @@ export async function getUsers() {
     }))
   } catch (error) {
     console.error("Error fetching users:", error)
+    return []
+  }
+}
+
+export async function getAllGenres(): Promise<string[]> {
+  try {
+    const result = await db.query.movies.findMany({
+      columns: {
+        genre: true,
+      },
+    })
+
+    // Extract unique genres (some movies may have multiple genres)
+    const genreSet = new Set<string>()
+    result.forEach((movie) => {
+      if (movie.genre) {
+        // Split by common separators and add each genre
+        const genres = movie.genre.split(/[,/]/).map((g) => g.trim())
+        genres.forEach((g) => {
+          if (g) genreSet.add(g)
+        })
+      }
+    })
+
+    return Array.from(genreSet).sort()
+  } catch (error) {
+    console.error("Error fetching genres:", error)
     return []
   }
 }

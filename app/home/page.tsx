@@ -3,15 +3,10 @@ import HeroBanner from "@/components/hero-banner"
 import MovieCarousel from "@/components/movie-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
-import { getTrendingMovies, getPublicMovies, getMoviesByGenre, getAllGenres, getAdSettings } from "@/lib/server-actions"
+import { getTrendingMovies, getPublicMovies, getMoviesByGenre, getAllGenres } from "@/lib/server-actions"
 
 export default async function AuthenticatedHomePage() {
-  const [trending, recent, allGenres, adSettings] = await Promise.all([
-    getTrendingMovies(),
-    getPublicMovies(),
-    getAllGenres(),
-    getAdSettings(),
-  ])
+  const [trending, recent, allGenres] = await Promise.all([getTrendingMovies(), getPublicMovies(), getAllGenres()])
 
   // Fetch movies for each genre in parallel
   const genreMoviesPromises = allGenres.map(async (genre) => ({
@@ -30,7 +25,7 @@ export default async function AuthenticatedHomePage() {
       <HeroBanner movie={trending[0] || recent[0] || null} />
 
       <div className="px-4 md:px-8 py-8 space-y-12">
-        <AdBanner type="horizontal" placement="homepage" className="mb-4" adSettings={adSettings} />
+        <AdBanner type="horizontal" placement="homepage" className="mb-4" />
 
         {/* Trending Section */}
         {trending.length > 0 && (
@@ -39,7 +34,7 @@ export default async function AuthenticatedHomePage() {
           </div>
         )}
 
-        <AdBanner type="horizontal" placement="homepage" adSettings={adSettings} />
+        <AdBanner type="horizontal" placement="homepage" />
 
         {/* Recently Added Section */}
         {recent.length > 0 && (
@@ -58,12 +53,12 @@ export default async function AuthenticatedHomePage() {
               showSeeMore={true}
             />
             {(index + 1) % 2 === 0 && index < genresWithMovies.length - 1 && (
-              <AdBanner type="horizontal" placement="homepage" className="mt-8" adSettings={adSettings} />
+              <AdBanner type="horizontal" placement="homepage" className="mt-8" />
             )}
           </div>
         ))}
 
-        <AdBanner type="horizontal" placement="homepage" className="mt-8" adSettings={adSettings} />
+        <AdBanner type="horizontal" placement="homepage" className="mt-8" />
       </div>
 
       <Footer />
