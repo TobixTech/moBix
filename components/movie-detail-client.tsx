@@ -2,13 +2,14 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react"
 import { toggleLike, addComment, toggleWatchlist } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
+import SocialShare from "./social-share"
 
 interface Comment {
   id: string
@@ -86,6 +87,10 @@ export default function MovieDetailClient({
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
+
+  useEffect(() => {
+    fetch(`/api/movies/${movie.id}/view`, { method: "POST" }).catch(() => {})
+  }, [movie.id])
 
   const handleLike = async () => {
     if (!isSignedIn || !userId) {
@@ -241,6 +246,13 @@ export default function MovieDetailClient({
                 )}
                 <span>{likesCount}</span>
               </button>
+
+              <SocialShare
+                title={movie.title}
+                url={`/movie/${movie.id}`}
+                description={movie.description}
+                posterUrl={movie.posterUrl}
+              />
             </div>
 
             {/* Description */}

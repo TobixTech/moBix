@@ -3,22 +3,34 @@ import { getAdSettings } from "@/lib/server-actions"
 interface AdBannerProps {
   type?: "horizontal" | "vertical"
   className?: string
-  placement: "homepage" | "movieDetail" | "dashboard"
+  placement: "homepage" | "movieDetail" | "dashboard" | "download"
 }
 
 export default async function AdBanner({ type = "horizontal", className = "", placement }: AdBannerProps) {
-  const adSettings = await getAdSettings()
+  let adSettings = null
+
+  try {
+    adSettings = await getAdSettings()
+  } catch (error) {
+    console.error("Error fetching ad settings:", error)
+    return null
+  }
+
+  if (!adSettings) {
+    return null
+  }
 
   const isEnabled =
-    (placement === "homepage" && adSettings?.homepageEnabled) ||
-    (placement === "movieDetail" && adSettings?.movieDetailEnabled) ||
-    (placement === "dashboard" && adSettings?.dashboardEnabled)
+    (placement === "homepage" && adSettings.homepageEnabled) ||
+    (placement === "movieDetail" && adSettings.movieDetailEnabled) ||
+    (placement === "dashboard" && adSettings.dashboardEnabled) ||
+    (placement === "download" && adSettings.showDownloadPageAds)
 
   if (!isEnabled) {
     return null
   }
 
-  const adCode = type === "horizontal" ? adSettings?.horizontalAdCode : adSettings?.verticalAdCode
+  const adCode = type === "horizontal" ? adSettings.horizontalAdCode : adSettings.verticalAdCode
 
   if (!adCode || adCode.trim() === "") {
     return null
@@ -28,7 +40,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
 
   return (
     <div
-      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded overflow-hidden ${className}`}
+      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden ${className}`}
     >
       <iframe
         srcDoc={`
@@ -36,6 +48,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
           <html>
           <head>
             <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
               body {
                 margin: 0;
                 padding: 8px;
@@ -57,6 +70,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
         style={{ border: "none" }}
         scrolling="no"
         title="Advertisement"
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
       />
     </div>
   )
