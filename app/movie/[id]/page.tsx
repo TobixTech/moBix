@@ -129,8 +129,12 @@ export default async function MovieDetail({
           rotationInterval={rotationInterval}
           showPrerollAds={showPrerollAds}
           isInWatchlist={isInWatchlist}
-          adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
-          adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}
+          adBannerVertical={
+            <AdBanner type="vertical" placement="movieDetail" className="mb-6" adSettings={adSettings} />
+          }
+          adBannerHorizontal={
+            <AdBanner type="horizontal" placement="movieDetail" className="mb-12" adSettings={adSettings} />
+          }
         />
       </div>
 

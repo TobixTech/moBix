@@ -157,6 +157,7 @@ export default function AdminDashboard() {
     showPrerollAds: true,
     showHomepageAds: true,
     showMovieDetailAds: true,
+    showDashboardAds: true, // Added showDashboardAds
   })
 
   const [newAdCode, setNewAdCode] = useState({
@@ -265,6 +266,7 @@ export default function AdminDashboard() {
           showPrerollAds: adSettingsData.showPrerollAds ?? true,
           showHomepageAds: adSettingsData.homepageEnabled ?? true,
           showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
+          showDashboardAds: adSettingsData.dashboardEnabled ?? true, // Added showDashboardAds from API response
         })
       }
       setLastRefresh(new Date())
@@ -415,6 +417,7 @@ export default function AdminDashboard() {
       showPrerollAds: adSettings.showPrerollAds,
       homepageEnabled: adSettings.showHomepageAds,
       movieDetailEnabled: adSettings.showMovieDetailAds,
+      dashboardEnabled: adSettings.showDashboardAds, // Added dashboardEnabled
     })
 
     if (result.success) {
@@ -925,7 +928,7 @@ export default function AdminDashboard() {
           )}
 
           {/* Metrics Grid */}
-          {activeTab === "overview" && (
+          {activeTab === "overview" && adSettings.showDashboardAds && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {metrics.map((metric, index) => (
