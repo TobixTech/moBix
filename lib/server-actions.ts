@@ -26,46 +26,58 @@ interface CommentWithUser {
 }
 
 // Upload a new movie
-export async function uploadMovie(formData: {
+export async function uploadMovie(movieData: {
   title: string
-  genre: string
-  year: number // Changed from releaseYear
-  rating?: number
-  duration?: string
   description: string
+  genre: string
+  year: number
+  rating?: string
+  duration?: string
+  director?: string
+  cast?: string
   posterUrl: string
   videoUrl: string
-  isTrending?: boolean
-  isFeatured?: boolean
-  downloadEnabled?: boolean
   downloadUrl?: string
+  downloadEnabled?: boolean
+  isFeatured?: boolean
+  isTrending?: boolean
   customVastUrl?: string
   useGlobalAd?: boolean
 }) {
   try {
-    const [movie] = await db
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    // Validate required fields
+    if (!movieData.title || !movieData.videoUrl) {
+      return { success: false, error: "Title and video URL are required" }
+    }
+
+    const [newMovie] = await db
       .insert(movies)
       .values({
-        title: formData.title,
-        genre: formData.genre,
-        year: formData.year, // Changed from releaseYear
-        description: formData.description,
-        posterUrl: formData.posterUrl,
-        videoUrl: formData.videoUrl,
-        isTrending: formData.isTrending || false,
-        isFeatured: formData.isFeatured || false,
-        downloadEnabled: formData.downloadEnabled || false,
-        downloadUrl: formData.downloadUrl || null,
-        customVastUrl: formData.customVastUrl || null,
-        useGlobalAd: formData.useGlobalAd !== false,
+        title: movieData.title,
+        description: movieData.description || "",
+        genre: movieData.genre || "Unknown",
+        year: movieData.year || new Date().getFullYear(),
+        posterUrl: movieData.posterUrl || "/placeholder.svg?height=400&width=300",
+        videoUrl: movieData.videoUrl,
+        downloadUrl: movieData.downloadUrl || null,
+        downloadEnabled: movieData.downloadEnabled || false,
+        isFeatured: movieData.isFeatured || false,
+        isTrending: movieData.isTrending || false,
+        customVastUrl: movieData.customVastUrl || null,
+        useGlobalAd: movieData.useGlobalAd ?? true,
+        views: 0,
       })
       .returning()
 
     revalidatePath("/")
     revalidatePath("/home")
     revalidatePath("/admin/dashboard")
-
-    return { success: true, movie }
+    return { success: true, movie: newMovie }
   } catch (error: any) {
     console.error("Error uploading movie:", error)
     return { success: false, error: error.message || "Failed to upload movie" }
@@ -495,22 +507,23 @@ export async function toggleLike(movieId: string) {
 
     const user = await ensureUserExists(userId)
 
+    // Check if already liked
     const existingLike = await db.query.likes.findFirst({
       where: and(eq(likes.userId, user.id), eq(likes.movieId, movieId)),
     })
 
     if (existingLike) {
+      // Unlike
       await db.delete(likes).where(eq(likes.id, existingLike.id))
       revalidatePath(`/movie/${movieId}`)
-      revalidatePath("/dashboard")
       return { success: true, liked: false }
     } else {
+      // Like
       await db.insert(likes).values({
         userId: user.id,
         movieId,
       })
       revalidatePath(`/movie/${movieId}`)
-      revalidatePath("/dashboard")
       return { success: true, liked: true }
     }
   } catch (error: any) {
@@ -519,7 +532,7 @@ export async function toggleLike(movieId: string) {
   }
 }
 
-export async function addComment(movieId: string, text: string, rating: number) {
+export async function addComment(movieId: string, content: string, rating?: number) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -528,18 +541,18 @@ export async function addComment(movieId: string, text: string, rating: number) 
 
     const user = await ensureUserExists(userId)
 
-    const [comment] = await db
+    const [newComment] = await db
       .insert(comments)
       .values({
         userId: user.id,
         movieId,
-        text,
-        rating,
+        content,
+        rating: rating || null,
       })
       .returning()
 
     revalidatePath(`/movie/${movieId}`)
-    return { success: true, comment }
+    return { success: true, comment: newComment }
   } catch (error: any) {
     console.error("Error adding comment:", error)
     return { success: false, error: error.message || "Failed to add comment" }
@@ -724,7 +737,7 @@ export async function updateAdSettings(settings: {
 
 export async function getUserProfile() {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -736,10 +749,10 @@ export async function getUserProfile() {
       success: true,
       user: {
         ...user,
-        username: userFromClerk.username,
-        firstName: userFromClerk.firstName,
-        lastName: userFromClerk.lastName,
-        imageUrl: userFromClerk.imageUrl,
+        username: userFromClerk?.username,
+        firstName: userFromClerk?.firstName,
+        lastName: userFromClerk?.lastName,
+        imageUrl: userFromClerk?.imageUrl,
       },
     }
   } catch (error: any) {
@@ -750,7 +763,7 @@ export async function getUserProfile() {
 
 export async function updateUserProfile(data: { username: string; firstName: string; lastName: string }) {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -779,7 +792,7 @@ export async function updateUserProfile(data: { username: string; firstName: str
 
 export async function getUserStats() {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -802,32 +815,36 @@ export async function getUserStats() {
         movie: true,
       },
       orderBy: [desc(likes.createdAt)],
+      limit: 10,
     })
 
-    // Get watchlist movies with full movie data
-    const watchlistData = await db.query.watchlist.findMany({
-      where: eq(watchlist.userId, user.id),
+    // Get user comments with movie data
+    const userComments = await db.query.comments.findMany({
+      where: eq(comments.userId, user.id),
       with: {
         movie: true,
       },
-      orderBy: [desc(watchlist.createdAt)],
+      orderBy: [desc(comments.createdAt)],
+      limit: 10,
     })
 
     return {
       success: true,
       stats: {
-        email: user.email,
-        memberSince: user.createdAt,
-        totalLikes: likesCount.count,
-        totalComments: commentsCount.count,
-        totalWatchlist: watchlistCount.count,
-        likedMovies: likedMoviesData.map((item) => item.movie).filter(Boolean),
-        watchlistMovies: watchlistData.map((item) => item.movie).filter(Boolean),
+        likes: likesCount?.count || 0,
+        comments: commentsCount?.count || 0,
+        watchlist: watchlistCount?.count || 0,
       },
+      likedMovies: likedMoviesData.map((l) => l.movie),
+      recentComments: userComments.map((c) => ({
+        ...c,
+        movieTitle: c.movie?.title,
+        moviePoster: c.movie?.posterUrl,
+      })),
     }
   } catch (error: any) {
     console.error("Error fetching user stats:", error)
-    return { success: false, error: error.message || "Failed to fetch user stats" }
+    return { success: false, error: error.message || "Failed to fetch stats" }
   }
 }
 
@@ -883,7 +900,7 @@ export async function submitFeedback(data: {
 
 export async function getWatchlist() {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -913,7 +930,7 @@ export async function getWatchlist() {
 
 export async function toggleWatchlist(movieId: string) {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Please sign in to manage watchlist" }
     }
@@ -948,7 +965,7 @@ export async function toggleWatchlist(movieId: string) {
 
 export async function getWatchlistStatus(movieId: string) {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return false
     }
@@ -1002,7 +1019,7 @@ export async function deleteFeedback(id: string) {
 
 export async function getRecommendedMovies() {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
 
     // If no user, return popular movies
     if (!userId) {
@@ -1096,7 +1113,7 @@ export async function getTopRatedMovies() {
 
 export async function saveWatchProgress(movieId: string, progress: number) {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return { success: false, error: "Not authenticated" }
     }
@@ -1120,7 +1137,7 @@ export async function saveWatchProgress(movieId: string, progress: number) {
 
 export async function getContinueWatching() {
   try {
-    const { userId } = await currentUser()
+    const { userId } = await auth()
     if (!userId) {
       return []
     }
@@ -1138,31 +1155,22 @@ export async function getContinueWatching() {
       const movieId = key.split(":")[2]
       const progress = await redis.get(key)
 
-      if (progress && Number.parseInt(progress) > 5 && Number.parseInt(progress) < 95) {
-        // Only show if watched between 5% and 95%
+      if (progress && Number(progress) > 0 && Number(progress) < 95) {
         const movie = await db.query.movies.findFirst({
           where: eq(movies.id, movieId),
-          columns: {
-            id: true,
-            title: true,
-            posterUrl: true,
-            year: true,
-            genre: true,
-          },
         })
-
         if (movie) {
           continueWatching.push({
             ...movie,
-            progress: Number.parseInt(progress),
+            progress: Number(progress),
           })
         }
       }
     }
 
-    return continueWatching
+    return continueWatching.slice(0, 10)
   } catch (error) {
-    console.error("Error getting continue watching:", error)
+    console.error("Error fetching continue watching:", error)
     return []
   }
 }
