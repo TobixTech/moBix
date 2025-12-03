@@ -25,7 +25,7 @@ interface CommentWithUser {
   }
 }
 
-export function generateSlug(title: string): string {
+export async function generateSlug(title: string): Promise<string> {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
@@ -64,7 +64,7 @@ export async function uploadMovie(data: {
       return { success: false, error: "Title and video URL are required" }
     }
 
-    const slug = generateSlug(data.title)
+    const slug = await generateSlug(data.title)
 
     const [newMovie] = await db
       .insert(movies)
@@ -448,7 +448,7 @@ export async function updateMovie(
 
     // If title is being updated, regenerate slug
     if (data.title) {
-      updateData.slug = generateSlug(data.title)
+      updateData.slug = await generateSlug(data.title)
     }
 
     await db.update(movies).set(updateData).where(eq(movies.id, id))
@@ -1244,7 +1244,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: true,
         views: 1523,
-        slug: generateSlug("Inception"), // Add slug
+        slug: await generateSlug("Inception"), // Add slug
       },
       {
         id: "22222222-2222-4222-8222-222222222222",
@@ -1258,7 +1258,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: false,
         views: 2341,
-        slug: generateSlug("The Dark Knight"), // Add slug
+        slug: await generateSlug("The Dark Knight"), // Add slug
       },
       {
         id: "33333333-3333-4333-8333-333333333333",
@@ -1272,7 +1272,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: false,
         views: 1876,
-        slug: generateSlug("Interstellar"), // Add slug
+        slug: await generateSlug("Interstellar"), // Add slug
       },
       {
         id: "44444444-4444-4444-8444-444444444444",
@@ -1286,7 +1286,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 3124,
-        slug: generateSlug("The Shawshank Redemption"), // Add slug
+        slug: await generateSlug("The Shawshank Redemption"), // Add slug
       },
       {
         id: "55555555-5555-4555-8555-555555555555",
@@ -1300,7 +1300,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 2654,
-        slug: generateSlug("Pulp Fiction"), // Add slug
+        slug: await generateSlug("Pulp Fiction"), // Add slug
       },
       {
         id: "66666666-6666-4666-8666-666666666666",
@@ -1314,7 +1314,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: false,
         views: 2987,
-        slug: generateSlug("The Matrix"), // Add slug
+        slug: await generateSlug("The Matrix"), // Add slug
       },
       {
         id: "77777777-7777-4777-8777-777777777777",
@@ -1328,7 +1328,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 1789,
-        slug: generateSlug("Mad Max: Fury Road"), // Add slug
+        slug: await generateSlug("Mad Max: Fury Road"), // Add slug
       },
       {
         id: "88888888-8888-4888-8888-888888888888",
@@ -1342,7 +1342,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 1234,
-        slug: generateSlug("The Grand Budapest Hotel"), // Add slug
+        slug: await generateSlug("The Grand Budapest Hotel"), // Add slug
       },
     ]
 
