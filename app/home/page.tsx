@@ -5,6 +5,9 @@ import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
 import { getTrendingMovies, getPublicMovies, getMoviesByGenre, getAllGenres } from "@/lib/server-actions"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function AuthenticatedHomePage() {
   const [trending, recent, allGenres] = await Promise.all([getTrendingMovies(), getPublicMovies(), getAllGenres()])
 

@@ -1,12 +1,13 @@
 "use client"
 
-import { Play, Info } from 'lucide-react'
+import { Play, Info } from "lucide-react"
 import { motion } from "framer-motion"
 import { useState } from "react"
 import Link from "next/link"
 
 interface Movie {
   id: string
+  slug?: string
   title: string
   description: string
   posterUrl: string
@@ -25,6 +26,8 @@ export default function HeroBanner({ movie }: HeroBannerProps) {
     description: "Discover thousands of movies and shows. Stream your favorites anytime, anywhere.",
     posterUrl: "/cinematic-hero-banner.jpg",
   }
+
+  const movieUrl = movie ? `/movie/${movie.slug || movie.id}` : ""
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -101,7 +104,7 @@ export default function HeroBanner({ movie }: HeroBannerProps) {
 
           <motion.div variants={itemVariants} className="flex gap-4">
             {movie && (
-              <Link href={`/movie/${movie.id}`}>
+              <Link href={movieUrl}>
                 <motion.button
                   className="flex items-center gap-2 px-8 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
                   whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(0, 255, 255, 0.6)" }}
@@ -113,7 +116,7 @@ export default function HeroBanner({ movie }: HeroBannerProps) {
               </Link>
             )}
             {movie && (
-              <Link href={`/movie/${movie.id}`}>
+              <Link href={movieUrl}>
                 <motion.button
                   className="flex items-center gap-2 px-8 py-3 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition"
                   whileHover={{ scale: 1.05, borderColor: "#00FFFF" }}

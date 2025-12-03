@@ -8,6 +8,7 @@ import { motion } from "framer-motion"
 interface MovieCardProps {
   movie: {
     id: string
+    slug?: string
     title: string
     posterUrl?: string
     genre?: string
@@ -20,8 +21,10 @@ export default function MovieCard({ movie }: MovieCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  const movieUrl = `/movie/${movie.slug || movie.id}`
+
   return (
-    <Link href={`/movie/${movie.id}`} prefetch={false}>
+    <Link href={movieUrl} prefetch={false}>
       <motion.div
         className="flex-shrink-0 w-48 h-72 rounded overflow-hidden cursor-pointer group relative"
         onMouseEnter={() => setIsHovered(true)}

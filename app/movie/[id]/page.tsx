@@ -9,8 +9,6 @@ import { MovieStructuredData, VideoStructuredData, BreadcrumbStructuredData } fr
 
 export const dynamic = "force-dynamic"
 
-// ... existing generateMetadata code ...
-
 export async function generateMetadata({
   params,
 }: {
@@ -27,6 +25,7 @@ export async function generateMetadata({
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const moviePath = movie.slug || movie.id
 
   return {
     title: `Watch ${movie.title} (${movie.year}) Online Free - moBix`,
@@ -43,7 +42,7 @@ export async function generateMetadata({
       "HD movies",
     ],
     alternates: {
-      canonical: `/movie/${movie.id}`,
+      canonical: `/movie/${moviePath}`,
     },
     openGraph: {
       title: `${movie.title} (${movie.year}) - Watch Free on moBix`,
@@ -58,7 +57,7 @@ export async function generateMetadata({
       ],
       type: "video.movie",
       siteName: "moBix",
-      url: `/movie/${movie.id}`,
+      url: `/movie/${moviePath}`,
     },
     twitter: {
       card: "summary_large_image",
@@ -75,12 +74,12 @@ export default async function MovieDetail({
   params: Promise<{ id: string }>
 }) {
   const resolvedParams = await params
-  const movieId = resolvedParams.id
+  const idOrSlug = resolvedParams.id
 
   const [movie, adSettings, isInWatchlist] = await Promise.all([
-    getMovieById(movieId),
+    getMovieById(idOrSlug),
     getAdSettings(),
-    getWatchlistStatus(movieId),
+    getWatchlistStatus(idOrSlug),
   ])
 
   if (!movie) {
@@ -104,10 +103,11 @@ export default async function MovieDetail({
   const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const moviePath = movie.slug || movie.id
   const breadcrumbs = [
     { name: "Home", url: baseUrl },
     { name: "Movies", url: `${baseUrl}/browse` },
-    { name: movie.title, url: `${baseUrl}/movie/${movie.id}` },
+    { name: movie.title, url: `${baseUrl}/movie/${moviePath}` },
   ]
 
   return (

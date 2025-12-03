@@ -97,7 +97,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
         {/* Logo */}
         <Link href={showAuthButtons ? "/" : "/home"} className="flex-shrink-0">
           <motion.div
-            className="text-lg font-bold bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] bg-clip-text text-transparent heartbeat"
+            className="text-lg font-bold heartbeat"
+            style={{ color: "#00FFFF" }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -123,8 +124,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                     : item === "Watchlist"
                       ? "/watchlist"
                       : item === "Movies"
-                        ? "/home" // Directing Movies to home for now as it lists movies
-                        : "/"
+                        ? "/home"
+                        : "/dashboard"
                 }
                 className="text-white hover:text-[#00FFFF] transition relative group text-xs"
               >
@@ -207,7 +208,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                             {searchResults.map((movie) => (
                               <Link
                                 key={movie.id}
-                                href={`/movie/${movie.id}`}
+                                href={`/movie/${movie.slug || movie.id}`}
                                 onClick={handleResultClick}
                                 className="flex items-center gap-3 px-4 py-3 hover:bg-[#2A2B33] transition-colors"
                               >
@@ -246,7 +247,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <Search className="w-4 h-4 text-[#00FFFF]" />
+                <Search className="w-4 h-4" style={{ color: "#00FFFF" }} />
               </motion.button>
             )}
           </AnimatePresence>
@@ -256,7 +257,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
         {showAuthButtons && (
           <motion.button
             onClick={handleRequestMovie}
-            className="p-2 hover:bg-[#1A1B23] rounded transition"
+            className="p-2 hover:bg-[#1A1B23] rounded transition text-white text-sm"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -274,7 +275,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             <>
               <motion.button
                 onClick={handleAuthClick}
-                className="px-3 py-1.5 text-[#00FFFF] hover:text-[#00CCCC] font-semibold transition text-sm"
+                className="px-3 py-1.5 font-semibold transition text-sm"
+                style={{ color: "#00FFFF" }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -282,7 +284,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
               </motion.button>
               <motion.button
                 onClick={handleAuthClick}
-                className="px-3 py-1.5 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition text-sm"
+                className="px-3 py-1.5 font-bold rounded hover:shadow-lg transition text-sm"
+                style={{ backgroundColor: "#00FFFF", color: "#0B0C10" }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -293,7 +296,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             <>
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                 <Link href="/dashboard" className="p-2 hover:bg-[#1A1B23] rounded transition">
-                  <User className="w-4 h-4 text-[#00FFFF]" />
+                  <User className="w-4 h-4" style={{ color: "#00FFFF" }} />
                 </Link>
               </motion.div>
               <motion.button

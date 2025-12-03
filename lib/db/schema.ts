@@ -28,6 +28,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 // Movies
 export const movies = pgTable("Movie", {
   id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  slug: text("slug").unique(),
   title: text("title").unique().notNull(),
   description: text("description").notNull(),
   year: integer("year").notNull(),

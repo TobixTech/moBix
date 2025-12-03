@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { Redis } from "@upstash/redis"
 
 const redis = new Redis({
@@ -25,8 +25,17 @@ interface CommentWithUser {
   }
 }
 
+export function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/-+/g, "-") // Replace multiple hyphens with single
+    .replace(/^-|-$/g, "") // Remove leading/trailing hyphens
+}
+
 // Upload a new movie
-export async function uploadMovie(movieData: {
+export async function uploadMovie(data: {
   title: string
   description: string
   genre: string
@@ -51,31 +60,28 @@ export async function uploadMovie(movieData: {
     }
 
     // Validate required fields
-    if (!movieData.title || !movieData.videoUrl) {
+    if (!data.title || !data.videoUrl) {
       return { success: false, error: "Title and video URL are required" }
     }
+
+    const slug = generateSlug(data.title)
 
     const [newMovie] = await db
       .insert(movies)
       .values({
-        title: movieData.title,
-        description: movieData.description || "",
-        genre: movieData.genre || "Unknown",
-        year: movieData.year || new Date().getFullYear(),
-        posterUrl: movieData.posterUrl || "/placeholder.svg?height=400&width=300",
-        videoUrl: movieData.videoUrl,
-        downloadUrl: movieData.downloadUrl || null,
-        downloadEnabled: movieData.downloadEnabled || false,
-        isFeatured: movieData.isFeatured || false,
-        isTrending: movieData.isTrending || false,
-        customVastUrl: movieData.customVastUrl || null,
-        useGlobalAd: movieData.useGlobalAd ?? true,
+        ...data,
+        slug,
+        downloadEnabled: data.downloadEnabled ?? false,
+        isFeatured: data.isFeatured ?? false,
+        isTrending: data.isTrending ?? false,
+        useGlobalAd: data.useGlobalAd ?? true,
         views: 0,
       })
       .returning()
 
     revalidatePath("/")
     revalidatePath("/home")
+    revalidatePath("/browse")
     revalidatePath("/admin/dashboard")
     return { success: true, movie: newMovie }
   } catch (error: any) {
@@ -136,14 +142,11 @@ export async function getTrendingMovies() {
   }
 }
 
-export async function getMovieById(id: string) {
+export async function getMovieById(idOrSlug: string) {
   try {
-    if (!id || id.trim() === "") {
-      return null
-    }
-
-    const movie = await db.query.movies.findFirst({
-      where: eq(movies.id, id),
+    // Try to find by slug first, then by id
+    let movie = await db.query.movies.findFirst({
+      where: eq(movies.slug, idOrSlug),
       with: {
         comments: {
           with: {
@@ -154,6 +157,21 @@ export async function getMovieById(id: string) {
         likes: true, // We need the count
       },
     })
+
+    if (!movie) {
+      movie = await db.query.movies.findFirst({
+        where: eq(movies.id, idOrSlug),
+        with: {
+          comments: {
+            with: {
+              user: true,
+            },
+            orderBy: [desc(comments.createdAt)],
+          },
+          likes: true, // We need the count
+        },
+      })
+    }
 
     if (!movie) {
       return null
@@ -169,7 +187,7 @@ export async function getMovieById(id: string) {
     await db
       .update(movies)
       .set({ views: sql`${movies.views} + 1` })
-      .where(eq(movies.id, id))
+      .where(eq(movies.id, movie.id)) // Use movie.id for consistency
 
     const transformedComments = movie.comments.map((comment: any) => ({
       ...comment,
@@ -190,7 +208,7 @@ export async function getMovieById(id: string) {
       avgRating: Math.round(avgRating * 10) / 10,
     }
   } catch (error) {
-    console.error("Error fetching movie by ID:", error)
+    console.error("Error fetching movie by ID/slug:", error)
     return null
   }
 }
@@ -410,44 +428,38 @@ export async function assignAdminRole(userId: string): Promise<{ success: boolea
 
 export async function updateMovie(
   id: string,
-  formData: {
-    title: string
-    description: string
-    year: number
-    genre: string
-    posterUrl: string
-    videoUrl: string
-    isTrending?: boolean
-    isFeatured?: boolean
+  data: {
+    title?: string
+    description?: string
+    year?: number
+    genre?: string
+    posterUrl?: string
+    videoUrl?: string
     downloadEnabled?: boolean
     downloadUrl?: string
+    isFeatured?: boolean
+    isTrending?: boolean
     customVastUrl?: string
     useGlobalAd?: boolean
   },
 ) {
   try {
-    const [movie] = await db
-      .update(movies)
-      .set({
-        title: formData.title,
-        description: formData.description,
-        year: formData.year,
-        genre: formData.genre,
-        posterUrl: formData.posterUrl,
-        videoUrl: formData.videoUrl,
-        isTrending: formData.isTrending || false,
-        isFeatured: formData.isFeatured || false,
-        downloadEnabled: formData.downloadEnabled || false,
-        downloadUrl: formData.downloadUrl || "",
-        customVastUrl: formData.customVastUrl || "",
-        useGlobalAd: formData.useGlobalAd ?? true,
-      })
-      .where(eq(movies.id, id))
-      .returning()
+    const updateData: any = { ...data }
 
+    // If title is being updated, regenerate slug
+    if (data.title) {
+      updateData.slug = generateSlug(data.title)
+    }
+
+    await db.update(movies).set(updateData).where(eq(movies.id, id))
+
+    revalidatePath("/")
+    revalidatePath("/home")
+    revalidatePath("/browse")
     revalidatePath("/admin/dashboard")
-    revalidatePath(`/movie/${id}`)
-    return { success: true, movie }
+    revalidatePath(`/movie/${id}`) // Revalidate the specific movie page
+
+    return { success: true }
   } catch (error: any) {
     console.error("Error updating movie:", error)
     return { success: false, error: error.message || "Failed to update movie" }
@@ -458,7 +470,12 @@ export async function deleteMovie(id: string) {
   try {
     await db.delete(movies).where(eq(movies.id, id))
 
+    revalidatePath("/")
+    revalidatePath("/home")
+    revalidatePath("/browse")
+    revalidatePath("/movies")
     revalidatePath("/admin/dashboard")
+
     return { success: true }
   } catch (error: any) {
     console.error("Error deleting movie:", error)
@@ -516,6 +533,7 @@ export async function toggleLike(movieId: string) {
       // Unlike
       await db.delete(likes).where(eq(likes.id, existingLike.id))
       revalidatePath(`/movie/${movieId}`)
+      revalidateTag(`movie:${movieId}`) // Add tag revalidation
       return { success: true, liked: false }
     } else {
       // Like
@@ -524,6 +542,7 @@ export async function toggleLike(movieId: string) {
         movieId,
       })
       revalidatePath(`/movie/${movieId}`)
+      revalidateTag(`movie:${movieId}`) // Add tag revalidation
       return { success: true, liked: true }
     }
   } catch (error: any) {
@@ -552,6 +571,7 @@ export async function addComment(movieId: string, content: string, rating?: numb
       .returning()
 
     revalidatePath(`/movie/${movieId}`)
+    revalidateTag(`movie:${movieId}`) // Add tag revalidation
     return { success: true, comment: newComment }
   } catch (error: any) {
     console.error("Error adding comment:", error)
@@ -712,7 +732,7 @@ export async function updateAdSettings(settings: {
         showPrerollAds: settings.showPrerollAds ?? true,
         homepageEnabled: settings.homepageEnabled ?? true,
         movieDetailEnabled: settings.movieDetailEnabled ?? true,
-        showDownloadPageAds: true,
+        showDownloadPageAds: true, // Keep this or update if needed
       })
     } else {
       await db
@@ -878,6 +898,8 @@ export async function grantAdminAccessWithKey(accessKey: string) {
     }
 
     const user = await currentUser()
+    if (!user) return { success: false, error: "Not authenticated" }
+
     const userEmail = user.emailAddresses?.[0]?.emailAddress || ""
 
     await db.insert(users).values({
@@ -890,6 +912,7 @@ export async function grantAdminAccessWithKey(accessKey: string) {
     })
 
     revalidatePath("/admin")
+    revalidateTag("user:admin") // Add tag revalidation
 
     return { success: true }
   } catch (error: any) {
@@ -967,6 +990,7 @@ export async function toggleWatchlist(movieId: string) {
       revalidatePath(`/movie/${movieId}`)
       revalidatePath("/dashboard")
       revalidatePath("/watchlist")
+      revalidateTag(`watchlist:${user.id}`) // Add tag revalidation
       return { success: true, added: false }
     } else {
       await db.insert(watchlist).values({
@@ -976,6 +1000,7 @@ export async function toggleWatchlist(movieId: string) {
       revalidatePath(`/movie/${movieId}`)
       revalidatePath("/dashboard")
       revalidatePath("/watchlist")
+      revalidateTag(`watchlist:${user.id}`) // Add tag revalidation
       return { success: true, added: true }
     }
   } catch (error: any) {
@@ -1219,6 +1244,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: true,
         views: 1523,
+        slug: generateSlug("Inception"), // Add slug
       },
       {
         id: "22222222-2222-4222-8222-222222222222",
@@ -1232,6 +1258,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: false,
         views: 2341,
+        slug: generateSlug("The Dark Knight"), // Add slug
       },
       {
         id: "33333333-3333-4333-8333-333333333333",
@@ -1245,6 +1272,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: false,
         views: 1876,
+        slug: generateSlug("Interstellar"), // Add slug
       },
       {
         id: "44444444-4444-4444-8444-444444444444",
@@ -1258,6 +1286,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 3124,
+        slug: generateSlug("The Shawshank Redemption"), // Add slug
       },
       {
         id: "55555555-5555-4555-8555-555555555555",
@@ -1271,6 +1300,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 2654,
+        slug: generateSlug("Pulp Fiction"), // Add slug
       },
       {
         id: "66666666-6666-4666-8666-666666666666",
@@ -1284,6 +1314,7 @@ export async function seedDatabase() {
         isTrending: true,
         isFeatured: false,
         views: 2987,
+        slug: generateSlug("The Matrix"), // Add slug
       },
       {
         id: "77777777-7777-4777-8777-777777777777",
@@ -1297,6 +1328,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 1789,
+        slug: generateSlug("Mad Max: Fury Road"), // Add slug
       },
       {
         id: "88888888-8888-4888-8888-888888888888",
@@ -1310,6 +1342,7 @@ export async function seedDatabase() {
         isTrending: false,
         isFeatured: false,
         views: 1234,
+        slug: generateSlug("The Grand Budapest Hotel"), // Add slug
       },
     ]
 
@@ -1319,14 +1352,17 @@ export async function seedDatabase() {
     log(`Found ${sampleMovies.length} movies to process`)
 
     for (const movieData of sampleMovies) {
-      // Check if movie already exists
+      // Check if movie already exists by slug or title
       try {
-        const existing = await db.query.movies.findFirst({
+        const existingBySlug = await db.query.movies.findFirst({
+          where: eq(movies.slug, movieData.slug!),
+        })
+        const existingByTitle = await db.query.movies.findFirst({
           where: eq(movies.title, movieData.title),
         })
 
-        if (existing) {
-          log(`Skipping: ${movieData.title} (Already exists)`)
+        if (existingBySlug || existingByTitle) {
+          log(`Skipping: ${movieData.title} (Already exists by slug or title)`)
           skippedCount++
           continue
         }
@@ -1352,13 +1388,16 @@ export async function seedDatabase() {
         await db.insert(adSettings).values({
           horizontalAdCode: "",
           verticalAdCode: "",
-          vastUrl: "",
+          prerollAdCodes: "[]", // Default to empty array string
           smartLinkUrl: "",
           adTimeoutSeconds: 20,
+          skipDelaySeconds: 10,
+          rotationIntervalSeconds: 5,
           showPrerollAds: true,
           homepageEnabled: false,
           movieDetailEnabled: false,
-          dashboardEnabled: false,
+          dashboardEnabled: false, // Assuming this is a new default
+          showDownloadPageAds: true, // Keep this or update if needed
         })
         log("Created default ad settings")
       } else {
@@ -1371,6 +1410,7 @@ export async function seedDatabase() {
     log(`Seeding complete! Added: ${insertedCount}, Skipped: ${skippedCount}`)
     revalidatePath("/admin/dashboard")
     revalidatePath("/")
+    revalidatePath("/browse") // Revalidate browse page too
 
     return {
       success: true,

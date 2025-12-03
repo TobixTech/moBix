@@ -37,6 +37,8 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* iOS-compatible cyan color */
+  --cyan-color: #00ffff;
 }
 
 .dark {
@@ -72,6 +74,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+  --cyan-color: #00ffff;
 }
 
 @theme inline {
@@ -113,6 +116,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Add cyan as a theme color */
+  --color-cyan: var(--cyan-color);
 }
 
 @layer base {
@@ -121,6 +126,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* iOS color rendering fix */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -144,40 +152,53 @@
 /* Cyan glow effect for primary elements */
 .glow-cyan {
   box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-  /* Added iOS webkit prefix for cyan color support */
   -webkit-box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
 }
 
 .glow-cyan-hover:hover {
   box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
-  /* Added iOS webkit prefix for cyan color hover support */
   -webkit-box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
 }
 
-/* Added iOS-specific cyan color fixes for buttons and primary elements */
-button.bg-gradient-to-r,
-.bg-gradient-to-r {
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+/* iOS Dark Mode color fixes - using explicit hex values instead of CSS variables */
+@supports (-webkit-touch-callout: none) {
+  /* iOS-specific styles */
+  .text-primary,
+  .text-\[\#00FFFF\],
+  [class*="text-cyan"] {
+    color: #00ffff !important;
+    -webkit-text-fill-color: #00ffff !important;
+  }
 
-button:not(.bg-gradient-to-r) {
-  -webkit-appearance: none;
-}
+  .bg-primary,
+  .bg-\[\#00FFFF\],
+  [class*="bg-cyan"] {
+    background-color: #00ffff !important;
+  }
 
-/* Cyan color fix for iOS */
-.text-cyan-400,
-.text-cyan-500,
-.from-cyan-500,
-.to-cyan-400,
-[class*="cyan"] {
-  color: #00ffff !important;
-  -webkit-text-fill-color: #00ffff;
-}
+  .border-primary,
+  .border-\[\#00FFFF\],
+  [class*="border-cyan"] {
+    border-color: #00ffff !important;
+  }
 
-.bg-cyan-500,
-.bg-cyan-400 {
-  background-color: #00ffff !important;
+  /* Fix for buttons in iOS dark mode */
+  button {
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Ensure text colors render properly on iOS */
+  .text-white {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+
+  .text-\[\#888888\],
+  .text-muted-foreground {
+    color: #888888 !important;
+    -webkit-text-fill-color: #888888 !important;
+  }
 }
 
 /* Added scrollbar hiding for carousels */
@@ -190,4 +211,13 @@ button:not(.bg-gradient-to-r) {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* iOS safe area padding */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }
