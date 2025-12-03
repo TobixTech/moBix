@@ -172,7 +172,11 @@ export const adSettings = pgTable("AdSettings", {
     .$defaultFn(() => crypto.randomUUID()),
   horizontalAdCode: text("horizontalAdCode"),
   verticalAdCode: text("verticalAdCode"),
-  prerollAdCodes: text("prerollAdCodes").default("[]"), // JSON array of {code, name}
+  prerollAdCodes: text("prerollAdCodes").default("[]"),
+  midrollAdCodes: text("midrollAdCodes").default("[]"),
+  midrollEnabled: boolean("midrollEnabled").default(false).notNull(),
+  midrollIntervalMinutes: integer("midrollIntervalMinutes").default(20).notNull(),
+  prerollEnabled: boolean("prerollEnabled").default(true).notNull(),
   smartLinkUrl: text("smartLinkUrl"),
   adTimeoutSeconds: integer("adTimeoutSeconds").default(20).notNull(),
   skipDelaySeconds: integer("skipDelaySeconds").default(10).notNull(),

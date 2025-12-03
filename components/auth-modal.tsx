@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff, Loader, ArrowLeft } from "lucide-react"
 import Image from "next/image"
 import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
@@ -17,19 +17,30 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true)
-  const [step, setStep] = useState<"form" | "verification">("form")
+  const [step, setStep] = useState<"form" | "verification" | "forgot-password">("form")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   const { signUp, setActive: setActiveSignUp } = useSignUp()
   const { signIn, setActive: setActiveSignIn } = useSignIn()
   const { isLoaded } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("mobix_remembered_email")
+    const savedRememberMe = localStorage.getItem("mobix_remember_me") === "true"
+    if (savedEmail && savedRememberMe) {
+      setEmail(savedEmail)
+      setRememberMe(true)
+    }
+  }, [])
+  // end change
 
   if (!isOpen || !isLoaded) return null
 
@@ -58,7 +69,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
 
-      // Move to verification step
       setStep("verification")
       setIsLoading(false)
     } catch (err: any) {
@@ -85,6 +95,15 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       })
 
       if (result.status === "complete") {
+        if (rememberMe) {
+          localStorage.setItem("mobix_remembered_email", email)
+          localStorage.setItem("mobix_remember_me", "true")
+        } else {
+          localStorage.removeItem("mobix_remembered_email")
+          localStorage.removeItem("mobix_remember_me")
+        }
+        // end change
+
         await setActiveSignIn({ session: result.createdSessionId })
         router.push("/home")
         onClose()
@@ -97,6 +116,37 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setIsLoading(false)
     }
   }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setSuccessMessage("")
+    setIsLoading(true)
+
+    try {
+      if (!signIn) {
+        setError("Password reset is not available")
+        setIsLoading(false)
+        return
+      }
+
+      await signIn.create({
+        strategy: "reset_password_email_code",
+        identifier: email,
+      })
+
+      setSuccessMessage("Password reset email sent! Check your inbox.")
+      setTimeout(() => {
+        setStep("form")
+        setSuccessMessage("")
+      }, 3000)
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Failed to send reset email")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  // end change
 
   const handleGoogleAuth = async () => {
     setError("")
@@ -149,33 +199,86 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { duration: 0.3 },
-    },
+    visible: { opacity: 1, transition: { duration: 0.3 } },
   }
 
   const cardVariants = {
     hidden: { scale: 0.8, opacity: 0, y: 20 },
-    visible: {
-      scale: 1,
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5, ease: "easeOut" },
-    },
+    visible: { scale: 1, opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
     exit: { scale: 0.8, opacity: 0, y: 20 },
   }
 
-  const glitchVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        duration: 0.4,
-        ease: "easeInOut",
-      },
-    },
+  if (step === "forgot-password") {
+    return (
+      <motion.div
+        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        onClick={onClose}
+      >
+        <motion.div
+          className="relative w-full max-w-md"
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
+            <div className="relative z-10">
+              <button
+                onClick={() => setStep("form")}
+                className="flex items-center gap-2 text-[#888888] hover:text-white mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Login
+              </button>
+
+              <h2 className="text-2xl font-bold text-white mb-2">Reset Password</h2>
+              <p className="text-[#888888] mb-6">Enter your email to receive a password reset link.</p>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm">
+                  {successMessage}
+                </div>
+              )}
+
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
+                  <input
+                    type="email"
+                    placeholder="Email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading && <Loader className="w-4 h-4 animate-spin" />}
+                  {isLoading ? "Sending..." : "Send Reset Link"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    )
   }
+  // end change
 
   if (step === "verification" && !isLogin) {
     return (
@@ -187,15 +290,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         onClick={onClose}
       >
         <motion.div
-          className="absolute inset-0 pointer-events-none"
-          variants={glitchVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-[#00FFFF]/10 via-transparent to-[#00FFFF]/5" />
-        </motion.div>
-
-        <motion.div
           className="relative w-full max-w-md"
           variants={cardVariants}
           initial="hidden"
@@ -204,8 +298,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-[#00FFFF]/20 via-transparent to-[#00FFFF]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
             <div className="relative z-10">
               <EmailVerification
                 email={email}
@@ -232,15 +324,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       onClick={onClose}
     >
       <motion.div
-        className="absolute inset-0 pointer-events-none"
-        variants={glitchVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-[#00FFFF]/10 via-transparent to-[#00FFFF]/5" />
-      </motion.div>
-
-      <motion.div
         className="relative w-full max-w-md"
         variants={cardVariants}
         initial="hidden"
@@ -249,8 +332,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-[#00FFFF]/20 via-transparent to-[#00FFFF]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
           <div className="relative z-10">
             <motion.div
               className="text-center mb-8"
@@ -267,11 +348,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     "0 0 20px rgba(0, 255, 255, 0.3)",
                   ],
                 }}
-                transition={{
-                  duration: 2,
-                  repeat: Number.POSITIVE_INFINITY,
-                  ease: "easeInOut",
-                }}
+                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
               >
                 moBix
               </motion.h1>
@@ -322,7 +399,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               transition={{ delay: 0.4 }}
               onSubmit={isLogin ? handleSignIn : handleSignUp}
             >
-              {/* Email Input */}
               <motion.div
                 className="relative"
                 initial={{ x: -20, opacity: 0 }}
@@ -340,7 +416,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 />
               </motion.div>
 
-              {/* Password Input */}
               <motion.div
                 className="relative"
                 initial={{ x: -20, opacity: 0 }}
@@ -365,7 +440,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </button>
               </motion.div>
 
-              {/* Confirm Password for Sign Up */}
               {!isLogin && (
                 <motion.div
                   className="relative"
@@ -385,7 +459,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </motion.div>
               )}
 
-              {/* Options */}
               <motion.div
                 className="flex items-center justify-between text-sm"
                 initial={{ opacity: 0 }}
@@ -402,7 +475,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   <span className="text-[#888888]">Remember me</span>
                 </label>
                 {isLogin && (
-                  <button type="button" className="text-[#00FFFF] hover:text-[#00CCCC] transition">
+                  <button
+                    type="button"
+                    onClick={() => setStep("forgot-password")}
+                    className="text-[#00FFFF] hover:text-[#00CCCC] transition"
+                  >
                     Forgot password?
                   </button>
                 )}

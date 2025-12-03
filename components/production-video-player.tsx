@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
+import MidrollAdPlayer from "./midroll-ad-player"
 
 interface PrerollAdCode {
   code: string
@@ -14,8 +15,12 @@ interface ProductionVideoPlayerProps {
   posterUrl: string
   title: string
   skipIntro?: boolean
-  showPrerollAds?: boolean
-  prerollAdCodes?: PrerollAdCode[] // Changed from prerollBannerAds
+  prerollEnabled?: boolean
+  midrollEnabled?: boolean
+  prerollAdCodes?: PrerollAdCode[]
+  midrollAdCodes?: PrerollAdCode[]
+  midrollIntervalMinutes?: number
+  // end change
   adTimeout?: number
   skipDelay?: number
   rotationInterval?: number
@@ -26,35 +31,67 @@ export default function ProductionVideoPlayer({
   posterUrl,
   title,
   skipIntro = false,
-  showPrerollAds = true,
-  prerollAdCodes = [], // Changed from prerollBannerAds
+  prerollEnabled = true,
+  midrollEnabled = false,
+  prerollAdCodes = [],
+  midrollAdCodes = [],
+  midrollIntervalMinutes = 20,
+  // end change
   adTimeout = 20,
   skipDelay = 10,
   rotationInterval = 5,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
-  const [showAd, setShowAd] = useState(false)
+  const [showPrerollAd, setShowPrerollAd] = useState(false)
+  const [showMidrollAd, setShowMidrollAd] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
+  const [lastMidrollTime, setLastMidrollTime] = useState(0)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   const handleIntroComplete = () => {
     setShowIntro(false)
-    const hasAds = prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
-    if (showPrerollAds && hasAds) {
-      setShowAd(true)
+    const hasPrerollAds =
+      prerollEnabled && prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
+    if (hasPrerollAds) {
+      setShowPrerollAd(true)
     } else {
       setShowVideo(true)
     }
   }
 
-  const handleAdComplete = () => {
-    setShowAd(false)
+  const handlePrerollAdComplete = () => {
+    setShowPrerollAd(false)
     setShowVideo(true)
   }
 
-  const handleAdSkip = () => {
-    setShowAd(false)
-    setShowVideo(true)
+  const handleMidrollAdComplete = () => {
+    setShowMidrollAd(false)
+    if (videoRef.current) {
+      videoRef.current.play()
+    }
   }
+
+  useEffect(() => {
+    if (!midrollEnabled || !showVideo || midrollAdCodes.length === 0) return
+
+    const video = videoRef.current
+    if (!video) return
+
+    const handleTimeUpdate = () => {
+      const currentMinutes = video.currentTime / 60
+      const intervalMinutes = midrollIntervalMinutes
+
+      if (currentMinutes - lastMidrollTime >= intervalMinutes && currentMinutes >= intervalMinutes) {
+        video.pause()
+        setLastMidrollTime(currentMinutes)
+        setShowMidrollAd(true)
+      }
+    }
+
+    video.addEventListener("timeupdate", handleTimeUpdate)
+    return () => video.removeEventListener("timeupdate", handleTimeUpdate)
+  }, [midrollEnabled, showVideo, midrollAdCodes, midrollIntervalMinutes, lastMidrollTime])
+  // end change
 
   const isEmbedUrl = (url: string) => {
     return (
@@ -84,22 +121,31 @@ export default function ProductionVideoPlayer({
 
   return (
     <div className="relative w-full aspect-video bg-[#0B0C10] rounded-lg overflow-hidden border border-[#2A2B33]">
-      {/* Intro Animation */}
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
-      {/* Pre-roll Ads - now using ad codes */}
-      {showAd && (
+      {showPrerollAd && (
         <PrerollAdPlayer
           adCodes={prerollAdCodes}
-          onComplete={handleAdComplete}
-          onSkip={handleAdSkip}
+          onComplete={handlePrerollAdComplete}
+          onSkip={handlePrerollAdComplete}
           maxDuration={adTimeout}
           skipDelay={skipDelay}
           rotationInterval={rotationInterval}
         />
       )}
 
-      {/* Main Video Player */}
+      {showMidrollAd && (
+        <MidrollAdPlayer
+          adCodes={midrollAdCodes}
+          onComplete={handleMidrollAdComplete}
+          onSkip={handleMidrollAdComplete}
+          maxDuration={15}
+          skipDelay={5}
+          rotationInterval={rotationInterval}
+        />
+      )}
+      {/* end change */}
+
       {showVideo && (
         <>
           {isEmbedUrl(videoUrl) ? (
@@ -113,6 +159,7 @@ export default function ProductionVideoPlayer({
             />
           ) : (
             <video
+              ref={videoRef}
               src={videoUrl}
               poster={posterUrl}
               controls
