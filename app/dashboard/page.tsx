@@ -23,7 +23,7 @@ import Link from "next/link"
 
 type DashboardTab = "profile" | "watchlist" | "liked" | "continue" | "settings"
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("profile")
   const { user: clerkUser, isLoaded } = useUser()
   const [userStats, setUserStats] = useState<any>(null)
@@ -130,7 +130,7 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0B0C10]">
+    <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar />
 
       <div className="pt-20 px-4 md:px-8 py-8">

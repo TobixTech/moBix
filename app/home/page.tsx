@@ -24,7 +24,7 @@ export default async function AuthenticatedHomePage() {
   const genresWithMovies = genreMovies.filter((g) => g.movies.length > 0)
 
   return (
-    <main className="min-h-screen bg-[#0B0C10]">
+    <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar showAuthButtons={false} />
       <HeroBanner movie={trending[0] || recent[0] || null} />
 

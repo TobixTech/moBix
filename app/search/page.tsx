@@ -18,7 +18,7 @@ export default async function SearchPage({
   const [results, adSettings] = await Promise.all([query ? searchMovies(query) : Promise.resolve([]), getAdSettings()])
 
   return (
-    <main className="min-h-screen bg-[#0B0C10]">
+    <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar />
 
       <div className="pt-20 px-4 md:px-8 py-8">

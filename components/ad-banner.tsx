@@ -20,14 +20,18 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
     return null
   }
 
-  const isEnabled =
-    (placement === "homepage" && adSettings.homepageEnabled === true) ||
-    (placement === "movieDetail" && adSettings.movieDetailEnabled === true) ||
-    (placement === "dashboard" && adSettings.dashboardEnabled === true) ||
-    (placement === "download" && adSettings.showDownloadPageAds === true)
+  let isEnabled = false
+  if (placement === "homepage") {
+    isEnabled = adSettings.homepageEnabled === true
+  } else if (placement === "movieDetail") {
+    isEnabled = adSettings.movieDetailEnabled === true
+  } else if (placement === "dashboard") {
+    isEnabled = adSettings.dashboardEnabled === true
+  } else if (placement === "download") {
+    isEnabled = adSettings.showDownloadPageAds === true
+  }
 
   if (!isEnabled) {
-    // Ad placement is disabled for this location
     return null
   }
 

@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/toaster"
 import PWAInstallPrompt from "@/components/pwa-install-prompt"
+import MobileBottomNav from "@/components/mobile-bottom-nav"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/seo-structured-data"
 import "./globals.css"
 
@@ -122,6 +123,7 @@ export default function RootLayout({
         </head>
         <body className={`font-sans antialiased bg-[#0B0C10] text-white`}>
           {children}
+          <MobileBottomNav />
           <PWAInstallPrompt />
           <Analytics />
           <Toaster />

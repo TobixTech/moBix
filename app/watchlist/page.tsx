@@ -11,7 +11,7 @@ export default async function WatchlistPage() {
   const { success, movies, error } = await getWatchlist()
 
   return (
-    <main className="min-h-screen bg-[#0B0C10]">
+    <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar />
 
       <div className="container mx-auto px-4 pt-24 pb-12">
