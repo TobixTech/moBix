@@ -27,6 +27,10 @@ import {
   Bell,
   Send,
   Flag,
+  Gift,
+  Shield,
+  Download,
+  Shuffle,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -52,6 +56,14 @@ import {
   getContentReports, // Added import for content reports
   updateReportStatus, // Added import
   deleteContentReport, // Added import
+  getPromotionEntries, // Added
+  getPromotionSettings, // Added
+  getIpBlacklist, // Added
+  pickRandomWinner, // Added
+  addToBlacklist, // Added
+  removeFromBlacklist, // Added
+  updatePromotionSettings, // Added
+  deletePromotionEntry, // Added
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -62,8 +74,10 @@ import Image from "next/image" // Added Image import
 
 // Import toast for notifications
 import { toast } from "sonner"
+import { COUNTRIES, getCountryByName } from "@/lib/countries" // Added
 
-type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback" | "reports" // Added "reports" to AdminTab type
+// Update AdminTab type
+type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback" | "reports" | "promotions" // Added "promotions" to AdminTab type
 
 interface Metric {
   label: string
@@ -174,6 +188,17 @@ export default function AdminDashboard() {
   const [feedback, setFeedback] = useState<Feedback[]>([]) // Added feedback state
   const [contentReports, setContentReports] = useState<ContentReport[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Add new state for promotions
+  const [promotionEntries, setPromotionEntries] = useState<any[]>([])
+  const [promotionSettings, setPromotionSettings] = useState<any>(null)
+  const [ipBlacklist, setIpBlacklist] = useState<any[]>([])
+  const [promotionTab, setPromotionTab] = useState<"entries" | "settings" | "blacklist">("entries")
+  const [promoCountryFilter, setPromoCountryFilter] = useState("")
+  const [promoNetworkFilter, setPromoNetworkFilter] = useState("")
+  const [blacklistIp, setBlacklistIp] = useState("")
+  const [blacklistReason, setBlacklistReason] = useState("")
+  const [randomWinner, setRandomWinner] = useState<any>(null)
 
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -417,6 +442,26 @@ export default function AdminDashboard() {
       loadData()
     }
   }, [pinVerified])
+
+  // Fetch promotion data
+  useEffect(() => {
+    async function fetchPromotionData() {
+      if (!pinVerified) return // Only fetch if PIN is verified
+      try {
+        const [entries, settings, blacklist] = await Promise.all([
+          getPromotionEntries(),
+          getPromotionSettings(),
+          getIpBlacklist(),
+        ])
+        setPromotionEntries(entries)
+        setPromotionSettings(settings)
+        setIpBlacklist(blacklist)
+      } catch (error) {
+        console.error("Error fetching promotion data:", error)
+      }
+    }
+    fetchPromotionData()
+  }, [pinVerified]) // Re-fetch if pinVerified changes
 
   // ... existing handlers (handleFormChange, handleUpload, handleEdit, handleSaveEdit, handleSaveAdSettings, handleDelete, handleDeleteComment, handleBanUser, handleDeleteUser) ...
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -764,6 +809,76 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  // Promotion handlers
+  const handlePickWinner = async () => {
+    setLoading(true) // Show loading indicator
+    const winner = await pickRandomWinner(promoCountryFilter || undefined)
+    setRandomWinner(winner)
+    setLoading(false) // Hide loading indicator
+  }
+
+  const handleAddToBlacklist = async () => {
+    if (!blacklistIp) return
+    setLoading(true)
+    const result = await addToBlacklist(blacklistIp, blacklistReason, "admin")
+    if (result.success) {
+      setIpBlacklist([
+        ...ipBlacklist,
+        { id: result.id, ipAddress: blacklistIp, reason: blacklistReason, blacklistedAt: new Date().toISOString() },
+      ]) // Add id from result
+      setBlacklistIp("")
+      setBlacklistReason("")
+      toast.success("IP address added to blacklist")
+    } else {
+      toast.error(`Failed to add to blacklist: ${result.error}`)
+    }
+    setLoading(false)
+  }
+
+  const handleRemoveFromBlacklist = async (id: string) => {
+    setLoading(true)
+    const result = await removeFromBlacklist(id)
+    if (result.success) {
+      setIpBlacklist(ipBlacklist.filter((item) => item.id !== id))
+      toast.success("IP address removed from blacklist")
+    } else {
+      toast.error(`Failed to remove from blacklist: ${result.error}`)
+    }
+    setLoading(false)
+  }
+
+  const handleSavePromotionSettings = async () => {
+    if (!promotionSettings) return
+    setLoading(true)
+    const result = await updatePromotionSettings(promotionSettings)
+    if (result.success) {
+      toast.success("Promotion settings saved successfully")
+    } else {
+      toast.error(`Failed to save settings: ${result.error}`)
+    }
+    setLoading(false)
+  }
+
+  const exportPromotionsToCSV = () => {
+    const headers = ["Email", "Phone", "Network", "Country", "IP Address", "Date"]
+    const rows = promotionEntries.map((e) => [
+      e.email,
+      e.phone,
+      e.network,
+      e.country,
+      e.ipAddress,
+      e.createdAt.split("T")[0],
+    ])
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `promotions-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url) // Clean up the URL object
+  }
+
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
   const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
@@ -1035,6 +1150,7 @@ export default function AdminDashboard() {
             { id: "ads", label: "Ad Management", icon: Settings },
             { id: "feedback", label: "Feedback & Requests", icon: Inbox },
             { id: "reports", label: "Content Reports", icon: Flag }, // Added reports tab
+            { id: "promotions", label: "Promotions", icon: Gift }, // Added promotions tab
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -2189,6 +2305,357 @@ export default function AdminDashboard() {
                   ))
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Promotions Tab Content */}
+          {activeTab === "promotions" && (
+            <div className="space-y-6">
+              {/* Sub-tabs */}
+              <div className="flex gap-2 border-b border-white/10 pb-4">
+                {[
+                  { id: "entries", label: "Entries", icon: Users },
+                  { id: "settings", label: "Settings", icon: Settings },
+                  { id: "blacklist", label: "Blacklist", icon: Shield },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setPromotionTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                      promotionTab === tab.id
+                        ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                        : "text-white/70 hover:bg-white/5"
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Entries Tab */}
+              {promotionTab === "entries" && (
+                <div className="space-y-4">
+                  {/* Actions Bar */}
+                  <div className="flex flex-wrap gap-4 items-center justify-between">
+                    <div className="flex gap-2">
+                      <select
+                        value={promoCountryFilter}
+                        onChange={(e) => setPromoCountryFilter(e.target.value)}
+                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
+                      >
+                        <option value="">All Countries</option>
+                        {COUNTRIES.slice(0, 20).map((c) => (
+                          <option key={c.code} value={c.name}>
+                            {c.flag} {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={promoNetworkFilter}
+                        onChange={(e) => setPromoNetworkFilter(e.target.value)}
+                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
+                      >
+                        <option value="">All Networks</option>
+                        <option value="MTN">MTN</option>
+                        <option value="Airtel">Airtel</option>
+                        <option value="Glo">Glo</option>
+                        <option value="9mobile">9mobile</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handlePickWinner}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500/30 transition"
+                      >
+                        <Shuffle className="w-4 h-4" />
+                        Pick Winner
+                      </button>
+                      <button
+                        onClick={exportPromotionsToCSV}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Winner Display */}
+                  {randomWinner && (
+                    <div className="p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl">
+                      <h4 className="text-white font-bold mb-2 flex items-center gap-2">
+                        <Gift className="w-5 h-5 text-purple-400" />
+                        Random Winner Selected!
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-white/50">Email:</span>{" "}
+                          <span className="text-white">{randomWinner.email}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/50">Phone:</span>{" "}
+                          <span className="text-white">{randomWinner.phone}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/50">Network:</span>{" "}
+                          <span className="text-white">{randomWinner.network}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/50">Country:</span>{" "}
+                          <span className="text-white">{randomWinner.country}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Entries Table */}
+                  <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-white/5 border-b border-white/10">
+                          <tr>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Email</th>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Phone</th>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Network</th>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Country</th>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">IP Address</th>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Date</th>
+                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/10">
+                          {promotionEntries
+                            .filter((e) => !promoCountryFilter || e.country === promoCountryFilter)
+                            .filter((e) => !promoNetworkFilter || e.network === promoNetworkFilter)
+                            .map((entry) => (
+                              <tr key={entry.id} className="hover:bg-white/5">
+                                <td
+                                  className={`px-4 py-3 ${entry.isDuplicateEmail ? "text-orange-400" : "text-white"}`}
+                                >
+                                  {entry.email}
+                                  {entry.emailCount > 1 && (
+                                    <span className="ml-2 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">
+                                      x{entry.emailCount}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-white">{entry.phone}</td>
+                                <td className="px-4 py-3 text-white">{entry.network}</td>
+                                <td className="px-4 py-3 text-white">
+                                  {getCountryByName(entry.country)?.flag} {entry.country}
+                                </td>
+                                <td className={`px-4 py-3 ${entry.isDuplicateIp ? "text-red-400" : "text-white/70"}`}>
+                                  {entry.ipAddress}
+                                  {entry.ipCount > 1 && (
+                                    <span className="ml-2 px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">
+                                      x{entry.ipCount}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-white/50">{entry.createdAt.split("T")[0]}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setBlacklistIp(entry.ipAddress)
+                                        setPromotionTab("blacklist")
+                                      }}
+                                      className="p-1.5 hover:bg-red-500/10 rounded text-white/50 hover:text-red-400 transition"
+                                      title="Blacklist IP"
+                                    >
+                                      <Shield className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => deletePromotionEntry(entry.id)}
+                                      className="p-1.5 hover:bg-red-500/10 rounded text-white/50 hover:text-red-400 transition"
+                                      title="Delete Entry"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <p className="text-white/40 text-sm">
+                    Total entries: {promotionEntries.length} |<span className="text-red-400"> Red = Duplicate IP</span>{" "}
+                    |<span className="text-orange-400"> Orange = Duplicate Email</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Settings Tab */}
+              {promotionTab === "settings" && promotionSettings && (
+                <div className="space-y-6 max-w-2xl">
+                  {/* Enable/Disable Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl">
+                    <div>
+                      <h4 className="text-white font-medium">Promotion Active</h4>
+                      <p className="text-white/50 text-sm">Show promotion modal to users</p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setPromotionSettings({ ...promotionSettings, isActive: !promotionSettings.isActive })
+                      }
+                      className={`w-14 h-8 rounded-full transition-all ${
+                        promotionSettings.isActive ? "bg-green-500" : "bg-white/20"
+                      }`}
+                    >
+                      <div
+                        className={`w-6 h-6 bg-white rounded-full transition-all ${
+                          promotionSettings.isActive ? "translate-x-7" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Enabled Countries */}
+                  <div>
+                    <label className="block text-white font-medium mb-2">Enabled Countries</label>
+                    <div className="flex flex-wrap gap-2">
+                      {COUNTRIES.slice(0, 20).map((country) => (
+                        <button
+                          key={country.code}
+                          onClick={() => {
+                            const countries = promotionSettings.enabledCountries || []
+                            if (countries.includes(country.name)) {
+                              setPromotionSettings({
+                                ...promotionSettings,
+                                enabledCountries: countries.filter((c: string) => c !== country.name),
+                              })
+                            } else {
+                              setPromotionSettings({
+                                ...promotionSettings,
+                                enabledCountries: [...countries, country.name],
+                              })
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                            promotionSettings.enabledCountries?.includes(country.name)
+                              ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                              : "bg-white/5 text-white/50 border border-white/10 hover:border-white/20"
+                          }`}
+                        >
+                          {country.flag} {country.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Modal Text Settings */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-white font-medium mb-2">Headline</label>
+                      <input
+                        type="text"
+                        value={promotionSettings.headline}
+                        onChange={(e) => setPromotionSettings({ ...promotionSettings, headline: e.target.value })}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-white font-medium mb-2">Subtext</label>
+                      <input
+                        type="text"
+                        value={promotionSettings.subtext}
+                        onChange={(e) => setPromotionSettings({ ...promotionSettings, subtext: e.target.value })}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-white font-medium mb-2">Success Message</label>
+                      <input
+                        type="text"
+                        value={promotionSettings.successMessage}
+                        onChange={(e) => setPromotionSettings({ ...promotionSettings, successMessage: e.target.value })}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleSavePromotionSettings}
+                    className="px-6 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition"
+                  >
+                    Save Settings
+                  </button>
+                </div>
+              )}
+
+              {/* Blacklist Tab */}
+              {promotionTab === "blacklist" && (
+                <div className="space-y-6">
+                  {/* Add to Blacklist */}
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                    <h4 className="text-white font-medium mb-4">Add to Blacklist</h4>
+                    <div className="flex gap-4">
+                      <input
+                        type="text"
+                        value={blacklistIp}
+                        onChange={(e) => setBlacklistIp(e.target.value)}
+                        placeholder="IP Address"
+                        className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-red-500/50"
+                      />
+                      <input
+                        type="text"
+                        value={blacklistReason}
+                        onChange={(e) => setBlacklistReason(e.target.value)}
+                        placeholder="Reason (optional)"
+                        className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-red-500/50"
+                      />
+                      <button
+                        onClick={handleAddToBlacklist}
+                        className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Blacklist Table */}
+                  <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-white/5 border-b border-white/10">
+                        <tr>
+                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">IP Address</th>
+                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Reason</th>
+                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Date</th>
+                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/10">
+                        {ipBlacklist.map((item) => (
+                          <tr key={item.id} className="hover:bg-white/5">
+                            <td className="px-4 py-3 text-white font-mono">{item.ipAddress}</td>
+                            <td className="px-4 py-3 text-white/70">{item.reason || "-"}</td>
+                            <td className="px-4 py-3 text-white/50">{item.blacklistedAt.split("T")[0]}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => handleRemoveFromBlacklist(item.id)}
+                                className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded hover:bg-green-500/30 transition text-sm"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {ipBlacklist.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-8 text-center text-white/50">
+                              No blacklisted IPs
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

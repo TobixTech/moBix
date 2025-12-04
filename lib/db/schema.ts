@@ -12,6 +12,8 @@ export const users = pgTable("User", {
   firstName: text("firstName"),
   lastName: text("lastName"),
   role: text("role").default("USER").notNull(),
+  country: text("country"),
+  ipAddress: text("ipAddress"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")
     .defaultNow()
@@ -338,3 +340,46 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
     references: [movies.id],
   }),
 }))
+
+export const promotions = pgTable("Promotion", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").references(() => users.id, { onDelete: "set null" }),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  network: text("network").notNull(),
+  ipAddress: text("ipAddress").notNull(),
+  country: text("country").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const promotionsRelations = relations(promotions, ({ one }) => ({
+  user: one(users, {
+    fields: [promotions.userId],
+    references: [users.id],
+  }),
+}))
+
+export const ipBlacklist = pgTable("IpBlacklist", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  ipAddress: text("ipAddress").unique().notNull(),
+  reason: text("reason"),
+  blacklistedBy: text("blacklistedBy"),
+  blacklistedAt: timestamp("blacklistedAt").defaultNow().notNull(),
+})
+
+export const promotionSettings = pgTable("PromotionSettings", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  isActive: boolean("isActive").default(false).notNull(),
+  enabledCountries: text("enabledCountries").default('["Nigeria"]'),
+  headline: text("headline").default("Fill Details to Get 1.5GB Data!"),
+  subtext: text("subtext").default("(Lucky Draw - Winners announced weekly)"),
+  successMessage: text("successMessage").default("Entry recorded! Winners announced every Monday"),
+  networkOptions: text("networkOptions").default('{"Nigeria":["MTN","Airtel","Glo","9mobile","Other"]}'),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+})

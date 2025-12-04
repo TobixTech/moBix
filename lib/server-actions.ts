@@ -14,6 +14,9 @@ import {
   ratings,
   contentReports,
   notifications, // Add notifications import
+  promotions, // Import promotions table
+  promotionSettings, // Import promotionSettings table
+  ipBlacklist, // Import ipBlacklist table
 } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
@@ -2143,5 +2146,233 @@ export async function deleteNotification(notificationId: string) {
   } catch (error: any) {
     console.error("Error deleting notification:", error)
     return { success: false, error: error.message }
+  }
+}
+
+// ============ PROMOTIONS ============
+
+export async function getPromotionEntries() {
+  try {
+    const entries = await db.query.promotions.findMany({
+      orderBy: [desc(promotions.createdAt)],
+    })
+
+    // Get duplicate IPs and emails
+    const ipCounts: Record<string, number> = {}
+    const emailCounts: Record<string, number> = {}
+
+    entries.forEach((entry) => {
+      ipCounts[entry.ipAddress] = (ipCounts[entry.ipAddress] || 0) + 1
+      emailCounts[entry.email] = (emailCounts[entry.email] || 0) + 1
+    })
+
+    return entries.map((entry) => ({
+      ...entry,
+      createdAt: entry.createdAt.toISOString(),
+      isDuplicateIp: ipCounts[entry.ipAddress] > 1,
+      isDuplicateEmail: emailCounts[entry.email] > 1,
+      ipCount: ipCounts[entry.ipAddress],
+      emailCount: emailCounts[entry.email],
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function getPromotionSettings() {
+  try {
+    const settings = await db.query.promotionSettings.findFirst({
+      where: eq(promotionSettings.id, "default-promotion-settings"),
+    })
+
+    if (!settings) {
+      return {
+        isActive: false,
+        enabledCountries: ["Nigeria"],
+        headline: "Fill Details to Get 1.5GB Data!",
+        subtext: "(Lucky Draw - Winners announced weekly)",
+        successMessage: "Entry recorded! Winners announced every Monday",
+        networkOptions: { Nigeria: ["MTN", "Airtel", "Glo", "9mobile", "Other"] },
+      }
+    }
+
+    return {
+      isActive: settings.isActive,
+      enabledCountries: JSON.parse(settings.enabledCountries || '["Nigeria"]'),
+      headline: settings.headline,
+      subtext: settings.subtext,
+      successMessage: settings.successMessage,
+      networkOptions: JSON.parse(settings.networkOptions || "{}"),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function updatePromotionSettings(data: {
+  isActive: boolean
+  enabledCountries: string[]
+  headline: string
+  subtext: string
+  successMessage: string
+  networkOptions: Record<string, string[]>
+}) {
+  try {
+    await db
+      .update(promotionSettings)
+      .set({
+        isActive: data.isActive,
+        enabledCountries: JSON.stringify(data.enabledCountries),
+        headline: data.headline,
+        subtext: data.subtext,
+        successMessage: data.successMessage,
+        networkOptions: JSON.stringify(data.networkOptions),
+        updatedAt: new Date(),
+      })
+      .where(eq(promotionSettings.id, "default-promotion-settings"))
+
+    revalidatePath("/home")
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function getIpBlacklist() {
+  try {
+    const list = await db.query.ipBlacklist.findMany({
+      orderBy: [desc(ipBlacklist.blacklistedAt)],
+    })
+    return list.map((item) => ({
+      ...item,
+      blacklistedAt: item.blacklistedAt.toISOString(),
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function addToBlacklist(ipAddress: string, reason: string, blacklistedBy: string) {
+  try {
+    await db.insert(ipBlacklist).values({
+      ipAddress,
+      reason,
+      blacklistedBy,
+    })
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function removeFromBlacklist(id: string) {
+  try {
+    await db.delete(ipBlacklist).where(eq(ipBlacklist.id, id))
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function pickRandomWinner(country?: string) {
+  try {
+    const query = db.query.promotions.findMany({
+      orderBy: [sql`RANDOM()`],
+    })
+
+    const entries = await query
+
+    // Filter by country if specified
+    const filtered = country ? entries.filter((e) => e.country === country) : entries
+
+    if (filtered.length === 0) return null
+
+    // Pick random
+    const winner = filtered[Math.floor(Math.random() * filtered.length)]
+    return {
+      ...winner,
+      createdAt: winner.createdAt.toISOString(),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function deletePromotionEntry(id: string) {
+  try {
+    await db.delete(promotions).where(eq(promotions.id, id))
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function getUsersWithDetails() {
+  try {
+    const result = await db.query.users.findMany({
+      with: {
+        comments: true,
+      },
+      orderBy: [desc(users.createdAt)],
+    })
+
+    // Get IP counts for duplicate detection
+    const ipCounts: Record<string, number> = {}
+    result.forEach((user) => {
+      if (user.ipAddress) {
+        ipCounts[user.ipAddress] = (ipCounts[user.ipAddress] || 0) + 1
+      }
+    })
+
+    return result.map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      country: user.country,
+      ipAddress: user.ipAddress,
+      createdAt: user.createdAt.toISOString().split("T")[0],
+      clerkId: user.clerkId,
+      commentsCount: user.comments.length,
+      isDuplicateIp: user.ipAddress ? ipCounts[user.ipAddress] > 1 : false,
+      ipCount: user.ipAddress ? ipCounts[user.ipAddress] : 0,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function getUsersByIp(ipAddress: string) {
+  try {
+    const result = await db.query.users.findMany({
+      where: eq(users.ipAddress, ipAddress),
+    })
+    return result
+  } catch {
+    return []
+  }
+}
+
+export async function getUserCountryStats() {
+  try {
+    const result = await db.query.users.findMany({
+      columns: {
+        country: true,
+      },
+    })
+
+    const stats: Record<string, number> = {}
+    result.forEach((user) => {
+      const country = user.country || "Unknown"
+      stats[country] = (stats[country] || 0) + 1
+    })
+
+    return Object.entries(stats)
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count)
+  } catch {
+    return []
   }
 }

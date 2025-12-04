@@ -62,10 +62,10 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
           if (!isSignedIn) setEmail("")
         }, 2000)
       } else {
-        setError("Unable to submit report. Please try again later.")
+        setError("Unable to submit report. Please try again.")
       }
     } catch {
-      setError("Unable to submit report. Please try again later.")
+      setError("Unable to submit report. Please try again.")
     }
 
     setIsSubmitting(false)
@@ -88,14 +88,14 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsOpen(false)}
           >
             <motion.div
-              className="bg-[#1A1B23] border-t sm:border border-[#2A2B33] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] overflow-hidden flex flex-col"
+              className="bg-[#1A1B23] border-t sm:border border-[#2A2B33] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col mb-16 sm:mb-0"
               initial={{ y: "100%", opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
@@ -139,16 +139,16 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                    {/* Reason Selection */}
+                    {/* Reason Selection - Compact for mobile */}
                     <div>
                       <label className="block text-white font-medium mb-2 text-sm">
                         What's the issue? <span className="text-red-400">*</span>
                       </label>
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-1 gap-2">
                         {REPORT_REASONS.map((option) => (
                           <label
                             key={option.value}
-                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all active:scale-[0.98] ${
+                            className={`flex items-center gap-2 p-2.5 sm:p-3 rounded-lg border cursor-pointer transition-all active:scale-[0.98] ${
                               reason === option.value
                                 ? "bg-[#00FFFF]/10 border-[#00FFFF]/50"
                                 : "bg-[#0B0C10] border-[#2A2B33] hover:border-[#3A3B43]"
@@ -163,13 +163,13 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
                               className="sr-only"
                             />
                             <div
-                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                 reason === option.value ? "border-[#00FFFF] bg-[#00FFFF]" : "border-[#3A3B43]"
                               }`}
                             >
-                              {reason === option.value && <div className="w-2 h-2 rounded-full bg-[#0B0C10]" />}
+                              {reason === option.value && <div className="w-1.5 h-1.5 rounded-full bg-[#0B0C10]" />}
                             </div>
-                            <span className="text-white text-sm">{option.label}</span>
+                            <span className="text-white text-xs sm:text-sm">{option.label}</span>
                           </label>
                         ))}
                       </div>
@@ -197,7 +197,7 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         placeholder="Tell us more..."
-                        rows={3}
+                        rows={2}
                         className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] resize-none text-base"
                       />
                     </div>
@@ -209,11 +209,11 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
                     )}
 
                     {/* Submit Button */}
-                    <div className="pt-2 pb-4">
+                    <div className="pt-2 pb-2">
                       <button
                         type="submit"
                         disabled={isSubmitting || !reason}
-                        className="w-full py-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 active:scale-[0.98] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
+                        className="w-full py-3.5 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 active:scale-[0.98] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
                       >
                         {isSubmitting ? (
                           <>

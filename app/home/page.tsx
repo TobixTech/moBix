@@ -4,6 +4,7 @@ import MovieCarousel from "@/components/movie-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
 import { getTrendingMovies, getPublicMovies, getMoviesByGenre, getAllGenres } from "@/lib/server-actions"
+import PromotionModalWrapper from "@/components/promotion-modal-wrapper"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -66,6 +67,8 @@ export default async function AuthenticatedHomePage() {
       </div>
 
       <Footer />
+
+      <PromotionModalWrapper />
     </main>
   )
 }
