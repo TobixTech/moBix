@@ -7,7 +7,7 @@ import { getWatchHistory, clearWatchHistory } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
-import MobileBottomNav from "@/components/mobile-bottom-nav"
+import { MobileBottomNav } from "@/components/mobile-bottom-nav"
 import Link from "next/link"
 import StarRating from "@/components/star-rating"
 

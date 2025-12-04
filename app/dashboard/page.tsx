@@ -5,7 +5,7 @@ import { useUser } from "@clerk/nextjs"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import MovieCard from "@/components/movie-card"
-import AdBanner from "@/components/ad-banner"
+import { AdBannerClient } from "@/components/ad-banner-client"
 import { MobileBottomNav } from "@/components/mobile-bottom-nav"
 import {
   User,
@@ -14,11 +14,11 @@ import {
   MessageSquare,
   Loader,
   BookmarkIcon,
-  PlayCircle,
   RefreshCw,
   Globe,
   Crown,
   Sparkles,
+  PlayCircle,
 } from "lucide-react"
 import { getUserStats, updateUserProfile, getContinueWatching } from "@/lib/server-actions"
 import { useRouter } from "next/navigation"
@@ -395,7 +395,7 @@ export default function DashboardPage() {
             )}
 
             {userStats?.watchlistMovies && userStats.watchlistMovies.length > 0 && (
-              <AdBanner type="horizontal" placement="dashboard" />
+              <AdBannerClient type="horizontal" placement="dashboard" />
             )}
           </div>
         )}
@@ -429,7 +429,7 @@ export default function DashboardPage() {
             )}
 
             {userStats?.likedMovies && userStats.likedMovies.length > 0 && (
-              <AdBanner type="horizontal" placement="dashboard" />
+              <AdBannerClient type="horizontal" placement="dashboard" />
             )}
           </div>
         )}
@@ -465,7 +465,7 @@ export default function DashboardPage() {
         {/* Ad Banner - only show if user is not premium */}
         {!isPremium && adSettings?.dashboardEnabled && (
           <div className="mt-6">
-            <AdBanner type="horizontal" placement="dashboard" />
+            <AdBannerClient type="horizontal" placement="dashboard" />
           </div>
         )}
       </div>
