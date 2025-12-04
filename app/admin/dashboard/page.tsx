@@ -24,6 +24,8 @@ import {
   CheckCircle,
   RefreshCw,
   Plus,
+  Bell,
+  Send,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -44,10 +46,13 @@ import {
   updateFeedbackStatus, // Added import
   deleteFeedback, // Added import
   getAllComments,
+  createNotificationForAllUsers, // Added for notification
+  createNotificationByEmail, // Added for notification
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SendNotificationModal } from "@/components/send-notification-modal" // Added SendNotificationModal import
 
 // Import toast for notifications
 import { toast } from "sonner"
@@ -208,6 +213,14 @@ export default function AdminDashboard() {
     useGlobalAd: true,
   })
 
+  const [notifyOnUpload, setNotifyOnUpload] = useState(true)
+  const [selectedUserForNotification, setSelectedUserForNotification] = useState<{
+    id: string
+    email: string
+  } | null>(null)
+  const [respondingToFeedback, setRespondingToFeedback] = useState<string | null>(null)
+  const [feedbackResponse, setFeedbackResponse] = useState("")
+
   // ... existing handlePinSubmit ...
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -341,6 +354,15 @@ export default function AdminDashboard() {
     })
 
     if (result.success) {
+      if (notifyOnUpload && formData.status === "published") {
+        await createNotificationForAllUsers(
+          `New Movie: ${formData.title}`,
+          `${formData.title} is now available to watch on moBix!`,
+          "new_movie",
+          result.movie?.id,
+        )
+      }
+
       setFormData({
         title: "",
         thumbnail: "",
@@ -589,6 +611,25 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  const handleRespondToFeedback = async (feedbackId: string, email: string, type: string) => {
+    if (!feedbackResponse.trim()) return
+
+    // Send notification to user
+    const notificationTitle = type === "REQUEST" ? "Movie Request Update" : "Report Update"
+    await createNotificationByEmail(
+      email,
+      notificationTitle,
+      feedbackResponse,
+      type === "REQUEST" ? "request_response" : "report_response",
+    )
+
+    // Mark as complete
+    await handleUpdateFeedback(feedbackId, "COMPLETE")
+
+    setRespondingToFeedback(null)
+    setFeedbackResponse("")
+  }
+
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
   const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
@@ -829,6 +870,15 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
+      {selectedUserForNotification && (
+        <SendNotificationModal
+          isOpen={!!selectedUserForNotification}
+          onClose={() => setSelectedUserForNotification(null)}
+          userId={selectedUserForNotification.id}
+          userEmail={selectedUserForNotification.email}
+        />
+      )}
+
       <aside
         className={`w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 flex flex-col transition-all duration-300 ${
           sidebarOpen ? "fixed inset-y-0 left-0 z-40" : "hidden lg:flex"
@@ -960,6 +1010,15 @@ export default function AdminDashboard() {
                           {entry.email && <p className="text-cyan-400 text-sm">From: {entry.email}</p>}
                         </div>
                         <div className="flex gap-2">
+                          {entry.status === "PENDING" && entry.email && (
+                            <button
+                              onClick={() => setRespondingToFeedback(entry.id)}
+                              className="p-2 hover:bg-cyan-500/10 text-white/50 hover:text-cyan-400 rounded-lg transition-colors"
+                              title="Respond & Complete"
+                            >
+                              <Send className="w-4 h-4" />
+                            </button>
+                          )}
                           {entry.status === "PENDING" && (
                             <button
                               onClick={() => handleUpdateFeedback(entry.id, "COMPLETE")}
@@ -978,7 +1037,41 @@ export default function AdminDashboard() {
                           </button>
                         </div>
                       </div>
-                      <p className="text-white/80 text-sm whitespace-pre-wrap">{entry.details}</p>
+                      {entry.details && <p className="text-white/70 text-sm">{entry.details}</p>}
+
+                      {respondingToFeedback === entry.id && (
+                        <div className="mt-4 p-4 bg-white/5 border border-cyan-500/20 rounded-xl space-y-3">
+                          <label className="block text-cyan-400 text-sm font-medium">
+                            Send response notification to {entry.email}
+                          </label>
+                          <textarea
+                            value={feedbackResponse}
+                            onChange={(e) => setFeedbackResponse(e.target.value)}
+                            rows={3}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 resize-none"
+                            placeholder="Type your response message..."
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => {
+                                setRespondingToFeedback(null)
+                                setFeedbackResponse("")
+                              }}
+                              className="px-4 py-2 bg-white/5 text-white/70 hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleRespondToFeedback(entry.id, entry.email!, entry.type)}
+                              disabled={!feedbackResponse.trim()}
+                              className="px-4 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              <Send className="w-4 h-4" />
+                              Send & Complete
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -1270,6 +1363,23 @@ export default function AdminDashboard() {
                   <div className="p-4 border border-white/10 rounded-xl bg-white/5 space-y-4">
                     <h4 className="font-medium text-white">Additional Options</h4>
 
+                    <div className="flex items-center gap-3 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                      <input
+                        type="checkbox"
+                        id="notifyOnUpload"
+                        checked={notifyOnUpload}
+                        onChange={(e) => setNotifyOnUpload(e.target.checked)}
+                        className="w-5 h-5 rounded border-cyan-500/30 bg-white/5 text-cyan-500 focus:ring-cyan-500/50"
+                      />
+                      <label htmlFor="notifyOnUpload" className="text-white flex-1">
+                        <span className="font-medium">Notify all users</span>
+                        <span className="text-white/50 text-sm block">
+                          Send push notification when movie is published
+                        </span>
+                      </label>
+                      <Bell className="w-5 h-5 text-cyan-400" />
+                    </div>
+
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -1412,6 +1522,13 @@ export default function AdminDashboard() {
                           {/* Prefer createdAt if available, otherwise fall back to dateJoined */}
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
+                              <button
+                                onClick={() => setSelectedUserForNotification({ id: user.id, email: user.email })}
+                                className="p-2 hover:bg-cyan-500/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
+                                title="Send Notification"
+                              >
+                                <Bell className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={() => handleBanUser(user.id)}
                                 className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-yellow-400 transition-colors"

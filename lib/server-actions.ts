@@ -2069,6 +2069,57 @@ export async function createNotificationForAllUsers(title: string, message: stri
   }
 }
 
+// Create notification to a single user
+export async function createNotificationForUser(
+  userId: string,
+  title: string,
+  message: string,
+  type: string,
+  movieId?: string,
+) {
+  try {
+    await db.insert(notifications).values({
+      userId,
+      title,
+      message,
+      type,
+      movieId: movieId || null,
+      isRead: false,
+    })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error creating notification:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Create notification by email (for feedback responses)
+export async function createNotificationByEmail(email: string, title: string, message: string, type: string) {
+  try {
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    })
+
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    await db.insert(notifications).values({
+      userId: user.id,
+      title,
+      message,
+      type,
+      isRead: false,
+    })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error creating notification by email:", error)
+    return { success: false, error: error.message }
+  }
+}
+
 // Delete notification
 export async function deleteNotification(notificationId: string) {
   try {
