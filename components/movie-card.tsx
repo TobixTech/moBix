@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Heart, Play } from "lucide-react"
 import { useState } from "react"
 import { motion } from "framer-motion"
+import StarRating from "./star-rating"
 
 interface MovieCardProps {
   movie: {
@@ -13,15 +14,19 @@ interface MovieCardProps {
     posterUrl?: string
     genre?: string
     year?: number
+    averageRating?: number | string | null
   }
+  progress?: number
 }
 
-export default function MovieCard({ movie }: MovieCardProps) {
+export default function MovieCard({ movie, progress }: MovieCardProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const movieUrl = `/movie/${movie.slug || movie.id}`
+  const rating =
+    typeof movie.averageRating === "string" ? Number.parseFloat(movie.averageRating) : movie.averageRating || 0
 
   return (
     <Link href={movieUrl} prefetch={false}>
@@ -44,6 +49,18 @@ export default function MovieCard({ movie }: MovieCardProps) {
           onLoad={() => setIsLoading(false)}
           loading="lazy"
         />
+
+        {rating > 0 && (
+          <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-lg">
+            <StarRating rating={rating} size="sm" showValue />
+          </div>
+        )}
+
+        {progress !== undefined && progress > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
+            <div className="h-full bg-[#00FFFF]" style={{ width: `${Math.min(progress, 100)}%` }} />
+          </div>
+        )}
 
         {/* Overlay */}
         <motion.div
@@ -99,7 +116,7 @@ export default function MovieCard({ movie }: MovieCardProps) {
                 whileTap={{ scale: 0.95 }}
               >
                 <Play className="w-4 h-4" />
-                Play
+                {progress ? "Continue" : "Play"}
               </motion.button>
             </motion.div>
           </motion.div>

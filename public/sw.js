@@ -1,9 +1,9 @@
-const CACHE_NAME = "mobix-v1"
-const STATIC_CACHE = "mobix-static-v1"
-const DYNAMIC_CACHE = "mobix-dynamic-v1"
+const CACHE_NAME = "mobix-v2"
+const STATIC_CACHE = "mobix-static-v2"
+const DYNAMIC_CACHE = "mobix-dynamic-v2"
 
 // Static assets to cache immediately
-const STATIC_ASSETS = ["/", "/offline", "/favicon.svg", "/icons/icon-192x192.jpg", "/icons/icon-512x512.jpg"]
+const STATIC_ASSETS = ["/", "/offline", "/favicon.svg"]
 
 // Install event - cache static assets
 self.addEventListener("install", (event) => {
@@ -46,7 +46,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache successful responses
           if (response.status === 200) {
             const responseClone = response.clone()
             caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -56,7 +55,6 @@ self.addEventListener("fetch", (event) => {
           return response
         })
         .catch(() => {
-          // Return cached version or offline page
           return caches.match(request).then((cached) => {
             return cached || caches.match("/offline")
           })
@@ -65,12 +63,11 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
-  // For static assets (images, CSS, JS)
+  // For static assets
   if (url.pathname.match(/\.(png|jpg|jpeg|svg|gif|webp|css|js|woff2?)$/i)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) {
-          // Return cached version and update in background
           fetch(request).then((response) => {
             if (response.status === 200) {
               caches.open(STATIC_CACHE).then((cache) => {
@@ -80,7 +77,6 @@ self.addEventListener("fetch", (event) => {
           })
           return cached
         }
-        // Fetch and cache if not in cache
         return fetch(request).then((response) => {
           if (response.status === 200) {
             const responseClone = response.clone()
@@ -95,34 +91,68 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
-  // Default: network first
   event.respondWith(fetch(request).catch(() => caches.match(request)))
 })
 
-// Handle push notifications
 self.addEventListener("push", (event) => {
+  let data = {
+    title: "moBix",
+    body: "New content available!",
+    url: "/home",
+    icon: "/favicon.svg",
+    badge: "/favicon.svg",
+  }
+
+  try {
+    if (event.data) {
+      data = { ...data, ...JSON.parse(event.data.text()) }
+    }
+  } catch (e) {
+    data.body = event.data?.text() || data.body
+  }
+
   const options = {
-    body: event.data?.text() || "New content available on moBix!",
-    icon: "/icons/icon-192x192.jpg",
-    badge: "/icons/icon-72x72.jpg",
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
     vibrate: [100, 50, 100],
     data: {
+      url: data.url,
       dateOfArrival: Date.now(),
-      primaryKey: 1,
     },
     actions: [
-      { action: "explore", title: "View Now" },
-      { action: "close", title: "Close" },
+      { action: "open", title: "Watch Now" },
+      { action: "close", title: "Dismiss" },
     ],
+    tag: "mobix-notification",
+    renotify: true,
   }
 
-  event.waitUntil(self.registration.showNotification("moBix", options))
+  event.waitUntil(self.registration.showNotification(data.title, options))
 })
 
-// Handle notification clicks
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
-  if (event.action === "explore") {
-    event.waitUntil(clients.openWindow("/"))
+
+  const url = event.notification.data?.url || "/home"
+
+  if (event.action === "close") {
+    return
   }
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Check if there's already a window open
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.navigate(url)
+          return client.focus()
+        }
+      }
+      // Open new window if none exists
+      if (clients.openWindow) {
+        return clients.openWindow(url)
+      }
+    }),
+  )
 })

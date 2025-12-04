@@ -1,12 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { Search, User, LogOut, X } from "lucide-react"
+import { Search, LogOut, X } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
 import { useAuth, useClerk } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
+import NotificationsDropdown from "./notifications-dropdown"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -256,7 +257,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
         </motion.div>
 
         <motion.div
-          className="flex items-center gap-4"
+          className="flex items-center gap-2"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
@@ -284,11 +285,8 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             </>
           ) : (
             <>
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                <Link href="/dashboard" className="p-2 hover:bg-[#1A1B23] rounded transition">
-                  <User className="w-4 h-4" style={{ color: "#00FFFF" }} />
-                </Link>
-              </motion.div>
+              <NotificationsDropdown />
+
               <motion.button
                 onClick={handleSignOut}
                 className="p-2 hover:bg-[#1A1B23] rounded transition"

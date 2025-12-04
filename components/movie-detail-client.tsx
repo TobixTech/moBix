@@ -5,11 +5,13 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react"
-import { toggleLike, addComment, toggleWatchlist } from "@/lib/server-actions"
+import { toggleLike, addComment, toggleWatchlist, rateMovie, getUserRating } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
 import SocialShare from "./social-share"
+import StarRating from "./star-rating"
+import ReportContentModal from "./report-content-modal"
 
 interface Comment {
   id: string
@@ -88,9 +90,42 @@ export default function MovieDetailClient({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentError, setCommentError] = useState("")
 
+  const [userRating, setUserRating] = useState<number | null>(null)
+  const [averageRating, setAverageRating] = useState(movie.avgRating)
+  const [isRating, setIsRating] = useState(false)
+
   useEffect(() => {
     fetch(`/api/movies/${movie.id}/view`, { method: "POST" }).catch(() => {})
-  }, [movie.id])
+
+    if (isSignedIn) {
+      getUserRating(movie.id).then((result) => {
+        if (result.success && result.rating) {
+          setUserRating(result.rating)
+        }
+      })
+    }
+  }, [movie.id, isSignedIn])
+
+  const handleRate = async (rating: number) => {
+    if (!isSignedIn) {
+      alert("Please sign in to rate movies")
+      return
+    }
+
+    setIsRating(true)
+    const result = await rateMovie(movie.id, rating)
+
+    if (result.success) {
+      setUserRating(rating)
+      if (result.averageRating) {
+        setAverageRating(result.averageRating)
+      }
+    } else {
+      alert(result.error || "Failed to rate movie")
+    }
+
+    setIsRating(false)
+  }
 
   const handleLike = async () => {
     if (!isSignedIn || !userId) {
@@ -178,6 +213,7 @@ export default function MovieDetailClient({
               adTimeout={adTimeout}
               skipDelay={skipDelay}
               rotationInterval={rotationInterval}
+              movieId={movie.id}
             />
           </motion.div>
 
@@ -195,9 +231,24 @@ export default function MovieDetailClient({
               <span>{movie.genre}</span>
               <span>•</span>
               <span className="flex items-center gap-1">
-                <Star className="w-4 h-4 fill-[#00FFFF] text-[#00FFFF]" />
-                {movie.avgRating.toFixed(1)}/5
+                <Star className="w-4 h-4 fill-[#FFD700] text-[#FFD700]" />
+                {averageRating.toFixed(1)}/5
               </span>
+            </div>
+
+            <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-white font-medium mb-1">Rate this movie</h4>
+                  <p className="text-white/50 text-sm">
+                    {userRating ? `You rated: ${userRating}/5` : "Share your opinion"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isRating && <Loader className="w-4 h-4 animate-spin text-[#00FFFF]" />}
+                  <StarRating rating={userRating || 0} size="lg" interactive={!isRating} onRate={handleRate} />
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-3 mb-6">
@@ -253,6 +304,8 @@ export default function MovieDetailClient({
                 description={movie.description}
                 posterUrl={movie.posterUrl}
               />
+
+              <ReportContentModal movieId={movie.id} movieTitle={movie.title} />
             </div>
 
             {/* Description */}
@@ -386,7 +439,7 @@ export default function MovieDetailClient({
               </div>
               <div className="flex justify-between">
                 <span className="text-[#888888]">Rating</span>
-                <span className="text-white font-bold">{movie.avgRating.toFixed(1)}/5</span>
+                <span className="text-white font-bold">{averageRating.toFixed(1)}/5</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#888888]">Likes</span>

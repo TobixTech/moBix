@@ -1,7 +1,20 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { movies, users, likes, comments, adSettings, feedback, watchlist } from "@/lib/db/schema"
+import {
+  movies,
+  users,
+  likes,
+  comments,
+  adSettings,
+  feedback,
+  watchlist,
+  pushSubscriptions,
+  watchHistory,
+  ratings,
+  contentReports,
+  notifications, // Add notifications import
+} from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath, revalidateTag } from "next/cache"
@@ -1175,6 +1188,342 @@ export async function getTopRatedMovies() {
   }
 }
 
+// ==================== PUSH NOTIFICATIONS ====================
+
+export async function subscribeToPush(subscription: {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+}) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Upsert subscription
+    await db
+      .insert(pushSubscriptions)
+      .values({
+        userId: dbUser.id,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth,
+        },
+      })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error subscribing to push:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function unsubscribeFromPush(endpoint: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint))
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error unsubscribing from push:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getAllPushSubscriptions() {
+  try {
+    const subscriptions = await db.select().from(pushSubscriptions)
+    return { success: true, subscriptions }
+  } catch (error: any) {
+    console.error("Error fetching push subscriptions:", error)
+    return { success: false, error: error.message, subscriptions: [] }
+  }
+}
+
+// ==================== WATCH HISTORY ====================
+
+export async function updateWatchProgress(movieId: string, progress: number, duration: number) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: false, error: "User not found" }
+    }
+
+    await db
+      .insert(watchHistory)
+      .values({
+        userId: dbUser.id,
+        movieId,
+        progress,
+        duration,
+        watchedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [watchHistory.userId, watchHistory.movieId],
+        set: {
+          progress,
+          duration,
+          watchedAt: new Date(),
+        },
+      })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error updating watch progress:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getWatchHistory() {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated", history: [] }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: false, error: "User not found", history: [] }
+    }
+
+    const history = await db
+      .select({
+        id: watchHistory.id,
+        progress: watchHistory.progress,
+        duration: watchHistory.duration,
+        watchedAt: watchHistory.watchedAt,
+        movie: {
+          id: movies.id,
+          slug: movies.slug,
+          title: movies.title,
+          posterUrl: movies.posterUrl,
+          genre: movies.genre,
+          year: movies.year,
+          averageRating: movies.averageRating,
+        },
+      })
+      .from(watchHistory)
+      .innerJoin(movies, eq(watchHistory.movieId, movies.id))
+      .where(eq(watchHistory.userId, dbUser.id))
+      .orderBy(desc(watchHistory.watchedAt))
+      .limit(20)
+
+    return { success: true, history }
+  } catch (error: any) {
+    console.error("Error fetching watch history:", error)
+    return { success: false, error: error.message, history: [] }
+  }
+}
+
+export async function clearWatchHistory() {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: false, error: "User not found" }
+    }
+
+    await db.delete(watchHistory).where(eq(watchHistory.userId, dbUser.id))
+
+    revalidatePath("/dashboard")
+    revalidatePath("/history")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error clearing watch history:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ==================== RATINGS ====================
+
+export async function rateMovie(movieId: string, rating: number) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    if (rating < 1 || rating > 5) {
+      return { success: false, error: "Rating must be between 1 and 5" }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Upsert rating
+    await db
+      .insert(ratings)
+      .values({
+        userId: dbUser.id,
+        movieId,
+        rating,
+      })
+      .onConflictDoUpdate({
+        target: [ratings.userId, ratings.movieId],
+        set: { rating },
+      })
+
+    // Update movie average rating
+    const allRatings = await db.select({ rating: ratings.rating }).from(ratings).where(eq(ratings.movieId, movieId))
+
+    const avgRating = allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length
+
+    await db
+      .update(movies)
+      .set({ averageRating: avgRating.toFixed(1) })
+      .where(eq(movies.id, movieId))
+
+    revalidatePath(`/movie/${movieId}`)
+    revalidatePath("/home")
+    revalidatePath("/browse")
+
+    return { success: true, averageRating: avgRating }
+  } catch (error: any) {
+    console.error("Error rating movie:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getUserRating(movieId: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: true, rating: null }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: true, rating: null }
+    }
+
+    const [userRating] = await db
+      .select()
+      .from(ratings)
+      .where(and(eq(ratings.userId, dbUser.id), eq(ratings.movieId, movieId)))
+      .limit(1)
+
+    return { success: true, rating: userRating?.rating || null }
+  } catch (error: any) {
+    console.error("Error fetching user rating:", error)
+    return { success: false, error: error.message, rating: null }
+  }
+}
+
+// ==================== CONTENT REPORTS ====================
+
+export async function reportContent(movieId: string, reason: string, description?: string) {
+  try {
+    const { userId: clerkId } = await auth()
+
+    let dbUserId: string | null = null
+    if (clerkId) {
+      const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+      dbUserId = dbUser?.id || null
+    }
+
+    await db.insert(contentReports).values({
+      userId: dbUserId,
+      movieId,
+      reason,
+      description,
+      status: "PENDING",
+    })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error reporting content:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getContentReports(status?: string) {
+  try {
+    let query = db
+      .select({
+        id: contentReports.id,
+        reason: contentReports.reason,
+        description: contentReports.description,
+        status: contentReports.status,
+        createdAt: contentReports.createdAt,
+        movie: {
+          id: movies.id,
+          title: movies.title,
+          posterUrl: movies.posterUrl,
+        },
+        user: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+        },
+      })
+      .from(contentReports)
+      .innerJoin(movies, eq(contentReports.movieId, movies.id))
+      .leftJoin(users, eq(contentReports.userId, users.id))
+      .orderBy(desc(contentReports.createdAt))
+
+    if (status) {
+      query = query.where(eq(contentReports.status, status)) as typeof query
+    }
+
+    const reports = await query
+
+    return { success: true, reports }
+  } catch (error: any) {
+    console.error("Error fetching content reports:", error)
+    return { success: false, error: error.message, reports: [] }
+  }
+}
+
+export async function updateReportStatus(reportId: string, status: string) {
+  try {
+    await db.update(contentReports).set({ status, updatedAt: new Date() }).where(eq(contentReports.id, reportId))
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error updating report status:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function deleteContentReport(reportId: string) {
+  try {
+    await db.delete(contentReports).where(eq(contentReports.id, reportId))
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error deleting report:", error)
+    return { success: false, error: error.message }
+  }
+}
+
 export async function saveWatchProgress(movieId: string, progress: number) {
   try {
     const { userId } = await auth()
@@ -1575,5 +1924,164 @@ export async function getUserSettings(type: "notifications" | "privacy") {
   } catch (error: any) {
     console.error("Error getting user settings:", error)
     return { success: false, error: error.message, settings: null }
+  }
+}
+
+// Get user notifications
+export async function getUserNotifications(limit = 20) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return []
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!user) {
+      return []
+    }
+
+    const result = await db.query.notifications.findMany({
+      where: eq(notifications.userId, user.id),
+      orderBy: [desc(notifications.createdAt)],
+      limit,
+      with: {
+        movie: true,
+      },
+    })
+
+    return result.map((n) => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      isRead: n.isRead,
+      createdAt: n.createdAt,
+      movie: n.movie
+        ? {
+            id: n.movie.id,
+            slug: n.movie.slug,
+            title: n.movie.title,
+            posterUrl: n.movie.posterUrl,
+          }
+        : null,
+    }))
+  } catch (error) {
+    console.error("Error fetching notifications:", error)
+    return []
+  }
+}
+
+// Get unread notification count
+export async function getUnreadNotificationCount() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return 0
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!user) {
+      return 0
+    }
+
+    const [result] = await db
+      .select({ count: count() })
+      .from(notifications)
+      .where(and(eq(notifications.userId, user.id), eq(notifications.isRead, false)))
+
+    return result?.count || 0
+  } catch (error) {
+    console.error("Error fetching unread count:", error)
+    return 0
+  }
+}
+
+// Mark notification as read
+export async function markNotificationAsRead(notificationId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, notificationId))
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error marking notification as read:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Mark all notifications as read
+export async function markAllNotificationsAsRead() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.userId, user.id))
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error marking all notifications as read:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Create notification (for admin use when uploading movies)
+export async function createNotificationForAllUsers(title: string, message: string, type: string, movieId?: string) {
+  try {
+    const allUsers = await db.query.users.findMany()
+
+    const notificationValues = allUsers.map((user) => ({
+      userId: user.id,
+      title,
+      message,
+      type,
+      movieId: movieId || null,
+      isRead: false,
+    }))
+
+    if (notificationValues.length > 0) {
+      await db.insert(notifications).values(notificationValues)
+    }
+
+    return { success: true, count: notificationValues.length }
+  } catch (error: any) {
+    console.error("Error creating notifications:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Delete notification
+export async function deleteNotification(notificationId: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    await db.delete(notifications).where(eq(notifications.id, notificationId))
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error deleting notification:", error)
+    return { success: false, error: error.message }
   }
 }

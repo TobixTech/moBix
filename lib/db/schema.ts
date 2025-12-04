@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, primaryKey } from "drizzle-orm/pg-core"
+import { pgTable, text, integer, boolean, timestamp, primaryKey, decimal } from "drizzle-orm/pg-core"
 import { relations, sql } from "drizzle-orm"
 
 // Users
@@ -23,6 +23,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   likes: many(likes),
   comments: many(comments),
   watchlist: many(watchlist),
+  notifications: many(notifications),
 }))
 
 // Movies
@@ -42,6 +43,7 @@ export const movies = pgTable("Movie", {
   isTrending: boolean("isTrending").default(false).notNull(),
   isFeatured: boolean("isFeatured").default(false).notNull(),
   views: integer("views").default(0).notNull(),
+  averageRating: decimal("averageRating", { precision: 2, scale: 1 }).default("0"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")
     .defaultNow()
@@ -53,6 +55,10 @@ export const moviesRelations = relations(movies, ({ many }) => ({
   likes: many(likes),
   comments: many(comments),
   feedback: many(feedback),
+  ratings: many(ratings),
+  watchHistory: many(watchHistory),
+  contentReports: many(contentReports),
+  notifications: many(notifications),
 }))
 
 // Likes
@@ -192,3 +198,142 @@ export const adSettings = pgTable("AdSettings", {
     .notNull()
     .$onUpdate(() => new Date()),
 })
+
+export const pushSubscriptions = pgTable("PushSubscription", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").unique().notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
+    references: [users.id],
+  }),
+}))
+
+export const watchHistory = pgTable(
+  "WatchHistory",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    movieId: text("movieId")
+      .notNull()
+      .references(() => movies.id, { onDelete: "cascade" }),
+    progress: integer("progress").default(0).notNull(),
+    duration: integer("duration").default(0).notNull(),
+    watchedAt: timestamp("watchedAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    unq: primaryKey({ columns: [t.userId, t.movieId] }),
+  }),
+)
+
+export const watchHistoryRelations = relations(watchHistory, ({ one }) => ({
+  user: one(users, {
+    fields: [watchHistory.userId],
+    references: [users.id],
+  }),
+  movie: one(movies, {
+    fields: [watchHistory.movieId],
+    references: [movies.id],
+  }),
+}))
+
+export const ratings = pgTable(
+  "Rating",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    movieId: text("movieId")
+      .notNull()
+      .references(() => movies.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    unq: primaryKey({ columns: [t.userId, t.movieId] }),
+  }),
+)
+
+export const ratingsRelations = relations(ratings, ({ one }) => ({
+  user: one(users, {
+    fields: [ratings.userId],
+    references: [users.id],
+  }),
+  movie: one(movies, {
+    fields: [ratings.movieId],
+    references: [movies.id],
+  }),
+}))
+
+export const contentReports = pgTable("ContentReport", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").references(() => users.id, { onDelete: "set null" }),
+  movieId: text("movieId")
+    .notNull()
+    .references(() => movies.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  description: text("description"),
+  status: text("status").default("PENDING").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const contentReportsRelations = relations(contentReports, ({ one }) => ({
+  user: one(users, {
+    fields: [contentReports.userId],
+    references: [users.id],
+  }),
+  movie: one(movies, {
+    fields: [contentReports.movieId],
+    references: [movies.id],
+  }),
+}))
+
+// Notifications table
+export const notifications = pgTable("Notification", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").default("general").notNull(), // 'new_movie', 'system', 'general'
+  movieId: text("movieId").references(() => movies.id, { onDelete: "cascade" }),
+  isRead: boolean("isRead").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  movie: one(movies, {
+    fields: [notifications.movieId],
+    references: [movies.id],
+  }),
+}))

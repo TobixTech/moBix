@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
 import MidrollAdPlayer from "./midroll-ad-player"
+import { updateWatchProgress } from "@/lib/server-actions"
 
 interface PrerollAdCode {
   code: string
@@ -20,10 +21,10 @@ interface ProductionVideoPlayerProps {
   prerollAdCodes?: PrerollAdCode[]
   midrollAdCodes?: PrerollAdCode[]
   midrollIntervalMinutes?: number
-  // end change
   adTimeout?: number
   skipDelay?: number
   rotationInterval?: number
+  movieId?: string
 }
 
 export default function ProductionVideoPlayer({
@@ -36,10 +37,10 @@ export default function ProductionVideoPlayer({
   prerollAdCodes = [],
   midrollAdCodes = [],
   midrollIntervalMinutes = 20,
-  // end change
   adTimeout = 20,
   skipDelay = 10,
   rotationInterval = 5,
+  movieId,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
   const [showPrerollAd, setShowPrerollAd] = useState(false)
@@ -47,6 +48,45 @@ export default function ProductionVideoPlayer({
   const [showVideo, setShowVideo] = useState(false)
   const [lastMidrollTime, setLastMidrollTime] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const lastProgressUpdate = useRef(0)
+
+  const saveProgress = useCallback(async () => {
+    if (!movieId || !videoRef.current) return
+
+    const video = videoRef.current
+    const progress = Math.floor((video.currentTime / video.duration) * 100)
+    const duration = Math.floor(video.duration)
+
+    // Only save if progress changed significantly
+    if (Math.abs(progress - lastProgressUpdate.current) >= 5) {
+      lastProgressUpdate.current = progress
+      await updateWatchProgress(movieId, progress, duration)
+    }
+  }, [movieId])
+
+  useEffect(() => {
+    if (!showVideo || !movieId) return
+
+    const video = videoRef.current
+    if (!video) return
+
+    // Save progress every 30 seconds
+    const interval = setInterval(saveProgress, 30000)
+
+    // Save progress on pause and before unload
+    const handlePause = () => saveProgress()
+    const handleBeforeUnload = () => saveProgress()
+
+    video.addEventListener("pause", handlePause)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+
+    return () => {
+      clearInterval(interval)
+      video.removeEventListener("pause", handlePause)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      saveProgress() // Save on unmount
+    }
+  }, [showVideo, movieId, saveProgress])
 
   const handleIntroComplete = () => {
     setShowIntro(false)
@@ -91,7 +131,6 @@ export default function ProductionVideoPlayer({
     video.addEventListener("timeupdate", handleTimeUpdate)
     return () => video.removeEventListener("timeupdate", handleTimeUpdate)
   }, [midrollEnabled, showVideo, midrollAdCodes, midrollIntervalMinutes, lastMidrollTime])
-  // end change
 
   const isEmbedUrl = (url: string) => {
     return (
@@ -144,7 +183,6 @@ export default function ProductionVideoPlayer({
           rotationInterval={rotationInterval}
         />
       )}
-      {/* end change */}
 
       {showVideo && (
         <>
