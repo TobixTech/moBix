@@ -19,7 +19,6 @@ import {
   Loader,
   Settings,
   Save,
-  Ban,
   Inbox,
   CheckCircle,
   RefreshCw,
@@ -113,12 +112,18 @@ interface Signup {
 
 interface User {
   id: string
+  clerkId: string // Added Clerk ID
   email: string
   dateJoined: string
   role: string
+  country?: string | null // Added for users tab
+  ipAddress?: string | null // Added for users tab
+  ipCount?: number // Added for users tab
+  isDuplicateIp?: boolean // Added for users tab
+  firstName?: string | null // Added for reports
+  lastName?: string | null // Added for reports
   createdAt?: string // Added for getUsers response
   commentsCount?: number // Added for users tab
-  firstName?: string | null // Added for reports
 }
 
 interface Comment {
@@ -202,6 +207,10 @@ export default function AdminDashboard() {
 
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
+
+  // State for the Send Notification Modal
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [showSendNotificationModal, setShowSendNotificationModal] = useState(false)
 
   // FIND THE adSettings STATE AROUND LINE 143-165 AND UPDATE IT
   const [adSettings, setAdSettings] = useState({
@@ -708,13 +717,41 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const handleDeleteUser = async (userId: string) => {
+  // Handle role change for users
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    setLoading(true)
+    try {
+      // Assuming a new server action `updateUserRole` exists
+      const response = await fetch("/api/admin/update-user-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: newRole }),
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        const usersData = await getUsers()
+        setUsers(usersData)
+        toast.success(`User role updated to ${newRole}`)
+      } else {
+        toast.error(`Failed to update role: ${result.error}`)
+      }
+    } catch (error) {
+      toast.error("An error occurred while updating role.")
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteUser = async (clerkId: string) => {
     if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
       return
     }
 
     setLoading(true)
-    const result = await deleteUser(userId)
+    // Assuming `deleteUser` now takes `clerkId`
+    const result = await deleteUser(clerkId)
 
     if (result.success) {
       const usersData = await getUsers() // Using getUsers
@@ -880,7 +917,6 @@ export default function AdminDashboard() {
   }
 
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
-  const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
   // ... existing PIN verification render ...
   if (!pinVerified) {
@@ -1119,12 +1155,17 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {selectedUserForNotification && (
+      {/* Send Notification Modal */}
+      {selectedUserId && (
         <SendNotificationModal
-          isOpen={!!selectedUserForNotification}
-          onClose={() => setSelectedUserForNotification(null)}
-          userId={selectedUserForNotification.id}
-          userEmail={selectedUserForNotification.email}
+          isOpen={showSendNotificationModal}
+          onClose={() => {
+            setShowSendNotificationModal(false)
+            setSelectedUserId(null)
+          }}
+          userId={selectedUserId}
+          // Removed userEmail prop as it's not directly available in this context for the modal and can be fetched if needed.
+          // If the modal specifically needs it, it would need to be passed down or fetched within the modal.
         />
       )}
 
@@ -1725,7 +1766,7 @@ export default function AdminDashboard() {
                 <div className="relative flex-1 max-w-md">
                   <input
                     type="text"
-                    placeholder="Search users..."
+                    placeholder="Search users by email, name, or IP..."
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pl-10 text-white focus:outline-none focus:border-cyan-500/50"
@@ -1734,70 +1775,114 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Users Table */}
               <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-white/5 border-b border-white/10">
                       <tr>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">User</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Role</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Comments</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Joined</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Email</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Name</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Country</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">IP Address</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Role</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Registered</th>
+                        <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
-                      {filteredUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
-                                {user.email?.charAt(0).toUpperCase()}
+                      {users
+                        .filter(
+                          (user) =>
+                            user.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+                            user.firstName?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                            user.lastName?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                            user.ipAddress?.includes(userSearch), // Added IP search
+                        )
+                        .map((user) => (
+                          <tr key={user.id} className="hover:bg-white/5">
+                            <td className="px-4 py-3 text-white">{user.email}</td>
+                            <td className="px-4 py-3 text-white">
+                              {user.firstName || ""} {user.lastName || ""}
+                            </td>
+                            <td className="px-4 py-3 text-white">
+                              {user.country ? (
+                                <span className="flex items-center gap-2">
+                                  <span>{getCountryByName(user.country)?.flag || "🌍"}</span>
+                                  <span className="text-white/70 text-sm">{user.country}</span>
+                                </span>
+                              ) : (
+                                <span className="text-white/40">-</span>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 ${user.isDuplicateIp ? "text-red-400" : "text-white/70"}`}>
+                              {user.ipAddress ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="font-mono text-xs">{user.ipAddress}</span>
+                                  {user.ipCount > 1 && (
+                                    <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">
+                                      x{user.ipCount}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-white/40">-</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2 py-1 text-xs font-bold rounded ${
+                                  user.role === "ADMIN"
+                                    ? "bg-purple-500/20 text-purple-400"
+                                    : "bg-blue-500/20 text-blue-400"
+                                }`}
+                              >
+                                {user.role}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-white/50 text-sm">
+                              {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : user.dateJoined}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedUserId(user.id)
+                                    setShowSendNotificationModal(true)
+                                  }}
+                                  className="p-1.5 hover:bg-[#00FFFF]/10 rounded text-white/50 hover:text-[#00FFFF] transition"
+                                  title="Send Notification"
+                                >
+                                  <Bell className="w-4 h-4" />
+                                </button>
+                                {user.ipAddress && user.ipCount > 1 && (
+                                  <button
+                                    onClick={() => setUserSearch(user.ipAddress || "")}
+                                    className="p-1.5 hover:bg-orange-500/10 rounded text-white/50 hover:text-orange-400 transition"
+                                    title={`View ${user.ipCount} accounts from this IP`}
+                                  >
+                                    <Users className="w-4 h-4" />
+                                  </button>
+                                )}
+                                <select
+                                  value={user.role}
+                                  onChange={(e) => handleRoleChange(user.clerkId, e.target.value)}
+                                  className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+                                >
+                                  <option value="USER">User</option>
+                                  <option value="ADMIN">Admin</option>
+                                </select>
+                                <button
+                                  onClick={() => handleDeleteUser(user.clerkId)}
+                                  className="p-1.5 hover:bg-red-500/10 rounded text-white/50 hover:text-red-400 transition"
+                                  title="Delete User"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
-                              <div className="text-white">{user.email}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-bold border ${
-                                user.role === "ADMIN" // Role check changed to 'ADMIN' for case-insensitivity if necessary, or matching API response. Assuming 'ADMIN' is the correct constant.
-                                  ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                                  : "bg-white/10 text-white/60 border-white/10"
-                              }`}
-                            >
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-white/70">{user.commentsCount || 0}</td>
-                          <td className="px-6 py-4 text-white/50">{user.createdAt || user.dateJoined}</td>{" "}
-                          {/* Prefer createdAt if available, otherwise fall back to dateJoined */}
-                          <td className="px-6 py-4">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => setSelectedUserForNotification({ id: user.id, email: user.email })}
-                                className="p-2 hover:bg-cyan-500/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
-                                title="Send Notification"
-                              >
-                                <Bell className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleBanUser(user.id)}
-                                className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-yellow-400 transition-colors"
-                                title="Ban User"
-                              >
-                                <Ban className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
-                                title="Delete User"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>

@@ -16,6 +16,7 @@ import {
   BookmarkIcon,
   PlayCircle,
   RefreshCw,
+  Globe,
 } from "lucide-react"
 import { getUserStats, updateUserProfile, getContinueWatching } from "@/lib/server-actions"
 import { useRouter } from "next/navigation"
@@ -253,6 +254,14 @@ export default function DashboardPage() {
                         <p className="text-[#888888]">
                           {userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress}
                         </p>
+                        {(clerkUser?.unsafeMetadata?.country || userStats?.country) && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Globe className="w-4 h-4 text-[#00FFFF]" />
+                            <span className="text-[#888888] text-sm">
+                              {(clerkUser?.unsafeMetadata?.country as string) || userStats?.country}
+                            </span>
+                          </div>
+                        )}
                         <p className="text-[#888888] text-sm mt-2">
                           Member since{" "}
                           {userStats?.memberSince ? new Date(userStats.memberSince).toLocaleDateString() : "Recently"}

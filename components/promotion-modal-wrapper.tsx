@@ -14,36 +14,53 @@ interface PromotionSettings {
 }
 
 export default function PromotionModalWrapper() {
-  const { user, isSignedIn } = useUser()
+  const { user, isSignedIn, isLoaded } = useUser()
   const [settings, setSettings] = useState<PromotionSettings | null>(null)
   const [userCountry, setUserCountry] = useState("")
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
+    if (!isLoaded) return
+
     async function fetchData() {
       try {
         // Fetch promotion settings
-        const settingsRes = await fetch("/api/promotions/settings")
+        const settingsRes = await fetch("/api/promotions/settings", { cache: "no-store" })
         const settingsData = await settingsRes.json()
+
+        console.log("[v0] Promotion settings:", settingsData)
+
         setSettings(settingsData)
 
         // Get user country from Clerk metadata or detect
+        let country = ""
         if (isSignedIn && user?.unsafeMetadata?.country) {
-          setUserCountry(user.unsafeMetadata.country as string)
+          country = user.unsafeMetadata.country as string
         } else {
           // Fallback to IP detection
-          const ipRes = await fetch("/api/get-ip")
-          const ipData = await ipRes.json()
-          setUserCountry(ipData.country || "Unknown")
+          try {
+            const ipRes = await fetch("/api/get-ip")
+            const ipData = await ipRes.json()
+            country = ipData.country || "Unknown"
+          } catch {
+            country = "Unknown"
+          }
         }
-      } catch {
-        // Silently fail
+
+        console.log("[v0] User country:", country)
+        setUserCountry(country)
+        setIsReady(true)
+      } catch (err) {
+        console.error("[v0] Error fetching promotion data:", err)
       }
     }
 
     fetchData()
-  }, [isSignedIn, user])
+  }, [isLoaded, isSignedIn, user])
 
-  if (!settings || !userCountry) return null
+  if (!isReady || !settings || !userCountry) {
+    return null
+  }
 
   return <PromotionModal userCountry={userCountry} settings={settings} />
 }

@@ -39,3 +39,5 @@ export function getCountryByCode(code: string) {
 export function getCountryByName(name: string) {
   return COUNTRIES.find((c) => c.name.toLowerCase() === name.toLowerCase()) || null
 }
+
+export const countries = COUNTRIES

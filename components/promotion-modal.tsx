@@ -32,15 +32,33 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
   const [honeypot, setHoneypot] = useState("")
 
   useEffect(() => {
+    console.log("[v0] PromotionModal checking conditions:", {
+      isActive: settings.isActive,
+      enabledCountries: settings.enabledCountries,
+      userCountry,
+      isCountryEnabled: settings.enabledCountries.includes(userCountry),
+    })
+
     // Check if modal should show
-    if (!settings.isActive) return
-    if (!settings.enabledCountries.includes(userCountry)) return
+    if (!settings.isActive) {
+      console.log("[v0] Promotion not active")
+      return
+    }
+
+    if (!settings.enabledCountries.includes(userCountry)) {
+      console.log("[v0] Country not enabled:", userCountry)
+      return
+    }
 
     // Check localStorage for already shown
     const hasSeenPromo = localStorage.getItem("promo_modal_shown")
-    if (hasSeenPromo) return
+    if (hasSeenPromo) {
+      console.log("[v0] User already seen promo")
+      return
+    }
 
     // Show modal after a short delay
+    console.log("[v0] Showing promotion modal")
     const timer = setTimeout(() => {
       setIsOpen(true)
     }, 2000)

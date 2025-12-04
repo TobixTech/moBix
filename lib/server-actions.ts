@@ -2376,3 +2376,92 @@ export async function getUserCountryStats() {
     return []
   }
 }
+
+export async function createWelcomeNotification(userId: string) {
+  try {
+    await db.insert(notifications).values({
+      userId,
+      title: "Welcome to moBix!",
+      message: "Thanks for joining! Start exploring our collection of movies and enjoy your experience.",
+      type: "welcome",
+      isRead: false,
+    })
+    return { success: true }
+  } catch (error) {
+    console.error("Error creating welcome notification:", error)
+    return { success: false }
+  }
+}
+
+export async function sendWelcomeNotificationsToAllUsers() {
+  try {
+    const allUsers = await db.query.users.findMany()
+
+    for (const user of allUsers) {
+      // Check if user already has a welcome notification
+      const existingWelcome = await db.query.notifications.findFirst({
+        where: and(eq(notifications.userId, user.id), eq(notifications.type, "welcome")),
+      })
+
+      if (!existingWelcome) {
+        await createWelcomeNotification(user.id)
+      }
+    }
+
+    return { success: true, count: allUsers.length }
+  } catch (error) {
+    console.error("Error sending welcome notifications:", error)
+    return { success: false }
+  }
+}
+
+export async function syncUserToDatabase(
+  clerkId: string,
+  email: string,
+  firstName?: string,
+  lastName?: string,
+  country?: string,
+  ipAddress?: string,
+) {
+  try {
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+    })
+
+    if (existingUser) {
+      // Update existing user
+      await db
+        .update(users)
+        .set({
+          email,
+          firstName: firstName || existingUser.firstName,
+          lastName: lastName || existingUser.lastName,
+          country: country || existingUser.country,
+          ipAddress: ipAddress || existingUser.ipAddress,
+        })
+        .where(eq(users.clerkId, clerkId))
+
+      return existingUser
+    }
+
+    // Create new user
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        clerkId,
+        email,
+        firstName,
+        lastName,
+        country,
+        ipAddress,
+      })
+      .returning()
+
+    await createWelcomeNotification(newUser.id)
+
+    return newUser
+  } catch (error) {
+    console.error("Error syncing user to database:", error)
+    throw error
+  }
+}
