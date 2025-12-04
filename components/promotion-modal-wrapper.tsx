@@ -13,11 +13,13 @@ interface PromotionSettings {
   networkOptions: Record<string, string[]>
 }
 
-export default function PromotionModalWrapper() {
+export function PromotionModalWrapper() {
   const { user, isSignedIn, isLoaded } = useUser()
   const [settings, setSettings] = useState<PromotionSettings | null>(null)
   const [userCountry, setUserCountry] = useState("")
+  const [userIp, setUserIp] = useState("")
   const [isReady, setIsReady] = useState(false)
+  const [targetedPromotion, setTargetedPromotion] = useState<any>(null)
 
   useEffect(() => {
     if (!isLoaded) return
@@ -34,6 +36,8 @@ export default function PromotionModalWrapper() {
 
         // Get user country from Clerk metadata or detect
         let country = ""
+        let ip = ""
+
         if (isSignedIn && user?.unsafeMetadata?.country) {
           country = user.unsafeMetadata.country as string
         } else {
@@ -42,6 +46,7 @@ export default function PromotionModalWrapper() {
             const ipRes = await fetch("/api/get-ip")
             const ipData = await ipRes.json()
             country = ipData.country || "Unknown"
+            ip = ipData.ip || ""
           } catch {
             country = "Unknown"
           }
@@ -49,6 +54,38 @@ export default function PromotionModalWrapper() {
 
         console.log("[v0] User country:", country)
         setUserCountry(country)
+        setUserIp(ip)
+
+        if (isSignedIn && user?.id) {
+          try {
+            const userDbRes = await fetch(`/api/user/me`)
+            const userData = await userDbRes.json()
+
+            if (userData?.id) {
+              const targetedRes = await fetch(`/api/promotions/target-user?userId=${userData.id}`)
+              const targetedData = await targetedRes.json()
+
+              if (targetedData.hasTargetedPromotion) {
+                setTargetedPromotion(targetedData.promotion)
+
+                // Record view for analytics
+                await fetch("/api/promotions/analytics", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    userId: userData.id,
+                    ipAddress: ip,
+                    country: country,
+                    submitted: false,
+                  }),
+                })
+              }
+            }
+          } catch {
+            // Continue with normal flow
+          }
+        }
+
         setIsReady(true)
       } catch (err) {
         console.error("[v0] Error fetching promotion data:", err)
@@ -58,9 +95,54 @@ export default function PromotionModalWrapper() {
     fetchData()
   }, [isLoaded, isSignedIn, user])
 
+  const handleClose = async () => {
+    if (targetedPromotion) {
+      try {
+        await fetch("/api/promotions/target-user", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            promotionId: targetedPromotion.id,
+            action: "dismissed",
+          }),
+        })
+      } catch {
+        // Ignore errors
+      }
+    }
+  }
+
+  const handleSuccess = async () => {
+    if (targetedPromotion) {
+      try {
+        await fetch("/api/promotions/target-user", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            promotionId: targetedPromotion.id,
+            action: "shown",
+          }),
+        })
+      } catch {
+        // Ignore errors
+      }
+    }
+  }
+
   if (!isReady || !settings || !userCountry) {
     return null
   }
 
-  return <PromotionModal userCountry={userCountry} settings={settings} />
+  return (
+    <PromotionModal
+      userCountry={userCountry}
+      settings={settings}
+      onClose={handleClose}
+      onSuccess={handleSuccess}
+      isTargeted={!!targetedPromotion}
+    />
+  )
 }
+
+// Keep default export for backwards compatibility
+export default PromotionModalWrapper

@@ -1864,14 +1864,25 @@ export default function AdminDashboard() {
                                     <Users className="w-4 h-4" />
                                   </button>
                                 )}
-                                <select
+                                {/* <select
                                   value={user.role}
                                   onChange={(e) => handleRoleChange(user.clerkId, e.target.value)}
                                   className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
                                 >
                                   <option value="USER">User</option>
                                   <option value="ADMIN">Admin</option>
+                                </select> */}
+
+                                {/* CHANGE START */}
+                                <select
+                                  value={user.role}
+                                  onChange={(e) => handleRoleChange(user.clerkId, e.target.value)}
+                                  className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+                                >
+                                  <option value="USER">User</option>
+                                  <option value="PREMIUM">Premium</option>
                                 </select>
+                                {/* CHANGE END */}
                                 <button
                                   onClick={() => handleDeleteUser(user.clerkId)}
                                   className="p-1.5 hover:bg-red-500/10 rounded text-white/50 hover:text-red-400 transition"

@@ -1,4 +1,8 @@
 import { getAdSettings } from "@/lib/server-actions"
+import { auth } from "@clerk/nextjs/server"
+import { db } from "@/lib/db"
+import { users } from "@/lib/db/schema"
+import { eq } from "drizzle-orm"
 
 interface AdBannerProps {
   type?: "horizontal" | "vertical"
@@ -7,6 +11,22 @@ interface AdBannerProps {
 }
 
 export default async function AdBanner({ type = "horizontal", className = "", placement }: AdBannerProps) {
+  const { userId } = await auth()
+
+  if (userId) {
+    try {
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, userId),
+      })
+
+      if (user?.role === "PREMIUM") {
+        return null // No ads for premium users
+      }
+    } catch {
+      // Continue to show ads if check fails
+    }
+  }
+
   let adSettings = null
 
   try {

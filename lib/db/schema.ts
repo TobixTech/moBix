@@ -383,3 +383,44 @@ export const promotionSettings = pgTable("PromotionSettings", {
   networkOptions: text("networkOptions").default('{"Nigeria":["MTN","Airtel","Glo","9mobile","Other"]}'),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 })
+
+// Promotion Views/Analytics table
+export const promotionViews = pgTable("PromotionView", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").references(() => users.id, { onDelete: "set null" }),
+  ipAddress: text("ipAddress").notNull(),
+  country: text("country"),
+  viewedAt: timestamp("viewedAt").defaultNow().notNull(),
+  submitted: boolean("submitted").default(false).notNull(),
+})
+
+export const promotionViewsRelations = relations(promotionViews, ({ one }) => ({
+  user: one(users, {
+    fields: [promotionViews.userId],
+    references: [users.id],
+  }),
+}))
+
+// Targeted Promotions table for manual user selection
+export const targetedPromotions = pgTable("TargetedPromotion", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  reason: text("reason"),
+  shown: boolean("shown").default(false).notNull(),
+  dismissed: boolean("dismissed").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  shownAt: timestamp("shownAt"),
+})
+
+export const targetedPromotionsRelations = relations(targetedPromotions, ({ one }) => ({
+  user: one(users, {
+    fields: [targetedPromotions.userId],
+    references: [users.id],
+  }),
+}))

@@ -1818,6 +1818,15 @@ export async function getUsers() {
       },
       orderBy: [desc(users.createdAt)],
     })
+
+    // Get duplicate IP counts
+    const ipCounts: Record<string, number> = {}
+    result.forEach((user) => {
+      if (user.ipAddress) {
+        ipCounts[user.ipAddress] = (ipCounts[user.ipAddress] || 0) + 1
+      }
+    })
+
     return result.map((user) => ({
       id: user.id,
       email: user.email,
@@ -1825,6 +1834,10 @@ export async function getUsers() {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      country: user.country,
+      ipAddress: user.ipAddress,
+      ipCount: user.ipAddress ? ipCounts[user.ipAddress] : 0,
+      isDuplicateIp: user.ipAddress ? ipCounts[user.ipAddress] > 1 : false,
       createdAt: user.createdAt.toISOString().split("T")[0],
       clerkId: user.clerkId,
       commentsCount: user.comments.length,

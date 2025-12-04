@@ -19,7 +19,6 @@ import {
 import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import Link from "next/link"
 import { countries } from "@/lib/countries"
 
 interface AuthModalProps {
@@ -602,6 +601,29 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                       </div>
                     </div>
 
+                    {/* Email field - moved to be first after names */}
+                    <div>
+                      <label className="block text-[#888888] text-sm mb-1.5">Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className={`w-full pl-11 pr-4 py-2.5 bg-[#0B0C10] border rounded-lg text-white placeholder-[#666666] focus:outline-none transition ${
+                            email && !isEmailValid ? "border-red-500" : "border-[#2A2B33] focus:border-[#00FFFF]"
+                          }`}
+                          placeholder="Enter your email"
+                          required
+                          autoComplete="email"
+                        />
+                      </div>
+                      {email && !isEmailValid && (
+                        <p className="text-red-400 text-xs mt-1">Please enter a valid email</p>
+                      )}
+                    </div>
+
+                    {/* Country field - right after email */}
                     <div ref={countryDropdownRef}>
                       <label className="block text-[#888888] text-sm mb-1.5">
                         Country <span className="text-red-400">*</span>
@@ -663,24 +685,7 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Email</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className={`w-full pl-11 pr-4 py-2.5 bg-[#0B0C10] border rounded-lg text-white placeholder-[#666666] focus:outline-none transition ${
-                            email && !isEmailValid ? "border-red-500" : "border-[#2A2B33] focus:border-[#00FFFF]"
-                          }`}
-                          placeholder="Enter your email"
-                          required
-                          autoComplete="email"
-                        />
-                      </div>
-                    </div>
-
+                    {/* Password field */}
                     <div>
                       <label className="block text-[#888888] text-sm mb-1.5">Password</label>
                       <div className="relative">
@@ -704,8 +709,12 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                           {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
+                      {password && !isPasswordValid && (
+                        <p className="text-red-400 text-xs mt-1">Password must be at least 8 characters</p>
+                      )}
                     </div>
 
+                    {/* Confirm Password field */}
                     <div>
                       <label className="block text-[#888888] text-sm mb-1.5">Confirm Password</label>
                       <div className="relative">
@@ -724,6 +733,9 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                           autoComplete="new-password"
                         />
                       </div>
+                      {confirmPassword && !doPasswordsMatch && (
+                        <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
+                      )}
                     </div>
 
                     <button
@@ -750,21 +762,10 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                           setStep("login")
                           setError("")
                         }}
-                        className="text-[#00FFFF] hover:underline font-medium"
+                        className="text-[#00FFFF] hover:underline"
                       >
-                        Sign in
+                        Login
                       </button>
-                    </p>
-
-                    <p className="text-center text-[#666666] text-xs">
-                      By signing up, you agree to our{" "}
-                      <Link href="/terms" className="text-[#00FFFF] hover:underline" onClick={handleClose}>
-                        Terms
-                      </Link>{" "}
-                      and{" "}
-                      <Link href="/privacy" className="text-[#00FFFF] hover:underline" onClick={handleClose}>
-                        Privacy
-                      </Link>
                     </p>
                   </form>
                 )}

@@ -1,22 +1,24 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useUser, SignOutButton } from "@clerk/nextjs"
+import { useUser } from "@clerk/nextjs"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import MovieCard from "@/components/movie-card"
+import AdBanner from "@/components/ad-banner"
+import { MobileBottomNav } from "@/components/mobile-bottom-nav"
 import {
   User,
   Settings,
-  LogOut,
   Heart,
   MessageSquare,
   Loader,
-  Save,
   BookmarkIcon,
   PlayCircle,
   RefreshCw,
   Globe,
+  Crown,
+  Sparkles,
 } from "lucide-react"
 import { getUserStats, updateUserProfile, getContinueWatching } from "@/lib/server-actions"
 import { useRouter } from "next/navigation"
@@ -40,6 +42,8 @@ export default function DashboardPage() {
   const [saveMessage, setSaveMessage] = useState("")
 
   const [adSettings, setAdSettings] = useState<any>(null)
+
+  const isPremium = userStats?.role === "PREMIUM"
 
   const fetchUserData = async () => {
     if (clerkUser) {
@@ -101,465 +105,372 @@ export default function DashboardPage() {
     }
   }
 
-  const DashboardAdBanner = ({ className = "" }: { className?: string }) => {
-    if (!adSettings) return null
-    if (adSettings.dashboardEnabled !== true) return null
-    if (!adSettings.horizontalAdCode || adSettings.horizontalAdCode.trim() === "") return null
-
-    return (
-      <div className={`bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden ${className}`}>
-        <iframe
-          srcDoc={`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <style>
-                body { margin: 0; padding: 8px; display: flex; align-items: center; justify-content: center; background: transparent; }
-              </style>
-            </head>
-            <body>${adSettings.horizontalAdCode}</body>
-            </html>
-          `}
-          className="w-full min-h-[90px]"
-          style={{ border: "none" }}
-          scrolling="no"
-          title="Advertisement"
-          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-        />
-      </div>
-    )
-  }
+  const tabs = [
+    { id: "profile", label: "Profile", icon: User },
+    { id: "continue", label: "Continue Watching", icon: Globe },
+    { id: "watchlist", label: "Watchlist", icon: BookmarkIcon },
+    { id: "liked", label: "Liked", icon: Heart },
+    { id: "settings", label: "Settings", icon: Settings },
+  ]
 
   return (
     <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar />
 
       <div className="pt-20 px-4 md:px-8 py-8">
-        <DashboardAdBanner className="mb-6" />
+        {isPremium && (
+          <div className="mb-6 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 border border-amber-500/30 rounded-xl p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-full flex items-center justify-center">
+              <Crown className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-amber-400 font-bold flex items-center gap-2">
+                Premium Member <Sparkles className="w-4 h-4" />
+              </h3>
+              <p className="text-amber-200/70 text-sm">Enjoy ad-free streaming and exclusive features</p>
+            </div>
+          </div>
+        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="md:col-span-1">
-            <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6 sticky top-24">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-white font-bold">Dashboard</h3>
-                <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="p-2 text-[#00FFFF] hover:bg-[#2A2B33] rounded transition"
-                  title="Refresh data"
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Dashboard</h1>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg text-white hover:bg-[#2A2B33] transition disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            <span className="hidden md:inline">Refresh</span>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as DashboardTab)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition ${
+                activeTab === tab.id
+                  ? "bg-[#00FFFF] text-[#0B0C10] font-medium"
+                  : "bg-[#1A1B23] text-white hover:bg-[#2A2B33]"
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
+            <h2 className="text-2xl font-bold text-white mb-6">Profile</h2>
+
+            {loading ? (
+              <div className="flex items-center justify-center text-white py-8">
+                <Loader className="w-6 h-6 animate-spin mr-2" />
+                Loading...
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-6 mb-8">
+                  <div
+                    className={`w-24 h-24 rounded-full flex items-center justify-center relative ${
+                      isPremium
+                        ? "bg-gradient-to-br from-amber-400/30 to-yellow-600/30 border-2 border-amber-500"
+                        : "bg-[#00FFFF]/20"
+                    }`}
+                  >
+                    {isPremium && (
+                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-full flex items-center justify-center">
+                        <Crown className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                    <User className={`w-12 h-12 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      {clerkUser?.firstName || "User"} {clerkUser?.lastName || ""}
+                      {isPremium && (
+                        <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-xs font-bold rounded-full">
+                          PREMIUM
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[#888888]">{userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress}</p>
+                    {(clerkUser?.unsafeMetadata?.country || userStats?.country) && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Globe className="w-4 h-4 text-[#00FFFF]" />
+                        <span className="text-[#888888] text-sm">
+                          {(clerkUser?.unsafeMetadata?.country as string) || userStats?.country}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[#888888] text-sm mt-2">
+                      Member since{" "}
+                      {userStats?.memberSince ? new Date(userStats.memberSince).toLocaleDateString() : "Recently"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div
+                    className={`border rounded-lg p-4 ${isPremium ? "bg-gradient-to-br from-amber-500/10 to-yellow-600/10 border-amber-500/30" : "bg-[#0B0C10] border-[#2A2B33]"}`}
+                  >
+                    <Heart className={`w-8 h-8 mb-2 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
+                    <p className="text-2xl font-bold text-white">{userStats?.totalLikes || 0}</p>
+                    <p className="text-[#888888] text-sm">Movies Liked</p>
+                  </div>
+                  <div
+                    className={`border rounded-lg p-4 ${isPremium ? "bg-gradient-to-br from-amber-500/10 to-yellow-600/10 border-amber-500/30" : "bg-[#0B0C10] border-[#2A2B33]"}`}
+                  >
+                    <MessageSquare className={`w-8 h-8 mb-2 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
+                    <p className="text-2xl font-bold text-white">{userStats?.totalComments || 0}</p>
+                    <p className="text-[#888888] text-sm">Comments Posted</p>
+                  </div>
+                  <div
+                    className={`border rounded-lg p-4 ${isPremium ? "bg-gradient-to-br from-amber-500/10 to-yellow-600/10 border-amber-500/30" : "bg-[#0B0C10] border-[#2A2B33]"}`}
+                  >
+                    <BookmarkIcon className={`w-8 h-8 mb-2 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
+                    <p className="text-2xl font-bold text-white">{userStats?.totalWatchlist || 0}</p>
+                    <p className="text-[#888888] text-sm">In Watchlist</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">First Name</label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Last Name</label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Username</label>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Email (Cannot be changed)</label>
+                    <input
+                      type="email"
+                      value={userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress || ""}
+                      readOnly
+                      className="w-full px-4 py-2 bg-[#0B0C10]/50 border border-[#2A2B33] rounded text-[#888888] cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2">Country (Cannot be changed)</label>
+                    <div className="w-full px-4 py-2 bg-[#0B0C10]/50 border border-[#2A2B33] rounded text-[#888888] cursor-not-allowed flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      {(clerkUser?.unsafeMetadata?.country as string) || userStats?.country || "Not set"}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={isSaving}
+                      className={`px-6 py-2 font-bold rounded-lg transition disabled:opacity-50 ${
+                        isPremium
+                          ? "bg-gradient-to-r from-amber-500 to-yellow-600 text-white hover:shadow-lg hover:shadow-amber-500/30"
+                          : "bg-[#00FFFF] text-[#0B0C10] hover:shadow-lg hover:shadow-[#00FFFF]/50"
+                      }`}
+                    >
+                      {isSaving ? "Saving..." : "Save Changes"}
+                    </button>
+                    {saveMessage && (
+                      <p className={saveMessage.includes("Error") ? "text-red-400" : "text-green-400"}>{saveMessage}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Continue Watching Tab */}
+        {activeTab === "continue" && (
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <Globe className="w-6 h-6 text-[#00FFFF]" />
+              Continue Watching
+            </h2>
+            {loading ? (
+              <div className="flex items-center justify-center text-white py-8">
+                <Loader className="w-6 h-6 animate-spin mr-2" />
+                Loading...
+              </div>
+            ) : continueWatching.length === 0 ? (
+              <div className="text-center py-12">
+                <Globe className="w-16 h-16 text-[#2A2B33] mx-auto mb-4" />
+                <p className="text-[#888888]">No movies in progress</p>
+                <Link
+                  href="/home"
+                  className="mt-4 inline-block px-6 py-2 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
                 >
-                  <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+                  Browse Movies
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {continueWatching.map((item: any) => (
+                  <Link key={item.movieId} href={`/movie/${item.movie?.slug || item.movieId}`}>
+                    <div className="relative group cursor-pointer">
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-[#2A2B33]">
+                        <img
+                          src={item.movie?.posterUrl || "/placeholder.svg?height=300&width=200"}
+                          alt={item.movie?.title || "Movie"}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                          <PlayCircle className="w-12 h-12 text-white" />
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
+                        <div
+                          className="h-full bg-[#00FFFF]"
+                          style={{
+                            width: `${item.duration > 0 ? (item.progress / item.duration) * 100 : 0}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="mt-2 text-white text-sm font-medium truncate">{item.movie?.title}</p>
+                      <p className="text-[#888888] text-xs">
+                        {Math.floor(item.progress / 60)}m / {Math.floor(item.duration / 60)}m
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Watchlist Tab */}
+        {activeTab === "watchlist" && (
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
+            <h2 className="text-2xl font-bold text-white mb-6">My Watchlist</h2>
+            {loading ? (
+              <div className="flex items-center justify-center text-white py-8">
+                <Loader className="w-6 h-6 animate-spin mr-2" />
+                Loading...
+              </div>
+            ) : userStats?.watchlistMovies && userStats.watchlistMovies.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {userStats.watchlistMovies.map((movie: any) => (
+                  <MovieCard key={movie.id} movie={movie} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <BookmarkIcon className="w-16 h-16 text-[#2A2B33] mx-auto mb-4" />
+                <p className="text-[#888888]">Your watchlist is empty</p>
+                <Link
+                  href="/home"
+                  className="mt-4 inline-block px-6 py-2 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
+                >
+                  Browse Movies
+                </Link>
+              </div>
+            )}
+
+            {userStats?.watchlistMovies && userStats.watchlistMovies.length > 0 && (
+              <AdBanner type="horizontal" placement="dashboard" />
+            )}
+          </div>
+        )}
+
+        {/* Liked Tab */}
+        {activeTab === "liked" && (
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
+            <h2 className="text-2xl font-bold text-white mb-6">Liked Movies</h2>
+            {loading ? (
+              <div className="flex items-center justify-center text-white py-8">
+                <Loader className="w-6 h-6 animate-spin mr-2" />
+                Loading...
+              </div>
+            ) : userStats?.likedMovies && userStats.likedMovies.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {userStats.likedMovies.map((movie: any) => (
+                  <MovieCard key={movie.id} movie={movie} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Heart className="w-16 h-16 text-[#2A2B33] mx-auto mb-4" />
+                <p className="text-[#888888]">No liked movies yet</p>
+                <Link
+                  href="/home"
+                  className="mt-4 inline-block px-6 py-2 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
+                >
+                  Browse Movies
+                </Link>
+              </div>
+            )}
+
+            {userStats?.likedMovies && userStats.likedMovies.length > 0 && (
+              <AdBanner type="horizontal" placement="dashboard" />
+            )}
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === "settings" && (
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-6">
+            <h2 className="text-2xl font-bold text-white mb-6">Settings</h2>
+
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-[#0B0C10] border border-[#2A2B33] rounded-lg">
+                <div>
+                  <p className="text-white font-medium">Email Notifications</p>
+                  <p className="text-[#888888] text-sm">Receive email updates about new movies</p>
+                </div>
+                <button className="w-12 h-6 bg-[#00FFFF] rounded-full relative">
+                  <span className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
                 </button>
               </div>
-
-              <nav className="space-y-2">
-                <button
-                  onClick={() => setActiveTab("profile")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 rounded transition ${
-                    activeTab === "profile" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white hover:bg-[#2A2B33]"
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  Profile
+              <div className="flex items-center justify-between p-4 bg-[#0B0C10] border border-[#2A2B33] rounded-lg">
+                <div>
+                  <p className="text-white font-medium">Push Notifications</p>
+                  <p className="text-[#888888] text-sm">Get notified when new movies are added</p>
+                </div>
+                <button className="w-12 h-6 bg-[#2A2B33] rounded-full relative">
+                  <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full" />
                 </button>
-
-                <button
-                  onClick={() => setActiveTab("watchlist")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 rounded transition ${
-                    activeTab === "watchlist" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white hover:bg-[#2A2B33]"
-                  }`}
-                >
-                  <BookmarkIcon className="w-4 h-4" />
-                  Watchlist
-                  {userStats?.totalWatchlist > 0 && (
-                    <span className="ml-auto bg-[#00FFFF]/20 text-[#00FFFF] text-xs px-2 py-0.5 rounded">
-                      {userStats.totalWatchlist}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("liked")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 rounded transition ${
-                    activeTab === "liked" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white hover:bg-[#2A2B33]"
-                  }`}
-                >
-                  <Heart className="w-4 h-4" />
-                  Liked Movies
-                  {userStats?.totalLikes > 0 && (
-                    <span className="ml-auto bg-[#00FFFF]/20 text-[#00FFFF] text-xs px-2 py-0.5 rounded">
-                      {userStats.totalLikes}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("continue")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 rounded transition ${
-                    activeTab === "continue" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white hover:bg-[#2A2B33]"
-                  }`}
-                >
-                  <PlayCircle className="w-4 h-4" />
-                  Continue Watching
-                  {continueWatching.length > 0 && (
-                    <span className="ml-auto bg-[#00FFFF]/20 text-[#00FFFF] text-xs px-2 py-0.5 rounded">
-                      {continueWatching.length}
-                    </span>
-                  )}
-                </button>
-              </nav>
-
-              <div className="border-t border-[#2A2B33] mt-6 pt-6 space-y-2">
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={`w-full flex items-center gap-3 px-4 py-2 rounded transition ${
-                    activeTab === "settings" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white hover:bg-[#2A2B33]"
-                  }`}
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </button>
-                <SignOutButton>
-                  <button className="w-full flex items-center gap-3 px-4 py-2 text-[#888888] hover:text-white hover:bg-[#2A2B33] rounded transition">
-                    <LogOut className="w-4 h-4" />
-                    Logout
-                  </button>
-                </SignOutButton>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Main Content */}
-          <div className="md:col-span-3">
-            {activeTab === "profile" && (
-              <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
-                <h2 className="text-2xl font-bold text-white mb-6">Profile</h2>
-
-                {loading ? (
-                  <div className="flex items-center justify-center text-white py-8">
-                    <Loader className="w-6 h-6 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-6 mb-8">
-                      <div className="w-24 h-24 bg-[#00FFFF]/20 rounded-full flex items-center justify-center">
-                        <User className="w-12 h-12 text-[#00FFFF]" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white">
-                          {clerkUser?.firstName || "User"} {clerkUser?.lastName || ""}
-                        </h3>
-                        <p className="text-[#888888]">
-                          {userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress}
-                        </p>
-                        {(clerkUser?.unsafeMetadata?.country || userStats?.country) && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <Globe className="w-4 h-4 text-[#00FFFF]" />
-                            <span className="text-[#888888] text-sm">
-                              {(clerkUser?.unsafeMetadata?.country as string) || userStats?.country}
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-[#888888] text-sm mt-2">
-                          Member since{" "}
-                          {userStats?.memberSince ? new Date(userStats.memberSince).toLocaleDateString() : "Recently"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
-                        <Heart className="w-8 h-8 text-[#00FFFF] mb-2" />
-                        <p className="text-2xl font-bold text-white">{userStats?.totalLikes || 0}</p>
-                        <p className="text-[#888888] text-sm">Movies Liked</p>
-                      </div>
-                      <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
-                        <MessageSquare className="w-8 h-8 text-[#00FFFF] mb-2" />
-                        <p className="text-2xl font-bold text-white">{userStats?.totalComments || 0}</p>
-                        <p className="text-[#888888] text-sm">Comments Posted</p>
-                      </div>
-                      <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
-                        <BookmarkIcon className="w-8 h-8 text-[#00FFFF] mb-2" />
-                        <p className="text-2xl font-bold text-white">{userStats?.totalWatchlist || 0}</p>
-                        <p className="text-[#888888] text-sm">In Watchlist</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-white text-sm font-medium mb-2">First Name</label>
-                        <input
-                          type="text"
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-white text-sm font-medium mb-2">Last Name</label>
-                        <input
-                          type="text"
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-white text-sm font-medium mb-2">Username</label>
-                        <input
-                          type="text"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded text-white focus:outline-none focus:border-[#00FFFF]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-white text-sm font-medium mb-2">Email (Cannot be changed)</label>
-                        <input
-                          type="email"
-                          value={userStats?.email || clerkUser?.emailAddresses?.[0]?.emailAddress || ""}
-                          readOnly
-                          className="w-full px-4 py-2 bg-[#0B0C10]/50 border border-[#2A2B33] rounded text-[#888888] cursor-not-allowed"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={handleSaveProfile}
-                          disabled={isSaving}
-                          className="px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition flex items-center gap-2 disabled:opacity-50"
-                        >
-                          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                          Save Changes
-                        </button>
-                        {saveMessage && (
-                          <span className={saveMessage.includes("Error") ? "text-red-400" : "text-green-400"}>
-                            {saveMessage}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {activeTab === "watchlist" && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">My Watchlist</h2>
-                  <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#2A2B33] text-white rounded hover:bg-[#3A3B43] transition"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-                    Refresh
-                  </button>
-                </div>
-                {loading ? (
-                  <div className="flex items-center justify-center text-white py-8">
-                    <Loader className="w-6 h-6 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : userStats?.watchlistMovies && userStats.watchlistMovies.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {userStats.watchlistMovies.map((movie: any) => (
-                      <MovieCard key={movie.id} movie={movie} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8 text-center">
-                    <BookmarkIcon className="w-16 h-16 text-[#2A2B33] mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">Your watchlist is empty</h3>
-                    <p className="text-[#888888] mb-4">Start adding movies to watch later!</p>
-                    <Link
-                      href="/home"
-                      className="inline-block px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
-                    >
-                      Browse Movies
-                    </Link>
-                  </div>
-                )}
-
-                {userStats?.watchlistMovies && userStats.watchlistMovies.length > 0 && (
-                  <DashboardAdBanner className="mt-6" />
-                )}
-              </div>
-            )}
-
-            {activeTab === "liked" && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">Liked Movies</h2>
-                  <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#2A2B33] text-white rounded hover:bg-[#3A3B43] transition"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-                    Refresh
-                  </button>
-                </div>
-                {loading ? (
-                  <div className="flex items-center justify-center text-white py-8">
-                    <Loader className="w-6 h-6 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : userStats?.likedMovies && userStats.likedMovies.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {userStats.likedMovies.map((movie: any) => (
-                      <MovieCard key={movie.id} movie={movie} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8 text-center">
-                    <Heart className="w-16 h-16 text-[#2A2B33] mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">No liked movies yet</h3>
-                    <p className="text-[#888888] mb-4">Start exploring and like movies you enjoy!</p>
-                    <Link
-                      href="/home"
-                      className="inline-block px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
-                    >
-                      Browse Movies
-                    </Link>
-                  </div>
-                )}
-
-                {userStats?.likedMovies && userStats.likedMovies.length > 0 && <DashboardAdBanner className="mt-6" />}
-              </div>
-            )}
-
-            {activeTab === "continue" && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">Continue Watching</h2>
-                  <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#2A2B33] text-white rounded hover:bg-[#3A3B43] transition"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-                    Refresh
-                  </button>
-                </div>
-                {loading ? (
-                  <div className="flex items-center justify-center text-white py-8">
-                    <Loader className="w-6 h-6 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : continueWatching.length > 0 ? (
-                  <div className="space-y-4">
-                    {continueWatching.map((item: any) => (
-                      <Link
-                        key={item.id}
-                        href={`/movie/${item.id}`}
-                        className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-4 flex gap-4 hover:border-[#00FFFF]/50 transition block"
-                      >
-                        <img
-                          src={item.posterUrl || "/placeholder.svg?height=100&width=180&query=movie poster"}
-                          alt={item.title}
-                          className="w-32 h-20 object-cover rounded"
-                        />
-                        <div className="flex-1">
-                          <h4 className="text-white font-bold mb-2">{item.title}</h4>
-                          <div className="w-full bg-[#0B0C10] rounded-full h-2 mb-2">
-                            <div
-                              className="bg-[#00FFFF] h-2 rounded-full transition-all"
-                              style={{ width: `${item.progress}%` }}
-                            />
-                          </div>
-                          <p className="text-[#888888] text-sm">{item.progress}% watched</p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8 text-center">
-                    <PlayCircle className="w-16 h-16 text-[#2A2B33] mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">Nothing to continue</h3>
-                    <p className="text-[#888888] mb-4">Start watching a movie and your progress will be saved here!</p>
-                    <Link
-                      href="/home"
-                      className="inline-block px-6 py-2 bg-[#00FFFF] text-[#0B0C10] rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
-                    >
-                      Browse Movies
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "settings" && (
-              <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-8">
-                <h2 className="text-2xl font-bold text-white mb-6">Settings</h2>
-
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">Notifications</h3>
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between">
-                        <span className="text-[#888888]">Email notifications for new movies</span>
-                        <input type="checkbox" className="w-5 h-5 accent-[#00FFFF]" defaultChecked />
-                      </label>
-                      <label className="flex items-center justify-between">
-                        <span className="text-[#888888]">Email notifications for replies to comments</span>
-                        <input type="checkbox" className="w-5 h-5 accent-[#00FFFF]" defaultChecked />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-[#2A2B33] pt-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Playback</h3>
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between">
-                        <span className="text-[#888888]">Autoplay next episode</span>
-                        <input type="checkbox" className="w-5 h-5 accent-[#00FFFF]" defaultChecked />
-                      </label>
-                      <label className="flex items-center justify-between">
-                        <span className="text-[#888888]">Default video quality</span>
-                        <select className="bg-[#0B0C10] border border-[#2A2B33] rounded px-3 py-1 text-white">
-                          <option value="auto">Auto</option>
-                          <option value="1080p">1080p</option>
-                          <option value="720p">720p</option>
-                          <option value="480p">480p</option>
-                        </select>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-[#2A2B33] pt-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Privacy</h3>
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between">
-                        <span className="text-[#888888]">Show my watch history</span>
-                        <input type="checkbox" className="w-5 h-5 accent-[#00FFFF]" />
-                      </label>
-                      <label className="flex items-center justify-between">
-                        <span className="text-[#888888]">Show my liked movies publicly</span>
-                        <input type="checkbox" className="w-5 h-5 accent-[#00FFFF]" />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-[#2A2B33] pt-6">
-                    <h3 className="text-lg font-semibold text-red-400 mb-4">Danger Zone</h3>
-                    <button className="px-4 py-2 border border-red-500 text-red-500 rounded hover:bg-red-500/10 transition">
-                      Delete Account
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* Ad Banner - only show if user is not premium */}
+        {!isPremium && adSettings?.dashboardEnabled && (
+          <div className="mt-6">
+            <AdBanner type="horizontal" placement="dashboard" />
           </div>
-        </div>
-
-        <DashboardAdBanner className="mt-8" />
+        )}
       </div>
 
+      <MobileBottomNav />
       <Footer />
     </main>
   )

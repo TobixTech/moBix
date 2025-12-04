@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { Home, Film, Bookmark, User, Search } from "lucide-react"
 import { motion } from "framer-motion"
 
-export default function MobileBottomNav() {
+export function MobileBottomNav() {
   const pathname = usePathname()
 
   const navItems = [
@@ -117,3 +117,5 @@ export default function MobileBottomNav() {
     </motion.nav>
   )
 }
+
+export default MobileBottomNav
