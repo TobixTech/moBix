@@ -1,5 +1,6 @@
 interface Movie {
   id: string
+  slug?: string | null
   title: string
   description?: string | null
   posterUrl?: string | null
@@ -14,6 +15,9 @@ interface MovieStructuredDataProps {
 }
 
 export function MovieStructuredData({ movie }: MovieStructuredDataProps) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const movieUrl = `${baseUrl}/movie/${movie.slug || movie.id}`
+
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Movie",
@@ -35,7 +39,7 @@ export function MovieStructuredData({ movie }: MovieStructuredDataProps) {
       "@type": "WatchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/movie/${movie.id}`,
+        urlTemplate: movieUrl,
         actionPlatform: ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"],
       },
     },
@@ -45,18 +49,21 @@ export function MovieStructuredData({ movie }: MovieStructuredDataProps) {
 }
 
 export function WebsiteStructuredData() {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "moBix",
     alternateName: "moBix Streaming",
-    url: process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app",
-    description: "Premium streaming platform for movies and shows",
+    url: baseUrl,
+    description:
+      "Watch unlimited movies and TV shows online free. Stream HD movies - Action, Drama, Comedy, Nollywood & more.",
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/search?q={search_term_string}`,
+        urlTemplate: `${baseUrl}/search?q={search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     },
@@ -65,7 +72,7 @@ export function WebsiteStructuredData() {
       name: "moBix",
       logo: {
         "@type": "ImageObject",
-        url: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/icons/icon-512x512.jpg`,
+        url: `${baseUrl}/favicon.svg`,
       },
     },
   }
@@ -74,16 +81,20 @@ export function WebsiteStructuredData() {
 }
 
 export function OrganizationStructuredData() {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "moBix",
-    url: process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app",
-    logo: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/icons/icon-512x512.jpg`,
+    url: baseUrl,
+    logo: `${baseUrl}/favicon.svg`,
+    description: "moBix is a free movie streaming platform offering unlimited access to movies and TV shows.",
     sameAs: [],
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer service",
+      email: "mobixmy@gmail.com",
       availableLanguage: ["English"],
     },
   }
@@ -107,6 +118,9 @@ export function BreadcrumbStructuredData({ items }: { items: { name: string; url
 }
 
 export function VideoStructuredData({ movie }: MovieStructuredDataProps) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const movieUrl = `${baseUrl}/movie/${movie.slug || movie.id}`
+
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
@@ -114,12 +128,29 @@ export function VideoStructuredData({ movie }: MovieStructuredDataProps) {
     description: movie.description || `Watch ${movie.title} on moBix`,
     thumbnailUrl: movie.posterUrl || "/generic-movie-poster.png",
     uploadDate: movie.year ? `${movie.year}-01-01` : new Date().toISOString(),
-    contentUrl: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/movie/${movie.id}`,
-    embedUrl: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/movie/${movie.id}`,
+    contentUrl: movieUrl,
+    embedUrl: movieUrl,
     potentialAction: {
       "@type": "WatchAction",
-      target: `${process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"}/movie/${movie.id}`,
+      target: movieUrl,
     },
+  }
+
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
+}
+
+export function FAQStructuredData({ faqs }: { faqs: { question: string; answer: string }[] }) {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
   }
 
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />

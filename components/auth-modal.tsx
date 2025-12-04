@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff, Loader, ArrowLeft } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff, Loader, ArrowLeft, CheckCircle } from "lucide-react"
 import Image from "next/image"
 import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
@@ -17,12 +17,14 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true)
-  const [step, setStep] = useState<"form" | "verification" | "forgot-password">("form")
+  const [step, setStep] = useState<"form" | "verification" | "forgot-password" | "reset-code">("form")
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [resetCode, setResetCode] = useState("")
+  const [newPassword, setNewPassword] = useState("")
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -40,7 +42,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setRememberMe(true)
     }
   }, [])
-  // end change
 
   if (!isOpen || !isLoaded) return null
 
@@ -56,13 +57,19 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         return
       }
 
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters")
+        setIsLoading(false)
+        return
+      }
+
       if (!signUp) {
         setError("Sign up is not available")
         setIsLoading(false)
         return
       }
 
-      const result = await signUp.create({
+      await signUp.create({
         emailAddress: email,
         password,
       })
@@ -102,7 +109,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           localStorage.removeItem("mobix_remembered_email")
           localStorage.removeItem("mobix_remember_me")
         }
-        // end change
 
         await setActiveSignIn({ session: result.createdSessionId })
         router.push("/home")
@@ -130,23 +136,66 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         return
       }
 
+      if (!email) {
+        setError("Please enter your email address")
+        setIsLoading(false)
+        return
+      }
+
       await signIn.create({
         strategy: "reset_password_email_code",
         identifier: email,
       })
 
-      setSuccessMessage("Password reset email sent! Check your inbox.")
-      setTimeout(() => {
-        setStep("form")
-        setSuccessMessage("")
-      }, 3000)
+      setSuccessMessage("Reset code sent! Check your email.")
+      setStep("reset-code")
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Failed to send reset email")
+      setError(err.errors?.[0]?.message || "Failed to send reset code. Please check your email address.")
     } finally {
       setIsLoading(false)
     }
   }
-  // end change
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setIsLoading(true)
+
+    try {
+      if (!signIn) {
+        setError("Password reset is not available")
+        setIsLoading(false)
+        return
+      }
+
+      if (newPassword.length < 8) {
+        setError("New password must be at least 8 characters")
+        setIsLoading(false)
+        return
+      }
+
+      const result = await signIn.attemptFirstFactor({
+        strategy: "reset_password_email_code",
+        code: resetCode,
+        password: newPassword,
+      })
+
+      if (result.status === "complete") {
+        await setActiveSignIn({ session: result.createdSessionId })
+        setSuccessMessage("Password reset successful!")
+        setTimeout(() => {
+          router.push("/home")
+          onClose()
+        }, 1500)
+      } else {
+        setError("Password reset incomplete. Please try again.")
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Failed to reset password. Please check your code.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleGoogleAuth = async () => {
     setError("")
@@ -208,6 +257,104 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     exit: { scale: 0.8, opacity: 0, y: 20 },
   }
 
+  if (step === "reset-code") {
+    return (
+      <motion.div
+        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        onClick={onClose}
+      >
+        <motion.div
+          className="relative w-full max-w-md"
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
+            <div className="relative z-10">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("forgot-password")
+                  setError("")
+                  setResetCode("")
+                  setNewPassword("")
+                }}
+                className="flex items-center gap-2 text-[#888888] hover:text-white mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              <h2 className="text-2xl font-bold text-white mb-2">Enter Reset Code</h2>
+              <p className="text-[#888888] mb-6">Check your email for the 6-digit code.</p>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  {successMessage}
+                </div>
+              )}
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    required
+                    maxLength={6}
+                    className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white text-center text-2xl tracking-widest placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="New password (min 8 characters)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="w-full pl-10 pr-10 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3.5 text-[#888888] hover:text-[#00FFFF] transition"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading || resetCode.length !== 6}
+                  className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading && <Loader className="w-4 h-4 animate-spin" />}
+                  {isLoading ? "Resetting..." : "Reset Password"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    )
+  }
+
   if (step === "forgot-password") {
     return (
       <motion.div
@@ -228,7 +375,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <div className="relative bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 shadow-2xl overflow-hidden">
             <div className="relative z-10">
               <button
-                onClick={() => setStep("form")}
+                type="button"
+                onClick={() => {
+                  setStep("form")
+                  setError("")
+                  setSuccessMessage("")
+                }}
                 className="flex items-center gap-2 text-[#888888] hover:text-white mb-6 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -236,7 +388,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               </button>
 
               <h2 className="text-2xl font-bold text-white mb-2">Reset Password</h2>
-              <p className="text-[#888888] mb-6">Enter your email to receive a password reset link.</p>
+              <p className="text-[#888888] mb-6">Enter your email to receive a reset code.</p>
 
               {error && (
                 <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
@@ -245,7 +397,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               )}
 
               {successMessage && (
-                <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm">
+                <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
                   {successMessage}
                 </div>
               )}
@@ -265,11 +418,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !email}
                   className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading && <Loader className="w-4 h-4 animate-spin" />}
-                  {isLoading ? "Sending..." : "Send Reset Link"}
+                  {isLoading ? "Sending..." : "Send Reset Code"}
                 </button>
               </form>
             </div>
@@ -278,7 +431,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       </motion.div>
     )
   }
-  // end change
 
   if (step === "verification" && !isLogin) {
     return (
@@ -364,6 +516,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               {["Login", "Sign Up"].map((tab) => (
                 <motion.button
                   key={tab}
+                  type="button"
                   onClick={() => {
                     setIsLogin(tab === "Login")
                     setError("")
@@ -478,7 +631,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   <button
                     type="button"
                     onClick={() => setStep("forgot-password")}
-                    className="text-[#00FFFF] hover:text-[#00CCCC] transition"
+                    className="text-[#00FFFF] hover:text-[#00CCCC] transition font-medium"
                   >
                     Forgot password?
                   </button>

@@ -6,7 +6,6 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
 import { useAuth, useClerk } from "@clerk/nextjs"
-import { RequestMovieModal } from "./request-movie-modal"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -22,7 +21,6 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
   const searchRef = useRef<HTMLDivElement>(null)
   const { userId } = useAuth()
   const { signOut } = useClerk()
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -76,14 +74,6 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
 
   const handleAuthClick = () => {
     window.location.href = "/auth"
-  }
-
-  const handleRequestMovie = () => {
-    setIsRequestModalOpen(true)
-  }
-
-  const handleCloseRequestModal = () => {
-    setIsRequestModalOpen(false)
   }
 
   return (
@@ -253,18 +243,6 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           </AnimatePresence>
         </motion.div>
 
-        {/* Request Movie Button */}
-        {showAuthButtons && (
-          <motion.button
-            onClick={handleRequestMovie}
-            className="p-2 hover:bg-[#1A1B23] rounded transition text-white text-sm"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Request Movie
-          </motion.button>
-        )}
-
         <motion.div
           className="flex items-center gap-4"
           initial={{ opacity: 0, x: 20 }}
@@ -311,7 +289,6 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
           )}
         </motion.div>
       </div>
-      {isRequestModalOpen && <RequestMovieModal onClose={handleCloseRequestModal} />}
     </motion.nav>
   )
 }
