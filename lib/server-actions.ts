@@ -967,9 +967,9 @@ export async function submitFeedback(data: {
     })
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error submitting feedback:", error)
-    return { success: false, error: error.message || "Failed to submit feedback" }
+    return { success: false, error: "Unable to submit. Please try again." }
   }
 }
 
@@ -1457,15 +1457,15 @@ export async function reportContent(movieId: string, reason: string, description
       userId: dbUserId,
       movieId,
       reason,
-      description,
+      description: description || null,
       status: "PENDING",
-      email: userEmail,
+      email: userEmail || undefined,
     })
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error reporting content:", error)
-    return { success: false, error: error.message }
+    return { success: false, error: "Unable to submit report. Please try again." }
   }
 }
 
@@ -2056,23 +2056,25 @@ export async function createNotificationForAllUsers(title: string, message: stri
   try {
     const allUsers = await db.query.users.findMany()
 
-    const notificationValues = allUsers.map((user) => ({
-      userId: user.id,
-      title,
-      message,
-      type,
-      movieId: movieId || null,
-      isRead: false,
-    }))
-
-    if (notificationValues.length > 0) {
-      await db.insert(notifications).values(notificationValues)
+    if (allUsers.length === 0) {
+      return { success: true, count: 0 }
     }
 
-    return { success: true, count: notificationValues.length }
-  } catch (error: any) {
+    for (const user of allUsers) {
+      await db.insert(notifications).values({
+        userId: user.id,
+        title,
+        message,
+        type,
+        movieId: movieId || null,
+        isRead: false,
+      })
+    }
+
+    return { success: true, count: allUsers.length }
+  } catch (error) {
     console.error("Error creating notifications:", error)
-    return { success: false, error: error.message }
+    return { success: false, error: "Unable to send notifications." }
   }
 }
 

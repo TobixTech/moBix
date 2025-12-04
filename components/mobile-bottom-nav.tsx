@@ -23,19 +23,28 @@ export default function MobileBottomNav() {
 
   return (
     <motion.nav
-      className="fixed bottom-3 left-3 right-3 z-50 md:hidden"
+      className="fixed bottom-4 left-4 right-4 z-50 md:hidden"
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
       <div
-        className="bg-[#1A1B23]/95 backdrop-blur-xl border border-[#2A2B33]/50 rounded-2xl shadow-2xl shadow-black/50"
+        className="bg-[#15161C]/98 backdrop-blur-2xl border border-[#00FFFF]/10 rounded-3xl overflow-hidden"
         style={{
-          boxShadow:
-            "0 -4px 30px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
+          boxShadow: `
+            0 0 0 1px rgba(0, 255, 255, 0.05),
+            0 4px 20px rgba(0, 0, 0, 0.5),
+            0 8px 40px rgba(0, 0, 0, 0.4),
+            0 0 60px rgba(0, 255, 255, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.2)
+          `,
         }}
       >
-        <div className="flex items-center justify-around py-2 px-1">
+        {/* Top glow line */}
+        <div className="absolute top-0 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#00FFFF]/30 to-transparent" />
+
+        <div className="flex items-center justify-around py-2.5 px-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/home" && pathname.startsWith(item.href))
             const Icon = item.icon
@@ -44,33 +53,56 @@ export default function MobileBottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 transition-all duration-200"
+                className="flex flex-col items-center gap-1 px-4 py-1 transition-all duration-300 relative"
               >
+                {/* Active indicator glow */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 rounded-2xl"
+                    style={{
+                      background: "radial-gradient(ellipse at center, rgba(0, 255, 255, 0.15) 0%, transparent 70%)",
+                    }}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+
                 <motion.div
-                  whileTap={{ scale: 0.9 }}
-                  className={`p-2.5 rounded-xl transition-all duration-200 ${
-                    isActive ? "bg-[#00FFFF]/20 shadow-lg shadow-[#00FFFF]/20" : "bg-transparent hover:bg-white/5"
+                  whileTap={{ scale: 0.85 }}
+                  className={`relative p-2.5 rounded-2xl transition-all duration-300 ${
+                    isActive ? "bg-[#00FFFF]/15" : "bg-transparent hover:bg-white/5"
                   }`}
+                  style={
+                    isActive
+                      ? {
+                          boxShadow: "0 0 20px rgba(0, 255, 255, 0.3), inset 0 0 10px rgba(0, 255, 255, 0.1)",
+                        }
+                      : {}
+                  }
                 >
                   <Icon
-                    className={`w-5 h-5 transition-colors duration-200 ${
-                      isActive ? "text-[#00FFFF]" : "text-[#666666]"
-                    }`}
+                    className={`w-5 h-5 transition-all duration-300 ${isActive ? "text-[#00FFFF]" : "text-[#666666]"}`}
                     style={
                       isActive
                         ? {
-                            color: "#00FFFF",
-                            filter: "drop-shadow(0 0 8px rgba(0, 255, 255, 0.5))",
+                            filter: "drop-shadow(0 0 8px rgba(0, 255, 255, 0.6))",
                           }
                         : {}
                     }
                   />
                 </motion.div>
+
                 <span
-                  className={`text-[10px] font-semibold transition-colors duration-200 ${
-                    isActive ? "text-[#00FFFF]" : "text-[#666666]"
+                  className={`text-[10px] font-semibold transition-all duration-300 ${
+                    isActive ? "text-[#00FFFF]" : "text-[#555555]"
                   }`}
-                  style={isActive ? { color: "#00FFFF" } : {}}
+                  style={
+                    isActive
+                      ? {
+                          textShadow: "0 0 10px rgba(0, 255, 255, 0.5)",
+                        }
+                      : {}
+                  }
                 >
                   {item.label}
                 </span>
@@ -78,6 +110,9 @@ export default function MobileBottomNav() {
             )
           })}
         </div>
+
+        {/* Bottom subtle shadow */}
+        <div className="absolute bottom-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
       </div>
     </motion.nav>
   )

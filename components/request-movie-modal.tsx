@@ -50,24 +50,32 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
     const userEmail = formData.get("email") as string
 
     try {
-      await submitFeedback({
+      const result = await submitFeedback({
         type: "REQUEST",
         title: title,
         details: `Year: ${year}\nDetails: ${details}`,
         email: userEmail,
       })
 
-      toast({
-        title: "Request Submitted!",
-        description: "We'll try our best to add this movie soon.",
-      })
-      setOpen(false)
-      onClose?.()
-    } catch (error) {
+      if (result.success) {
+        toast({
+          title: "Request Submitted!",
+          description: "We'll try our best to add this movie soon.",
+        })
+        setOpen(false)
+        onClose?.()
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Unable to submit request. Please try again.",
+        })
+      }
+    } catch {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to submit request. Please try again.",
+        description: "Unable to submit request. Please try again.",
       })
     } finally {
       setLoading(false)

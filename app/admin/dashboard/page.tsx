@@ -444,12 +444,19 @@ export default function AdminDashboard() {
 
     if (result.success) {
       if (notifyOnUpload && formData.status === "published") {
-        await createNotificationForAllUsers(
-          `New Movie: ${formData.title}`,
-          `${formData.title} is now available to watch on moBix!`,
-          "new_movie",
-          result.movie?.id,
-        )
+        try {
+          const notifyResult = await createNotificationForAllUsers(
+            `New Movie: ${formData.title}`,
+            `${formData.title} is now available to watch on moBix!`,
+            "new_movie",
+            result.movie?.id,
+          )
+          if (notifyResult.success) {
+            console.log(`Notifications sent to ${notifyResult.count} users`)
+          }
+        } catch (err) {
+          console.error("Failed to send notifications:", err)
+        }
       }
 
       setFormData({
@@ -469,10 +476,10 @@ export default function AdminDashboard() {
       const moviesData = await getAdminMovies()
       setMovies(moviesData)
 
+      alert("Movie uploaded successfully!")
       setActiveTab("movies")
     } else {
-      console.error("Upload error:", result.error)
-      alert(`Upload failed: ${result.error}`)
+      alert("Upload failed. Please check your inputs and try again.")
     }
 
     setLoading(false)
