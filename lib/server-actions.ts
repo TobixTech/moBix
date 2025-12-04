@@ -766,6 +766,12 @@ export async function updateAdSettings(settings: {
 
     revalidatePath("/admin/dashboard")
     revalidatePath("/")
+    revalidatePath("/home")
+    revalidatePath("/browse")
+    revalidatePath("/dashboard")
+    revalidatePath("/movie")
+    revalidatePath("/download")
+
     return { success: true }
   } catch (error: any) {
     console.error("Error updating ad settings:", error)

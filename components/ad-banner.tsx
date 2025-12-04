@@ -21,12 +21,13 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
   }
 
   const isEnabled =
-    (placement === "homepage" && adSettings.homepageEnabled) ||
-    (placement === "movieDetail" && adSettings.movieDetailEnabled) ||
-    (placement === "dashboard" && adSettings.dashboardEnabled) ||
-    (placement === "download" && adSettings.showDownloadPageAds)
+    (placement === "homepage" && adSettings.homepageEnabled === true) ||
+    (placement === "movieDetail" && adSettings.movieDetailEnabled === true) ||
+    (placement === "dashboard" && adSettings.dashboardEnabled === true) ||
+    (placement === "download" && adSettings.showDownloadPageAds === true)
 
   if (!isEnabled) {
+    // Ad placement is disabled for this location
     return null
   }
 

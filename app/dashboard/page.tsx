@@ -17,7 +17,7 @@ import {
   PlayCircle,
   RefreshCw,
 } from "lucide-react"
-import { getUserStats, updateUserProfile, getContinueWatching, getAdSettings } from "@/lib/server-actions"
+import { getUserStats, updateUserProfile, getContinueWatching } from "@/lib/server-actions"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
@@ -47,17 +47,19 @@ export default function Dashboard() {
       setUsername(clerkUser.username || "")
     }
 
-    const [statsResult, continueResult, adSettingsResult] = await Promise.all([
+    const [statsResult, continueResult, adSettingsResponse] = await Promise.all([
       getUserStats(),
       getContinueWatching(),
-      getAdSettings(),
+      fetch("/api/ad-settings", { cache: "no-store" })
+        .then((res) => res.json())
+        .catch(() => null),
     ])
 
     if (statsResult.success) {
       setUserStats(statsResult.stats)
     }
     setContinueWatching(continueResult || [])
-    setAdSettings(adSettingsResult)
+    setAdSettings(adSettingsResponse)
     setLoading(false)
     setRefreshing(false)
   }
@@ -99,7 +101,9 @@ export default function Dashboard() {
   }
 
   const DashboardAdBanner = ({ className = "" }: { className?: string }) => {
-    if (!adSettings?.dashboardEnabled || !adSettings?.horizontalAdCode) return null
+    if (!adSettings) return null
+    if (adSettings.dashboardEnabled !== true) return null
+    if (!adSettings.horizontalAdCode || adSettings.horizontalAdCode.trim() === "") return null
 
     return (
       <div className={`bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden ${className}`}>
@@ -119,6 +123,7 @@ export default function Dashboard() {
           style={{ border: "none" }}
           scrolling="no"
           title="Advertisement"
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
         />
       </div>
     )

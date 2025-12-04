@@ -9,6 +9,7 @@ import Image from "next/image"
 import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
 import EmailVerification from "./email-verification"
+import Input from "./input" // Assuming Input component is imported from './input'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -342,10 +343,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 <button
                   type="submit"
                   disabled={isLoading || resetCode.length !== 6}
-                  className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all relative overflow-hidden group mt-6 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                  whileTap={{ scale: isLoading ? 1 : 0.98 }}
                 >
                   {isLoading && <Loader className="w-4 h-4 animate-spin" />}
-                  {isLoading ? "Resetting..." : "Reset Password"}
+                  <span className="relative">
+                    {isLoading ? "Resetting..." : "Reset Password"} {!isLoading && "→"}
+                  </span>
                 </button>
               </form>
             </div>
@@ -559,38 +564,48 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 transition={{ delay: 0.45 }}
               >
                 <Mail className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
-                <input
+                <Input
+                  id="email"
+                  name="email"
                   type="email"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                  className="pl-10 pr-4 bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-[#00FFFF]/50 focus:ring-[#00FFFF]/20 h-12"
                 />
               </motion.div>
 
+              {/* Password Field */}
               <motion.div
-                className="relative"
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                className="space-y-2"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
               >
-                <Lock className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full pl-10 pr-10 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3.5 text-[#888888] hover:text-[#00FFFF] transition"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="block text-sm font-medium text-white/90">
+                    Password
+                  </label>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/40" />
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-10 bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-[#00FFFF]/50 focus:ring-[#00FFFF]/20 h-12"
+                    placeholder="Enter your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </motion.div>
 
               {!isLogin && (
@@ -601,13 +616,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   transition={{ delay: 0.55 }}
                 >
                   <Lock className="absolute left-3 top-3.5 w-5 h-5 text-[#00FFFF]" />
-                  <input
+                  <Input
+                    id="confirm-password"
+                    name="confirm-password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Confirm password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    className="w-full pl-10 pr-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                    className="pl-10 pr-4 bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-[#00FFFF]/50 focus:ring-[#00FFFF]/20 h-12"
                   />
                 </motion.div>
               )}
@@ -627,20 +643,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   />
                   <span className="text-[#888888]">Remember me</span>
                 </label>
-                {isLogin && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setStep("forgot-password")
-                    }}
-                    className="text-[#00FFFF] hover:text-[#00CCCC] hover:underline transition font-medium py-2 px-3 -mr-3 relative z-10 cursor-pointer select-none"
-                    style={{ pointerEvents: "auto" }}
-                  >
-                    Forgot password?
-                  </button>
-                )}
               </motion.div>
 
               <motion.button
@@ -657,6 +659,38 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </span>
               </motion.button>
             </motion.form>
+
+            {isLogin && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="flex justify-end -mt-1"
+              >
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setStep("forgot-password")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setStep("forgot-password")
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault()
+                    setStep("forgot-password")
+                  }}
+                  className="text-[#00FFFF] hover:text-[#00CCCC] active:text-[#00AAAA] transition font-medium py-3 px-4 -mr-4 cursor-pointer select-none touch-manipulation"
+                  style={{
+                    WebkitTapHighlightColor: "rgba(0, 255, 255, 0.2)",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  Forgot password?
+                </div>
+              </motion.div>
+            )}
 
             <motion.div
               className="flex items-center gap-4 mb-6"
