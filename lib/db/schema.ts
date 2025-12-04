@@ -292,6 +292,7 @@ export const contentReports = pgTable("ContentReport", {
     .references(() => movies.id, { onDelete: "cascade" }),
   reason: text("reason").notNull(),
   description: text("description"),
+  email: text("email"), // Added email column
   status: text("status").default("PENDING").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")

@@ -1437,14 +1437,20 @@ export async function getUserRating(movieId: string) {
 
 // ==================== CONTENT REPORTS ====================
 
-export async function reportContent(movieId: string, reason: string, description?: string) {
+export async function reportContent(movieId: string, reason: string, description?: string, email?: string) {
   try {
     const { userId: clerkId } = await auth()
 
     let dbUserId: string | null = null
+    let userEmail = email || null
+
     if (clerkId) {
       const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
       dbUserId = dbUser?.id || null
+      // Use user's email if not provided
+      if (!userEmail && dbUser?.email) {
+        userEmail = dbUser.email
+      }
     }
 
     await db.insert(contentReports).values({
@@ -1453,6 +1459,7 @@ export async function reportContent(movieId: string, reason: string, description
       reason,
       description,
       status: "PENDING",
+      email: userEmail,
     })
 
     return { success: true }

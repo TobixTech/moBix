@@ -26,6 +26,7 @@ import {
   Plus,
   Bell,
   Send,
+  Flag,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -48,16 +49,21 @@ import {
   getAllComments,
   createNotificationForAllUsers, // Added for notification
   createNotificationByEmail, // Added for notification
+  getContentReports, // Added import for content reports
+  updateReportStatus, // Added import
+  deleteContentReport, // Added import
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SendNotificationModal } from "@/components/send-notification-modal" // Added SendNotificationModal import
+import Link from "next/link" // Added Link import
+import Image from "next/image" // Added Image import
 
 // Import toast for notifications
 import { toast } from "sonner"
 
-type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback"
+type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback" | "reports" // Added "reports" to AdminTab type
 
 interface Metric {
   label: string
@@ -98,6 +104,7 @@ interface User {
   role: string
   createdAt?: string // Added for getUsers response
   commentsCount?: number // Added for users tab
+  firstName?: string | null // Added for reports
 }
 
 interface Comment {
@@ -118,6 +125,24 @@ interface Feedback {
   email: string
   status: string
   createdAt: Date
+}
+
+interface ContentReport {
+  id: string
+  reason: string
+  description: string | null
+  status: string
+  createdAt: Date
+  movie: {
+    id: string
+    title: string
+    posterUrl: string
+  }
+  user: {
+    id: string
+    email: string
+    firstName: string | null
+  } | null
 }
 
 export default function AdminDashboard() {
@@ -147,6 +172,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]) // Changed type to User[] to match potential getUsers response structure, assuming it aligns or is compatible with AdminUser. If not, 'any[]' would be a fallback.
   const [comments, setComments] = useState<Comment[]>([])
   const [feedback, setFeedback] = useState<Feedback[]>([]) // Added feedback state
+  const [contentReports, setContentReports] = useState<ContentReport[]>([])
   const [loading, setLoading] = useState(true)
 
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
@@ -324,8 +350,71 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      try {
+        const [
+          metricsData,
+          trendingData,
+          signupsData,
+          moviesData,
+          usersData,
+          adSettingsData,
+          feedbackData,
+          commentsData,
+          reportsData, // Added reports fetch
+        ] = await Promise.all([
+          getAdminMetrics(),
+          getTrendingMovies(),
+          getRecentSignups(),
+          getAdminMovies(),
+          getUsers(),
+          getAdSettings(),
+          getFeedbackEntries(),
+          getAllComments(),
+          getContentReports(), // Fetch content reports
+        ])
+
+        setMetrics(metricsData)
+        setTrendingMovies(trendingData as Movie[])
+        setRecentSignups(signupsData)
+        setMovies(moviesData)
+        setUsers(usersData)
+        setFeedback(feedbackData)
+        setComments(commentsData) // Setting comments here
+        if (reportsData.success) {
+          setContentReports(reportsData.reports as ContentReport[])
+        }
+
+        if (adSettingsData) {
+          setAdSettings({
+            horizontalAdCode: adSettingsData.horizontalAdCode || "",
+            verticalAdCode: adSettingsData.verticalAdCode || "",
+            // Parse prerollAdCodes from string to array
+            prerollAdCodes: adSettingsData.prerollAdCodes ? JSON.parse(adSettingsData.prerollAdCodes) : [],
+            // Parse midrollAdCodes from string to array
+            midrollAdCodes: adSettingsData.midrollAdCodes ? JSON.parse(adSettingsData.midrollAdCodes) : [],
+            smartLinkUrl: adSettingsData.smartLinkUrl || "",
+            adTimeout: adSettingsData.adTimeoutSeconds || 20,
+            skipDelay: adSettingsData.skipDelaySeconds || 10, // Added skipDelay
+            rotationInterval: adSettingsData.rotationIntervalSeconds || 5, // Added rotationInterval
+            midrollIntervalMinutes: adSettingsData.midrollIntervalMinutes || 20, // Added midrollIntervalMinutes
+            showPrerollAds: adSettingsData.showPrerollAds ?? true,
+            showMidrollAds: adSettingsData.showMidrollAds ?? false, // Added showMidrollAds
+            showHomepageAds: adSettingsData.homepageEnabled ?? true,
+            showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
+            showDashboardAds: adSettingsData.dashboardEnabled ?? true, // Added showDashboardAds
+          })
+        }
+        setLastRefresh(new Date())
+      } catch (error) {
+        console.error("Error loading admin data:", error)
+      }
+      setLoading(false)
+    }
+
     if (pinVerified) {
-      fetchDashboardData()
+      loadData()
     }
   }, [pinVerified])
 
@@ -630,6 +719,44 @@ export default function AdminDashboard() {
     setFeedbackResponse("")
   }
 
+  const handleUpdateReportStatus = async (reportId: string, status: string, userEmail?: string | null) => {
+    setLoading(true)
+    const result = await updateReportStatus(reportId, status)
+    if (result.success) {
+      // Send notification to user if email exists and marking as resolved
+      if (status === "RESOLVED" && userEmail) {
+        await createNotificationByEmail(
+          userEmail,
+          "Report Resolved",
+          "Your content report has been reviewed and resolved. Thank you for helping us maintain quality content.",
+          "report_response",
+        )
+      }
+      const reportsData = await getContentReports()
+      if (reportsData.success) {
+        setContentReports(reportsData.reports as ContentReport[])
+      }
+    } else {
+      alert("Failed to update report status")
+    }
+    setLoading(false)
+  }
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("Delete this report permanently?")) return
+    setLoading(true)
+    const result = await deleteContentReport(reportId)
+    if (result.success) {
+      const reportsData = await getContentReports()
+      if (reportsData.success) {
+        setContentReports(reportsData.reports as ContentReport[])
+      }
+    } else {
+      alert("Failed to delete report")
+    }
+    setLoading(false)
+  }
+
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
   const filteredUsers = users.filter((u) => u.email.toLowerCase().includes(userSearch.toLowerCase()))
 
@@ -900,6 +1027,7 @@ export default function AdminDashboard() {
             { id: "comments", label: "Comment Moderation", icon: MessageSquare },
             { id: "ads", label: "Ad Management", icon: Settings },
             { id: "feedback", label: "Feedback & Requests", icon: Inbox },
+            { id: "reports", label: "Content Reports", icon: Flag }, // Added reports tab
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1949,6 +2077,110 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "reports" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-white">Content Reports</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/50 text-sm">
+                    {contentReports.filter((r) => r.status === "PENDING").length} pending
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {contentReports.length === 0 ? (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
+                    <Flag className="w-12 h-12 text-white/20 mx-auto mb-4" />
+                    <p className="text-white/50">No content reports found.</p>
+                    <p className="text-white/30 text-sm mt-2">Reports from users will appear here.</p>
+                  </div>
+                ) : (
+                  contentReports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors"
+                    >
+                      <div className="flex gap-4">
+                        {/* Movie Poster */}
+                        <div className="flex-shrink-0">
+                          <Image
+                            src={report.movie.posterUrl || "/placeholder.svg?height=120&width=80"}
+                            alt={report.movie.title}
+                            width={80}
+                            height={120}
+                            className="rounded-lg object-cover"
+                          />
+                        </div>
+
+                        {/* Report Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span
+                                  className={`px-2 py-1 rounded text-xs font-bold border ${
+                                    report.status === "PENDING"
+                                      ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                                      : report.status === "RESOLVED"
+                                        ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                        : "bg-red-500/10 text-red-400 border-red-500/20"
+                                  }`}
+                                >
+                                  {report.status}
+                                </span>
+                                <span className="text-white/40 text-xs">
+                                  {new Date(report.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <h4 className="text-lg font-bold text-white mb-1">
+                                <Link
+                                  href={`/movie/${report.movie.id}`}
+                                  className="hover:text-cyan-400 transition-colors"
+                                >
+                                  {report.movie.title}
+                                </Link>
+                              </h4>
+                              <p className="text-red-400 font-medium text-sm mb-2">
+                                Reason: {report.reason.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                              </p>
+                              {report.description && <p className="text-white/70 text-sm mb-2">{report.description}</p>}
+                              {report.user && (
+                                <p className="text-cyan-400 text-sm">
+                                  Reported by: {report.user.firstName || report.user.email}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2 flex-shrink-0">
+                              {report.status === "PENDING" && (
+                                <button
+                                  onClick={() => handleUpdateReportStatus(report.id, "RESOLVED", report.user?.email)}
+                                  className="p-2 hover:bg-green-500/10 text-white/50 hover:text-green-400 rounded-lg transition-colors"
+                                  title="Mark as Resolved"
+                                >
+                                  <CheckCircle className="w-5 h-5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteReport(report.id)}
+                                className="p-2 hover:bg-red-500/10 text-white/50 hover:text-red-400 rounded-lg transition-colors"
+                                title="Delete Report"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
