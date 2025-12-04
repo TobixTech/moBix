@@ -708,14 +708,18 @@ export async function getAdSettings() {
 export async function updateAdSettings(settings: {
   horizontalAdCode?: string
   verticalAdCode?: string
-  prerollAdCodes?: string // JSON string of ad codes array [{code, name}]
+  prerollAdCodes?: string
+  midrollAdCodes?: string
   smartLinkUrl?: string
   adTimeoutSeconds?: number
   skipDelaySeconds?: number
   rotationIntervalSeconds?: number
+  midrollIntervalMinutes?: number
   showPrerollAds?: boolean
+  showMidrollAds?: boolean
   homepageEnabled?: boolean
   movieDetailEnabled?: boolean
+  dashboardEnabled?: boolean
 }) {
   try {
     const currentSettings = await db.query.adSettings.findFirst()
@@ -725,14 +729,18 @@ export async function updateAdSettings(settings: {
         horizontalAdCode: settings.horizontalAdCode || "",
         verticalAdCode: settings.verticalAdCode || "",
         prerollAdCodes: settings.prerollAdCodes || "[]",
+        midrollAdCodes: settings.midrollAdCodes || "[]",
         smartLinkUrl: settings.smartLinkUrl || "",
         adTimeoutSeconds: settings.adTimeoutSeconds || 20,
         skipDelaySeconds: settings.skipDelaySeconds || 10,
         rotationIntervalSeconds: settings.rotationIntervalSeconds || 5,
+        midrollIntervalMinutes: settings.midrollIntervalMinutes || 20,
         showPrerollAds: settings.showPrerollAds ?? true,
+        showMidrollAds: settings.showMidrollAds ?? false,
         homepageEnabled: settings.homepageEnabled ?? true,
         movieDetailEnabled: settings.movieDetailEnabled ?? true,
-        showDownloadPageAds: true, // Keep this or update if needed
+        dashboardEnabled: settings.dashboardEnabled ?? true,
+        showDownloadPageAds: true,
       })
     } else {
       await db
@@ -741,13 +749,17 @@ export async function updateAdSettings(settings: {
           horizontalAdCode: settings.horizontalAdCode,
           verticalAdCode: settings.verticalAdCode,
           prerollAdCodes: settings.prerollAdCodes,
+          midrollAdCodes: settings.midrollAdCodes,
           smartLinkUrl: settings.smartLinkUrl,
           adTimeoutSeconds: settings.adTimeoutSeconds,
           skipDelaySeconds: settings.skipDelaySeconds,
           rotationIntervalSeconds: settings.rotationIntervalSeconds,
+          midrollIntervalMinutes: settings.midrollIntervalMinutes,
           showPrerollAds: settings.showPrerollAds,
+          showMidrollAds: settings.showMidrollAds,
           homepageEnabled: settings.homepageEnabled,
           movieDetailEnabled: settings.movieDetailEnabled,
+          dashboardEnabled: settings.dashboardEnabled,
         })
         .where(eq(adSettings.id, currentSettings.id))
     }
@@ -1389,11 +1401,14 @@ export async function seedDatabase() {
           horizontalAdCode: "",
           verticalAdCode: "",
           prerollAdCodes: "[]", // Default to empty array string
+          midrollAdCodes: "[]",
           smartLinkUrl: "",
           adTimeoutSeconds: 20,
           skipDelaySeconds: 10,
           rotationIntervalSeconds: 5,
+          midrollIntervalMinutes: 20,
           showPrerollAds: true,
+          showMidrollAds: false,
           homepageEnabled: false,
           movieDetailEnabled: false,
           dashboardEnabled: false, // Assuming this is a new default
