@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className="bg-[#0B0C10] border-t border-[#2A2B33] mt-16">
       {/* Request Movie Banner */}
-      <div className="border-b border-[#2A2B33] bg-[#1A1B23]/50">
+      <div className="border-b border-[#2A2B33] bg-gradient-to-r from-[#0B0C10] via-[#1A1B23]/80 to-[#0B0C10]">
         <div className="px-4 md:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
             <h3 className="text-xl font-bold text-white mb-2">Can't find what you're looking for?</h3>
@@ -15,7 +15,7 @@ export default function Footer() {
           <div className="flex-shrink-0">
             <RequestMovieModal
               trigger={
-                <button className="px-6 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded hover:bg-[#00CCCC] hover:shadow-[0_0_20px_rgba(0,255,255,0.4)] transition-all">
+                <button className="px-6 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:bg-[#00CCCC] shadow-lg shadow-[#00FFFF]/30 hover:shadow-[0_0_25px_rgba(0,255,255,0.5)] transition-all duration-300 transform hover:scale-105">
                   Request a Movie
                 </button>
               }
@@ -28,7 +28,12 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <h3 className="text-xl font-bold text-[#00FFFF] mb-4 glow-cyan">moBix</h3>
+            <h3
+              className="text-2xl font-bold text-[#00FFFF] mb-4"
+              style={{ textShadow: "0 0 10px rgba(0,255,255,0.5)" }}
+            >
+              moBix
+            </h3>
             <p className="text-[#888888] text-sm mb-4">
               Your ultimate destination for free movie streaming. Watch unlimited movies and shows online.
             </p>
@@ -70,7 +75,9 @@ export default function Footer() {
               </li>
               <li>
                 <RequestMovieModal
-                  trigger={<button className="hover:text-[#00FFFF] transition text-left">Request Movie</button>}
+                  trigger={
+                    <button className="hover:text-[#00FFFF] transition text-left text-[#888888]">Request Movie</button>
+                  }
                 />
               </li>
             </ul>

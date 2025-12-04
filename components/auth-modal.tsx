@@ -630,8 +630,13 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 {isLogin && (
                   <button
                     type="button"
-                    onClick={() => setStep("forgot-password")}
-                    className="text-[#00FFFF] hover:text-[#00CCCC] transition font-medium"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setStep("forgot-password")
+                    }}
+                    className="text-[#00FFFF] hover:text-[#00CCCC] hover:underline transition font-medium py-2 px-3 -mr-3 relative z-10 cursor-pointer select-none"
+                    style={{ pointerEvents: "auto" }}
                   >
                     Forgot password?
                   </button>

@@ -68,7 +68,7 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
   const defaultTrigger = (
     <Button
       variant="default"
-      className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold shadow-lg transition-all duration-300 hover:scale-105"
+      className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-bold shadow-lg shadow-[#00FFFF]/30 hover:shadow-[#00FFFF]/50 transition-all duration-300 hover:scale-105"
     >
       <Film className="w-4 h-4 mr-2" />
       Request Movie
@@ -80,9 +80,12 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
       <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-[#1A1B23] border-[#2A2B33]">
         <DialogHeader>
-          <DialogTitle className="text-white">Request a Movie</DialogTitle>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Film className="w-5 h-5 text-[#00FFFF]" />
+            Request a Movie
+          </DialogTitle>
           <DialogDescription className="text-[#888888]">
-            Can't find what you're looking for? Let us know!
+            Can't find what you're looking for? Let us know and we'll try to add it!
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
@@ -93,7 +96,7 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
             <Input
               id="title"
               name="title"
-              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666]"
+              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666] focus:border-[#00FFFF] focus:ring-[#00FFFF]/30"
               required
               placeholder="e.g. Inception"
             />
@@ -105,7 +108,7 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
             <Input
               id="year"
               name="year"
-              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666]"
+              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666] focus:border-[#00FFFF] focus:ring-[#00FFFF]/30"
               placeholder="e.g. 2010"
             />
           </div>
@@ -116,7 +119,7 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
             <Textarea
               id="details"
               name="details"
-              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666]"
+              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666] focus:border-[#00FFFF] focus:ring-[#00FFFF]/30"
               placeholder="Any specific version or language?"
             />
           </div>
@@ -128,7 +131,7 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
               id="email"
               name="email"
               type="email"
-              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666]"
+              className="col-span-3 bg-[#0B0C10] border-[#2A2B33] text-white placeholder-[#666666] focus:border-[#00FFFF] focus:ring-[#00FFFF]/30"
               placeholder="For updates (optional)"
             />
           </div>
@@ -136,7 +139,7 @@ export function RequestMovieModal({ trigger, onClose }: RequestMovieModalProps) 
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
+              className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-bold shadow-lg shadow-[#00FFFF]/30 hover:shadow-[#00FFFF]/50 transition-all"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Submit Request

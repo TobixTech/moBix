@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { searchMovies } from "@/lib/server-actions"
 import { useAuth, useClerk } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 
 interface NavbarProps {
   showAuthButtons?: boolean
@@ -19,8 +20,15 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
   const [isSearching, setIsSearching] = useState(false)
   const [showSearchResults, setShowSearchResults] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
-  const { userId } = useAuth()
+  const { userId, isLoaded } = useAuth()
   const { signOut } = useClerk()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isLoaded && userId && showAuthButtons) {
+      router.push("/home")
+    }
+  }, [isLoaded, userId, showAuthButtons, router])
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -73,7 +81,11 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
   }
 
   const handleAuthClick = () => {
-    window.location.href = "/auth"
+    if (userId) {
+      router.push("/home")
+    } else {
+      window.location.href = "/auth"
+    }
   }
 
   return (
