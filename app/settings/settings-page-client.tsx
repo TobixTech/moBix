@@ -304,75 +304,47 @@ export default function SettingsPageClient({ userCountry, countryChangedAt }: Se
                   </div>
                 ) : section.id === "notifications" ? (
                   <>
-                    <div
-                      className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleNotificationToggle("emailUpdates")
-                      }}
-                    >
-                      <div>
-                        <Label className="text-white cursor-pointer">Email Updates</Label>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex-1">
+                        <Label className="text-white font-medium">Email Updates</Label>
                         <p className="text-sm text-white/40">Receive updates about your account</p>
                       </div>
                       <Switch
                         checked={notifications.emailUpdates}
                         onCheckedChange={() => handleNotificationToggle("emailUpdates")}
-                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
-                    <div
-                      className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleNotificationToggle("newReleases")
-                      }}
-                    >
-                      <div>
-                        <Label className="text-white cursor-pointer">New Movie Releases</Label>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex-1">
+                        <Label className="text-white font-medium">New Movie Releases</Label>
                         <p className="text-sm text-white/40">Get notified when new movies are added</p>
                       </div>
                       <Switch
                         checked={notifications.newReleases}
                         onCheckedChange={() => handleNotificationToggle("newReleases")}
-                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
-                    <div
-                      className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleNotificationToggle("watchlistReminders")
-                      }}
-                    >
-                      <div>
-                        <Label className="text-white cursor-pointer">Watchlist Reminders</Label>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex-1">
+                        <Label className="text-white font-medium">Watchlist Reminders</Label>
                         <p className="text-sm text-white/40">Remind me about movies in my watchlist</p>
                       </div>
                       <Switch
                         checked={notifications.watchlistReminders}
                         onCheckedChange={() => handleNotificationToggle("watchlistReminders")}
-                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
-                    <div
-                      className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleNotificationToggle("promotions")
-                      }}
-                    >
-                      <div>
-                        <Label className="text-white cursor-pointer">Promotional Emails</Label>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex-1">
+                        <Label className="text-white font-medium">Promotional Emails</Label>
                         <p className="text-sm text-white/40">Receive special offers and promotions</p>
                       </div>
                       <Switch
                         checked={notifications.promotions}
                         onCheckedChange={() => handleNotificationToggle("promotions")}
-                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
                   </>
