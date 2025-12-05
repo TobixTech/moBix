@@ -84,7 +84,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "your-google-verification-code",
+    google: "X8oPqP7PiU89fqEN4-K8y4-xqgNqIilc7nS5zVpb6FI",
   },
   category: "entertainment",
 }
@@ -110,6 +110,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" className="dark">
         <head>
+          <meta name="google-site-verification" content="X8oPqP7PiU89fqEN4-K8y4-xqgNqIilc7nS5zVpb6FI" />
           <meta name="6a97888e-site-verification" content="31d833de3e94dcf092ac2dec8b419b57" />
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
