@@ -89,6 +89,14 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
     }
   }
 
+  const navItems = [
+    { name: "Home", href: showAuthButtons ? "/" : "/home" },
+    { name: "Movies", href: "/home" },
+    { name: "Series", href: "/series" },
+    { name: "Watchlist", href: "/watchlist" },
+    { name: "Dashboard", href: "/dashboard" },
+  ]
+
   return (
     <motion.nav
       className="fixed top-0 w-full bg-[#0B0C10]/95 backdrop-blur border-b border-[#2A2B33] z-50 pb-safe"
@@ -111,28 +119,15 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
 
         {/* Menu */}
         <div className="hidden md:flex gap-6 flex-1 ml-8">
-          {["Home", "Movies", "Watchlist", "Dashboard"].map((item, i) => (
+          {navItems.map((item, i) => (
             <motion.div
-              key={item}
+              key={item.name}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
             >
-              <Link
-                href={
-                  item === "Home"
-                    ? showAuthButtons
-                      ? "/"
-                      : "/home"
-                    : item === "Watchlist"
-                      ? "/watchlist"
-                      : item === "Movies"
-                        ? "/home"
-                        : "/dashboard"
-                }
-                className="text-white hover:text-[#00FFFF] transition relative group text-xs"
-              >
-                {item}
+              <Link href={item.href} className="text-white hover:text-[#00FFFF] transition relative group text-xs">
+                {item.name}
                 <motion.div
                   className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"
                   initial={{ width: 0 }}
@@ -143,7 +138,7 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
             </motion.div>
           ))}
           {!showAuthButtons && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
               <Link href="/profile" className="text-white hover:text-[#00FFFF] transition relative group text-xs">
                 Profile
                 <motion.div

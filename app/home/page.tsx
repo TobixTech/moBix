@@ -1,6 +1,7 @@
 import Navbar from "@/components/navbar"
 import HeroBanner from "@/components/hero-banner"
 import MovieCarousel from "@/components/movie-carousel"
+import SeriesCarousel from "@/components/series-carousel"
 import ContinueWatchingCarousel from "@/components/continue-watching-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
@@ -11,6 +12,7 @@ import {
   getAllGenres,
   getContinueWatching,
 } from "@/lib/server-actions"
+import { getTrendingSeries, getRecentSeries } from "@/lib/series-actions"
 import PromotionModalWrapper from "@/components/promotion-modal-wrapper"
 
 export const dynamic = "force-dynamic"
@@ -18,11 +20,13 @@ export const revalidate = 0
 export const fetchCache = "force-no-store"
 
 export default async function AuthenticatedHomePage() {
-  const [trending, recent, allGenres, continueWatching] = await Promise.all([
+  const [trending, recent, allGenres, continueWatching, trendingSeries, recentSeries] = await Promise.all([
     getTrendingMovies(),
     getPublicMovies(),
     getAllGenres(),
     getContinueWatching(),
+    getTrendingSeries(10),
+    getRecentSeries(10),
   ])
 
   // Fetch movies for each genre in parallel
@@ -53,6 +57,9 @@ export default async function AuthenticatedHomePage() {
           </div>
         )}
 
+        {/* Trending Series Section */}
+        {trendingSeries.length > 0 && <SeriesCarousel title="Popular TV Series" series={trendingSeries} />}
+
         <AdBanner type="horizontal" placement="homepage" />
 
         {/* Recently Added Section */}
@@ -61,6 +68,9 @@ export default async function AuthenticatedHomePage() {
             <MovieCarousel title="Recently Added" movies={recent} showSeeMore={false} />
           </div>
         )}
+
+        {/* New Series Section */}
+        {recentSeries.length > 0 && <SeriesCarousel title="New TV Series" series={recentSeries} />}
 
         {/* Genre Sections with strategic ad placement */}
         {genresWithMovies.map((genreData, index) => (

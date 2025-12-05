@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Film, Bookmark, User, Search } from "lucide-react"
+import { Home, Film, Bookmark, User, Tv } from "lucide-react"
 import { motion } from "framer-motion"
 
 export function MobileBottomNav() {
@@ -10,8 +10,8 @@ export function MobileBottomNav() {
 
   const navItems = [
     { href: "/home", icon: Home, label: "Home" },
-    { href: "/browse", icon: Film, label: "Browse" },
-    { href: "/search", icon: Search, label: "Search" },
+    { href: "/browse", icon: Film, label: "Movies" },
+    { href: "/series", icon: Tv, label: "Series" },
     { href: "/watchlist", icon: Bookmark, label: "List" },
     { href: "/dashboard", icon: User, label: "Me" },
   ]
@@ -53,7 +53,7 @@ export function MobileBottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 transition-all duration-300 relative"
+                className="flex flex-col items-center gap-0.5 px-2 py-1 transition-all duration-300 relative"
               >
                 {/* Active indicator glow */}
                 {isActive && (

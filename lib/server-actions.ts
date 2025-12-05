@@ -2633,3 +2633,26 @@ export async function getAllUsersForTargeting() {
     return []
   }
 }
+
+export async function getAdminSeries() {
+  try {
+    const { series } = await import("@/lib/db/schema")
+    const result = await db.query.series.findMany({
+      orderBy: [desc(series.createdAt)],
+    })
+    return result.map((s: any) => ({
+      id: s.id,
+      title: s.title,
+      genre: s.genre,
+      posterUrl: s.posterUrl,
+      seasons: s.totalSeasons,
+      episodesPerSeason: s.totalEpisodes,
+      status: s.status === "ongoing" ? "Ongoing" : s.status === "completed" ? "Completed" : "Cancelled",
+      views: s.views,
+      createdAt: s.createdAt,
+    }))
+  } catch (error) {
+    console.error("Error fetching admin series:", error)
+    return []
+  }
+}

@@ -30,6 +30,7 @@ import {
   Shield,
   Download,
   Shuffle,
+  Tv,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -63,6 +64,7 @@ import {
   removeFromBlacklist, // Added
   updatePromotionSettings, // Added
   deletePromotionEntry, // Added
+  getAdminSeries, // Added getAdminSeries import
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -79,7 +81,17 @@ import { COUNTRIES, getCountryByName } from "@/lib/countries" // Added
 import { SendPromoModal } from "@/components/send-promo-modal" // Added SendPromoModal import
 
 // Update AdminTab type
-type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback" | "reports" | "promotions" // Added "promotions" to AdminTab type
+type AdminTab =
+  | "overview"
+  | "movies"
+  | "upload"
+  | "users"
+  | "comments"
+  | "ads"
+  | "feedback"
+  | "reports"
+  | "promotions"
+  | "series" // Added "promotions" and "series" to AdminTab type
 
 interface Metric {
   label: string
@@ -167,6 +179,18 @@ interface ContentReport {
   } | null
 }
 
+// Add interface for Series if it exists
+interface Series {
+  id: string
+  title: string
+  posterUrl?: string
+  seasons?: number
+  episodesPerSeason?: number
+  genre?: string
+  status?: string
+  // Add other relevant series properties
+}
+
 export default function AdminDashboard() {
   const [pinVerified, setPinVerified] = useState(false)
   const [pinInput, setPinInput] = useState("")
@@ -196,6 +220,7 @@ export default function AdminDashboard() {
   const [feedback, setFeedback] = useState<Feedback[]>([]) // Added feedback state
   const [contentReports, setContentReports] = useState<ContentReport[]>([])
   const [loading, setLoading] = useState(true)
+  const [series, setSeries] = useState<Series[]>([]) // Added state for TV Series
 
   // Add new state for promotions
   const [promotionEntries, setPromotionEntries] = useState<any[]>([])
@@ -288,48 +313,54 @@ export default function AdminDashboard() {
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
 
-  // ... existing handlePinSubmit ...
+  // ... existing handlers (handlePinSubmit, etc.) ...
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setPinError("")
     setPinLoading(true)
+    setPinError("")
 
     try {
-      const response = await fetch("/api/admin/verify-pin", {
+      const response = await fetch("/api/auth/verify-admin-pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: pinInput }),
       })
 
-      const result = await response.json()
+      const data = await response.json()
 
-      if (result.success) {
+      if (response.ok && data.success) {
         setPinVerified(true)
+        // Optionally clear input after success
         setPinInput("")
       } else {
-        setPinError("Invalid PIN. Please try again.")
+        setPinError(data.error || "Invalid PIN. Please try again.")
       }
     } catch (error) {
-      setPinError("An error occurred. Please try again.")
+      console.error("PIN verification error:", error)
+      setPinError("An unexpected error occurred. Please try again.")
     } finally {
       setPinLoading(false)
     }
   }
 
+  // State for editing Series (similar to editing movies)
+  const [editingSeries, setEditingSeries] = useState<Series | null>(null)
+  const [editSeriesModalOpen, setEditSeriesModalOpen] = useState(false)
+
+  // Fetch series data
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null
-
-    if (autoRefresh && pinVerified) {
-      interval = setInterval(() => {
-        fetchDashboardData()
-        setLastRefresh(new Date())
-      }, 30000) // Refresh every 30 seconds
+    async function fetchSeriesData() {
+      if (!pinVerified) return
+      try {
+        // Assuming getAdminSeries() exists
+        const seriesData = await getAdminSeries()
+        setSeries(seriesData)
+      } catch (error) {
+        console.error("Error fetching series data:", error)
+      }
     }
-
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [autoRefresh, pinVerified])
+    fetchSeriesData()
+  }, [pinVerified])
 
   // Refactor fetch to a named function
   const fetchDashboardData = async () => {
@@ -343,6 +374,8 @@ export default function AdminDashboard() {
         commentsData,
         adSettingsData,
         feedbackData,
+        reportsData, // Added reports fetch
+        // Add seriesData fetch if available
       ] = await Promise.all([
         getAdminMetrics(),
         getTrendingMovies(),
@@ -352,6 +385,8 @@ export default function AdminDashboard() {
         getAllComments(),
         getAdSettings(),
         getFeedbackEntries(),
+        getContentReports(),
+        // getAdminSeries(), // Uncomment and adjust if getAdminSeries is available
       ])
 
       setMetrics(metricsData)
@@ -361,6 +396,10 @@ export default function AdminDashboard() {
       setUsers(usersData)
       setComments(commentsData)
       setFeedback(feedbackData)
+      if (reportsData.success) {
+        setContentReports(reportsData.reports as ContentReport[])
+      }
+      // setSeries(seriesData); // Uncomment and adjust if getAdminSeries is available
 
       if (adSettingsData) {
         setAdSettings({
@@ -404,6 +443,7 @@ export default function AdminDashboard() {
           feedbackData,
           commentsData,
           reportsData, // Added reports fetch
+          seriesData, // Added series fetch
         ] = await Promise.all([
           getAdminMetrics(),
           getTrendingMovies(),
@@ -413,7 +453,8 @@ export default function AdminDashboard() {
           getAdSettings(),
           getFeedbackEntries(),
           getAllComments(),
-          getContentReports(), // Fetch content reports
+          getContentReports(),
+          getAdminSeries(), // Assuming this server action exists
         ])
 
         setMetrics(metricsData)
@@ -426,6 +467,7 @@ export default function AdminDashboard() {
         if (reportsData.success) {
           setContentReports(reportsData.reports as ContentReport[])
         }
+        setSeries(seriesData) // Set series data
 
         if (adSettingsData) {
           setAdSettings({
@@ -1199,6 +1241,7 @@ export default function AdminDashboard() {
             { id: "feedback", label: "Feedback & Requests", icon: Inbox },
             { id: "reports", label: "Content Reports", icon: Flag }, // Added reports tab
             { id: "promotions", label: "Promotions", icon: Gift }, // Added promotions tab
+            { id: "series", label: "TV Series", icon: Tv }, // ADDED SERIES TAB
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -2757,6 +2800,99 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TV Series Tab Content */}
+          {activeTab === "series" && (
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold text-white mb-6">TV Series Management</h3>
+              <div className="flex flex-col md:flex-row gap-4 justify-between">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Search series..."
+                    // Add search functionality for series if needed
+                    // value={seriesSearch}
+                    // onChange={(e) => setSeriesSearch(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pl-10 text-white focus:outline-none focus:border-cyan-500/50"
+                  />
+                  <Search className="w-5 h-5 text-white/30 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filter
+                  </button>
+                  <button
+                    // onClick={() => setActiveTab("uploadSeries")} // Add handler for uploading series
+                    className="px-4 py-2 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Add New Series
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-white/5 border-b border-white/10">
+                      <tr>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Series</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Genre</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Seasons</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Episodes</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
+                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {series.map(
+                        (
+                          s, // Use the 'series' state here
+                        ) => (
+                          <tr key={s.id} className="hover:bg-white/5 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-white">{s.title}</div>
+                            </td>
+                            <td className="px-6 py-4 text-white/70">{s.genre}</td>
+                            <td className="px-6 py-4 text-white/70">{s.seasons}</td>
+                            <td className="px-6 py-4 text-white/70">{s.episodesPerSeason}</td>
+                            <td className="px-6 py-4">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-bold border ${
+                                  s.status === "Published"
+                                    ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                    : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                                }`}
+                              >
+                                {s.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex gap-2">
+                                <button
+                                  // onClick={() => handleEditSeries(s)} // Add series edit handler
+                                  className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  // onClick={() => handleDeleteSeries(s.id)} // Add series delete handler
+                                  className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
         </div>

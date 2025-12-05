@@ -425,3 +425,171 @@ export const targetedPromotionsRelations = relations(targetedPromotions, ({ one 
     references: [users.id],
   }),
 }))
+
+// TV Series
+export const series = pgTable("Series", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  slug: text("slug").unique(),
+  title: text("title").unique().notNull(),
+  description: text("description").notNull(),
+  posterUrl: text("posterUrl").notNull(),
+  bannerUrl: text("bannerUrl"),
+  genre: text("genre").notNull(),
+  releaseYear: integer("releaseYear").notNull(),
+  status: text("status").default("ongoing").notNull(), // 'ongoing', 'completed', 'cancelled'
+  totalSeasons: integer("totalSeasons").default(0).notNull(),
+  totalEpisodes: integer("totalEpisodes").default(0).notNull(),
+  averageRating: decimal("averageRating", { precision: 2, scale: 1 }).default("0"),
+  views: integer("views").default(0).notNull(),
+  isTrending: boolean("isTrending").default(false).notNull(),
+  isFeatured: boolean("isFeatured").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const seriesRelations = relations(series, ({ many }) => ({
+  seasons: many(seasons),
+  seriesWatchHistory: many(seriesWatchHistory),
+  seriesWatchlist: many(seriesWatchlist),
+  seriesRatings: many(seriesRatings),
+}))
+
+// Seasons
+export const seasons = pgTable("Season", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  seasonNumber: integer("seasonNumber").notNull(),
+  title: text("title"),
+  description: text("description"),
+  posterUrl: text("posterUrl"),
+  releaseYear: integer("releaseYear"),
+  totalEpisodes: integer("totalEpisodes").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const seasonsRelations = relations(seasons, ({ one, many }) => ({
+  series: one(series, {
+    fields: [seasons.seriesId],
+    references: [series.id],
+  }),
+  episodes: many(episodes),
+}))
+
+// Episodes
+export const episodes = pgTable("Episode", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  seasonId: text("seasonId")
+    .notNull()
+    .references(() => seasons.id, { onDelete: "cascade" }),
+  episodeNumber: integer("episodeNumber").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  duration: integer("duration"), // in minutes
+  thumbnailUrl: text("thumbnailUrl"),
+  videoUrl: text("videoUrl").notNull(),
+  downloadUrl: text("downloadUrl"),
+  downloadEnabled: boolean("downloadEnabled").default(false).notNull(),
+  views: integer("views").default(0).notNull(),
+  releaseDate: timestamp("releaseDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const episodesRelations = relations(episodes, ({ one, many }) => ({
+  season: one(seasons, {
+    fields: [episodes.seasonId],
+    references: [seasons.id],
+  }),
+  watchHistory: many(seriesWatchHistory),
+}))
+
+// Series Watch History
+export const seriesWatchHistory = pgTable("SeriesWatchHistory", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  episodeId: text("episodeId")
+    .notNull()
+    .references(() => episodes.id, { onDelete: "cascade" }),
+  progress: integer("progress").default(0).notNull(),
+  duration: integer("duration").default(0).notNull(),
+  watchedAt: timestamp("watchedAt").defaultNow().notNull(),
+})
+
+export const seriesWatchHistoryRelations = relations(seriesWatchHistory, ({ one }) => ({
+  user: one(users, {
+    fields: [seriesWatchHistory.userId],
+    references: [users.id],
+  }),
+  series: one(series, {
+    fields: [seriesWatchHistory.seriesId],
+    references: [series.id],
+  }),
+  episode: one(episodes, {
+    fields: [seriesWatchHistory.episodeId],
+    references: [episodes.id],
+  }),
+}))
+
+// Series Watchlist
+export const seriesWatchlist = pgTable("SeriesWatchlist", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const seriesWatchlistRelations = relations(seriesWatchlist, ({ one }) => ({
+  user: one(users, {
+    fields: [seriesWatchlist.userId],
+    references: [users.id],
+  }),
+  series: one(series, {
+    fields: [seriesWatchlist.seriesId],
+    references: [series.id],
+  }),
+}))
+
+// Series Ratings
+export const seriesRatings = pgTable("SeriesRating", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  rating: integer("rating").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const seriesRatingsRelations = relations(seriesRatings, ({ one }) => ({
+  user: one(users, {
+    fields: [seriesRatings.userId],
+    references: [users.id],
+  }),
+  series: one(series, {
+    fields: [seriesRatings.seriesId],
+    references: [series.id],
+  }),
+}))
