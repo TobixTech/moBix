@@ -12,7 +12,7 @@ import ProductionVideoPlayer from "./production-video-player"
 import SocialShare from "./social-share"
 import StarRating from "./star-rating"
 import ReportContentModal from "./report-content-modal"
-import AdBanner from "./ad-banner"
+import { AdBannerClient } from "./ad-banner-client"
 
 interface Comment {
   id: string
@@ -528,7 +528,7 @@ export default function MovieDetailClient({
                 {/* Ad after every 2 movies */}
                 {(index + 1) % 2 === 0 && index < relatedMovies.length - 1 && (
                   <div className="my-4">
-                    <AdBanner type="horizontal" placement="movieDetail" />
+                    <AdBannerClient type="horizontal" placement="movieDetail" />
                   </div>
                 )}
               </div>
