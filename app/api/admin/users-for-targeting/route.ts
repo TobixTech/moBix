@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { auth } from "@clerk/nextjs/server"
 import { neon } from "@neondatabase/serverless"
 
 export const dynamic = "force-dynamic"
@@ -7,6 +6,18 @@ export const revalidate = 0
 
 export async function GET(req: NextRequest) {
   try {
+    const adminVerifiedCookie = req.cookies.get("admin_access_verified")
+
+    if (!adminVerifiedCookie?.value) {
+      return NextResponse.json({ error: "Not authorized", users: [], success: false }, { status: 403 })
+    }
+
+    // Verify cookie hasn't expired
+    const expiryTime = Number.parseInt(adminVerifiedCookie.value, 10)
+    if (isNaN(expiryTime) || Date.now() > expiryTime) {
+      return NextResponse.json({ error: "Session expired", users: [], success: false }, { status: 403 })
+    }
+
     if (!process.env.DATABASE_URL) {
       return NextResponse.json(
         {
@@ -18,24 +29,9 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const { userId } = await auth()
-
-    if (!userId) {
-      return NextResponse.json({ error: "Not authenticated", users: [], success: false }, { status: 401 })
-    }
-
     const sql = neon(process.env.DATABASE_URL)
 
-    // Check if user is admin
-    const adminResult = await sql`
-      SELECT role FROM "User" WHERE "clerkId" = ${userId}
-    `
-
-    if (!adminResult.length || adminResult[0].role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized", users: [], success: false }, { status: 403 })
-    }
-
-    // Fetch all users with proper column names
+    // Fetch all users
     const allUsers = await sql`
       SELECT 
         id, 
@@ -46,7 +42,6 @@ export async function GET(req: NextRequest) {
         "ipAddress",
         "createdAt"
       FROM "User"
-      WHERE role != 'ADMIN'
       ORDER BY "createdAt" DESC
       LIMIT 500
     `

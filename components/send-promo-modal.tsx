@@ -33,6 +33,7 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
     if (isOpen) {
       setSelectedUsers([])
       setSearchQuery("")
+      setError(null)
       loadUsers()
     }
   }, [isOpen])
@@ -45,9 +46,6 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
     try {
       const res = await fetch("/api/admin/users-for-targeting", {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
         credentials: "include",
         cache: "no-store",
       })
