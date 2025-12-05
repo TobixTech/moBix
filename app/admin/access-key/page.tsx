@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Loader, Key } from "lucide-react"
+import { Lock, Loader, Key, AlertCircle } from "lucide-react"
 import { motion } from "framer-motion"
 
 export default function AdminAccessKeyPage() {
@@ -19,14 +19,19 @@ export default function AdminAccessKeyPage() {
     setLoading(true)
 
     try {
-      // Call API route to verify access key and set cookie
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
       const response = await fetch("/api/admin/verify-access", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ accessKey }),
+        body: JSON.stringify({ accessKey: accessKey.trim() }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       const result = await response.json()
 
@@ -36,13 +41,17 @@ export default function AdminAccessKeyPage() {
 
         // Redirect to admin dashboard after brief success message
         setTimeout(() => {
-          window.location.href = "/admin/dashboard"
-        }, 1500)
+          window.location.href = "/admin/point"
+        }, 1000)
       } else {
         setError(result.error || "Invalid access key")
       }
     } catch (err: any) {
-      setError("An error occurred. Please try again.")
+      if (err.name === "AbortError") {
+        setError("Request timed out. Please try again.")
+      } else {
+        setError("Connection error. Please check your internet and try again.")
+      }
     } finally {
       setLoading(false)
     }
@@ -62,16 +71,17 @@ export default function AdminAccessKeyPage() {
               Admin Access
             </h1>
             <p className="text-[#888888] text-sm">
-              {success ? "Access granted! Redirecting..." : "Enter your secret access key"}
+              {success ? "Access granted! Redirecting..." : "Enter your secret access key or PIN"}
             </p>
           </div>
 
           {error && (
             <motion.div
-              className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"
+              className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </motion.div>
           )}
@@ -82,7 +92,7 @@ export default function AdminAccessKeyPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              Access granted! Redirecting to admin dashboard...
+              Access granted! Redirecting to admin panel...
             </motion.div>
           )}
 
@@ -92,10 +102,11 @@ export default function AdminAccessKeyPage() {
                 type="password"
                 value={accessKey}
                 onChange={(e) => setAccessKey(e.target.value)}
-                placeholder="Enter secret access key"
+                placeholder="Enter access key or PIN"
                 disabled={loading || success}
                 className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all disabled:opacity-50"
                 required
+                autoFocus
               />
             </div>
 

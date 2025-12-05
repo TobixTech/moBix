@@ -320,7 +320,7 @@ export default function AdminDashboard() {
     setPinError("")
 
     try {
-      const response = await fetch("/api/auth/verify-admin-pin", {
+      const response = await fetch("/api/admin/verify-pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: pinInput }),
@@ -330,7 +330,6 @@ export default function AdminDashboard() {
 
       if (response.ok && data.success) {
         setPinVerified(true)
-        // Optionally clear input after success
         setPinInput("")
       } else {
         setPinError(data.error || "Invalid PIN. Please try again.")

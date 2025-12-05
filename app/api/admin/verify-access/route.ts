@@ -8,19 +8,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Access key is required" }, { status: 400 })
     }
 
-    // Check against environment variables
-    const validKeys = [
-      process.env.ADMIN_ACCESS_KEY,
-      process.env.ADMIN_SECRET_KEY,
-      process.env.ADMIN_INVITATION_CODE,
-      process.env.ADMIN_PIN,
-      process.env.SECRET_KEY,
-    ].filter(Boolean)
+    // Check against environment variables - support multiple key types
+    const adminAccessKey = process.env.ADMIN_ACCESS_KEY
+    const adminSecretKey = process.env.ADMIN_SECRET_KEY
+    const adminInvitationCode = process.env.ADMIN_INVITATION_CODE
+    const adminPin = process.env.ADMIN_PIN
 
-    const isValid = validKeys.includes(accessKey)
+    // Trim whitespace from input
+    const trimmedKey = accessKey.trim()
+
+    // Check each key individually for better debugging
+    let isValid = false
+
+    if (adminAccessKey && trimmedKey === adminAccessKey) {
+      isValid = true
+    } else if (adminSecretKey && trimmedKey === adminSecretKey) {
+      isValid = true
+    } else if (adminInvitationCode && trimmedKey === adminInvitationCode) {
+      isValid = true
+    } else if (adminPin && trimmedKey === adminPin) {
+      isValid = true
+    }
 
     if (!isValid) {
-      return NextResponse.json({ success: false, error: "Invalid access key" }, { status: 401 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid access key. Please check your credentials.",
+        },
+        { status: 401 },
+      )
     }
 
     // Create response with success
@@ -41,6 +58,12 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error: any) {
     console.error("Admin verify access error:", error)
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Server error occurred. Please try again.",
+      },
+      { status: 500 },
+    )
   }
 }
