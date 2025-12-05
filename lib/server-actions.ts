@@ -236,11 +236,19 @@ export async function getRelatedMovies(movieId: string, genre: string) {
     let related = await db.query.movies.findMany({
       where: and(eq(movies.genre, genre), not(eq(movies.id, movieId))),
       orderBy: [desc(movies.views)], // Order by views for "smart" relevance
-      limit: 4,
+      limit: 8, // Increased limit to 8 for better vertical display
+      columns: {
+        id: true,
+        title: true,
+        posterUrl: true,
+        year: true,
+        genre: true,
+        slug: true,
+      },
     })
 
     // 2. If not enough, find movies with overlapping genre words (e.g. "Action Sci-Fi" matches "Action")
-    if (related.length < 4) {
+    if (related.length < 8) {
       const genreWords = genre.split(" ").filter((w) => w.length > 3)
 
       if (genreWords.length > 0) {
@@ -258,14 +266,22 @@ export async function getRelatedMovies(movieId: string, genre: string) {
                 )
               : undefined,
           ),
-          limit: 4 - related.length,
+          limit: 8 - related.length,
+          columns: {
+            id: true,
+            title: true,
+            posterUrl: true,
+            year: true,
+            genre: true,
+            slug: true,
+          },
         })
         related = [...related, ...moreRelated]
       }
     }
 
     // 3. Fallback to trending/popular if still not enough
-    if (related.length < 4) {
+    if (related.length < 8) {
       const popular = await db.query.movies.findMany({
         where: and(
           not(eq(movies.id, movieId)),
@@ -280,7 +296,15 @@ export async function getRelatedMovies(movieId: string, genre: string) {
             : undefined,
         ),
         orderBy: [desc(movies.views)],
-        limit: 4 - related.length,
+        limit: 8 - related.length,
+        columns: {
+          id: true,
+          title: true,
+          posterUrl: true,
+          year: true,
+          genre: true,
+          slug: true,
+        },
       })
       related = [...related, ...popular]
     }

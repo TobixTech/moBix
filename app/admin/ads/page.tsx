@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Save, Loader, ArrowLeft, Play, Settings, Globe, Clock, Plus, Trash2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Save, Loader, ArrowLeft, Play, Settings, Globe, Plus, Trash2, Clock } from "lucide-react"
 import { getAdSettings, updateAdSettings } from "@/lib/server-actions"
 import Link from "next/link"
 
@@ -13,14 +12,11 @@ interface AdCode {
 }
 
 export default function AdManagementPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [testingAd, setTestingAd] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
 
   const [formData, setFormData] = useState({
-    vastPrerollUrl: "",
     adTimeout: 20,
     skipDelay: 10,
     rotationInterval: 5,
@@ -37,13 +33,14 @@ export default function AdManagementPage() {
 
   const [prerollAdCodes, setPrerollAdCodes] = useState<AdCode[]>([])
   const [midrollAdCodes, setMidrollAdCodes] = useState<AdCode[]>([])
+  const [newPrerollCode, setNewPrerollCode] = useState({ name: "", code: "" })
+  const [newMidrollCode, setNewMidrollCode] = useState({ name: "", code: "" })
 
   useEffect(() => {
     const fetchSettings = async () => {
       const settings = await getAdSettings()
       if (settings) {
         setFormData({
-          vastPrerollUrl: settings.vastPrerollUrl || "",
           adTimeout: settings.adTimeoutSeconds || 20,
           skipDelay: settings.skipDelaySeconds || 10,
           rotationInterval: settings.rotationIntervalSeconds || 5,
@@ -60,25 +57,61 @@ export default function AdManagementPage() {
         // Parse preroll ad codes
         try {
           if (settings.prerollAdCodes) {
-            setPrerollAdCodes(JSON.parse(settings.prerollAdCodes))
+            const codes = JSON.parse(settings.prerollAdCodes)
+            setPrerollAdCodes(codes)
           }
         } catch (e) {
-          console.error("Error parsing preroll ad codes:", e)
+          console.error("Error parsing preroll codes:", e)
         }
 
         // Parse midroll ad codes
         try {
           if (settings.midrollAdCodes) {
-            setMidrollAdCodes(JSON.parse(settings.midrollAdCodes))
+            const codes = JSON.parse(settings.midrollAdCodes)
+            setMidrollAdCodes(codes)
           }
         } catch (e) {
-          console.error("Error parsing midroll ad codes:", e)
+          console.error("Error parsing midroll codes:", e)
         }
       }
       setLoading(false)
     }
     fetchSettings()
   }, [])
+
+  const handleAddPrerollCode = () => {
+    if (newPrerollCode.code.trim()) {
+      setPrerollAdCodes([
+        ...prerollAdCodes,
+        {
+          name: newPrerollCode.name || `Ad ${prerollAdCodes.length + 1}`,
+          code: newPrerollCode.code,
+        },
+      ])
+      setNewPrerollCode({ name: "", code: "" })
+    }
+  }
+
+  const handleRemovePrerollCode = (index: number) => {
+    setPrerollAdCodes(prerollAdCodes.filter((_, i) => i !== index))
+  }
+
+  const handleAddMidrollCode = () => {
+    if (newMidrollCode.code.trim()) {
+      setMidrollAdCodes([
+        ...midrollAdCodes,
+        {
+          name: newMidrollCode.name || `Midroll Ad ${midrollAdCodes.length + 1}`,
+          code: newMidrollCode.code,
+        },
+      ])
+      setNewMidrollCode({ name: "", code: "" })
+    }
+  }
+
+  const handleRemoveMidrollCode = (index: number) => {
+    setMidrollAdCodes(midrollAdCodes.filter((_, i) => i !== index))
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -110,42 +143,6 @@ export default function AdManagementPage() {
     setSaving(false)
   }
 
-  const handleTestAd = () => {
-    setTestingAd(true)
-    setTimeout(() => {
-      setTestingAd(false)
-      alert("Ad preview completed! The VAST URL is configured correctly.")
-    }, 3000)
-  }
-
-  const addPrerollAdCode = () => {
-    setPrerollAdCodes([...prerollAdCodes, { code: "", name: `Ad ${prerollAdCodes.length + 1}` }])
-  }
-
-  const removePrerollAdCode = (index: number) => {
-    setPrerollAdCodes(prerollAdCodes.filter((_, i) => i !== index))
-  }
-
-  const updatePrerollAdCode = (index: number, field: "code" | "name", value: string) => {
-    const updated = [...prerollAdCodes]
-    updated[index][field] = value
-    setPrerollAdCodes(updated)
-  }
-
-  const addMidrollAdCode = () => {
-    setMidrollAdCodes([...midrollAdCodes, { code: "", name: `Midroll ${midrollAdCodes.length + 1}` }])
-  }
-
-  const removeMidrollAdCode = (index: number) => {
-    setMidrollAdCodes(midrollAdCodes.filter((_, i) => i !== index))
-  }
-
-  const updateMidrollAdCode = (index: number, field: "code" | "name", value: string) => {
-    const updated = [...midrollAdCodes]
-    updated[index][field] = value
-    setMidrollAdCodes(updated)
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center">
@@ -167,7 +164,7 @@ export default function AdManagementPage() {
             Back to Dashboard
           </Link>
           <h1 className="text-4xl font-bold text-white mb-2">Ad Management</h1>
-          <p className="text-white/50">Configure pre-roll, mid-roll, and banner ad settings</p>
+          <p className="text-white/50">Configure pre-roll, mid-roll, and banner ads</p>
         </div>
 
         {successMessage && (
@@ -193,15 +190,16 @@ export default function AdManagementPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">Pre-roll Video Ads</h2>
-                <p className="text-white/50 text-sm">Ads shown before video starts</p>
+                <p className="text-white/50 text-sm">Ads shown before movie plays</p>
               </div>
             </div>
 
             <div className="space-y-4">
+              {/* Enable/Disable Pre-roll */}
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                 <div>
                   <p className="text-white font-medium text-sm">Enable Pre-roll Ads</p>
-                  <p className="text-white/40 text-xs">Show ads before movies play</p>
+                  <p className="text-white/40 text-xs">Show ads before video playback</p>
                 </div>
                 <button
                   onClick={() => setFormData({ ...formData, adsEnabled: !formData.adsEnabled })}
@@ -217,83 +215,76 @@ export default function AdManagementPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              {/* Pre-roll Ad Codes List */}
+              <div>
+                <label className="block text-white font-medium mb-2 text-sm">Pre-roll Ad Codes</label>
+                <div className="space-y-2 mb-3">
+                  {prerollAdCodes.map((ad, index) => (
+                    <div key={index} className="flex items-center gap-2 p-3 bg-white/5 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium">{ad.name}</p>
+                        <p className="text-white/40 text-xs truncate">{ad.code.substring(0, 50)}...</p>
+                      </div>
+                      <button
+                        onClick={() => handleRemovePrerollCode(index)}
+                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add New Pre-roll Code */}
+                <div className="space-y-2 p-4 bg-white/5 rounded-lg">
+                  <input
+                    type="text"
+                    value={newPrerollCode.name}
+                    onChange={(e) => setNewPrerollCode({ ...newPrerollCode, name: e.target.value })}
+                    placeholder="Ad Name (optional)"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#00FFFF]"
+                  />
+                  <textarea
+                    value={newPrerollCode.code}
+                    onChange={(e) => setNewPrerollCode({ ...newPrerollCode, code: e.target.value })}
+                    placeholder="Paste ad embed code here..."
+                    rows={3}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#00FFFF] resize-none font-mono"
+                  />
+                  <button
+                    onClick={handleAddPrerollCode}
+                    disabled={!newPrerollCode.code.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/30 text-[#00FFFF] rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Pre-roll Ad
+                  </button>
+                </div>
+              </div>
+
+              {/* Ad Timing Settings */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-white font-medium mb-2 text-xs">Timeout (sec)</label>
+                  <label className="block text-white font-medium mb-2 text-sm">Ad Timeout (sec)</label>
                   <input
                     type="number"
                     min="5"
                     max="60"
                     value={formData.adTimeout}
                     onChange={(e) => setFormData({ ...formData, adTimeout: Number.parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-[#00FFFF]"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#00FFFF]"
                   />
                 </div>
                 <div>
-                  <label className="block text-white font-medium mb-2 text-xs">Skip Delay (sec)</label>
+                  <label className="block text-white font-medium mb-2 text-sm">Skip Delay (sec)</label>
                   <input
                     type="number"
                     min="0"
                     max="30"
                     value={formData.skipDelay}
                     onChange={(e) => setFormData({ ...formData, skipDelay: Number.parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-[#00FFFF]"
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#00FFFF]"
                   />
-                </div>
-                <div>
-                  <label className="block text-white font-medium mb-2 text-xs">Rotation (sec)</label>
-                  <input
-                    type="number"
-                    min="3"
-                    max="30"
-                    value={formData.rotationInterval}
-                    onChange={(e) => setFormData({ ...formData, rotationInterval: Number.parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-[#00FFFF]"
-                  />
-                </div>
-              </div>
-
-              {/* Preroll Ad Codes */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-white font-medium text-sm">Pre-roll Ad Codes</label>
-                  <button
-                    onClick={addPrerollAdCode}
-                    className="flex items-center gap-1 px-2 py-1 bg-[#00FFFF]/20 text-[#00FFFF] text-xs rounded hover:bg-[#00FFFF]/30 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {prerollAdCodes.length === 0 ? (
-                    <p className="text-white/40 text-xs text-center py-4">No pre-roll ads configured</p>
-                  ) : (
-                    prerollAdCodes.map((ad, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Ad name"
-                          value={ad.name}
-                          onChange={(e) => updatePrerollAdCode(index, "name", e.target.value)}
-                          className="w-24 px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-[#00FFFF]"
-                        />
-                        <input
-                          type="text"
-                          placeholder="VAST URL or ad code"
-                          value={ad.code}
-                          onChange={(e) => updatePrerollAdCode(index, "code", e.target.value)}
-                          className="flex-1 px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-[#00FFFF] font-mono"
-                        />
-                        <button
-                          onClick={() => removePrerollAdCode(index)}
-                          className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
             </div>
@@ -308,24 +299,25 @@ export default function AdManagementPage() {
           >
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 bg-orange-500/10 rounded-lg">
-                <Clock className="w-6 h-6 text-orange-500" />
+                <Clock className="w-6 h-6 text-orange-400" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">Mid-roll Video Ads</h2>
-                <p className="text-white/50 text-sm">Ads shown during video playback</p>
+                <p className="text-white/50 text-sm">Ads shown during movie playback</p>
               </div>
             </div>
 
             <div className="space-y-4">
+              {/* Enable/Disable Mid-roll */}
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                 <div>
                   <p className="text-white font-medium text-sm">Enable Mid-roll Ads</p>
-                  <p className="text-white/40 text-xs">Show ads during movie playback</p>
+                  <p className="text-white/40 text-xs">Show ads during video playback</p>
                 </div>
                 <button
                   onClick={() => setFormData({ ...formData, midrollEnabled: !formData.midrollEnabled })}
                   className={`relative w-14 h-7 rounded-full transition-colors ${
-                    formData.midrollEnabled ? "bg-orange-500" : "bg-white/20"
+                    formData.midrollEnabled ? "bg-orange-400" : "bg-white/20"
                   }`}
                 >
                   <div
@@ -336,6 +328,7 @@ export default function AdManagementPage() {
                 </button>
               </div>
 
+              {/* Mid-roll Interval */}
               <div>
                 <label className="block text-white font-medium mb-2 text-sm">Ad Interval (minutes)</label>
                 <input
@@ -346,52 +339,55 @@ export default function AdManagementPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, midrollIntervalMinutes: Number.parseInt(e.target.value) })
                   }
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500 transition-all"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-400"
                 />
                 <p className="text-white/40 text-xs mt-2">Show mid-roll ad every X minutes during playback</p>
               </div>
 
-              {/* Midroll Ad Codes */}
+              {/* Mid-roll Ad Codes List */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-white font-medium text-sm">Mid-roll Ad Codes</label>
-                  <button
-                    onClick={addMidrollAdCode}
-                    className="flex items-center gap-1 px-2 py-1 bg-orange-500/20 text-orange-500 text-xs rounded hover:bg-orange-500/30 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {midrollAdCodes.length === 0 ? (
-                    <p className="text-white/40 text-xs text-center py-4">No mid-roll ads configured</p>
-                  ) : (
-                    midrollAdCodes.map((ad, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Ad name"
-                          value={ad.name}
-                          onChange={(e) => updateMidrollAdCode(index, "name", e.target.value)}
-                          className="w-24 px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-orange-500"
-                        />
-                        <input
-                          type="text"
-                          placeholder="VAST URL or ad code"
-                          value={ad.code}
-                          onChange={(e) => updateMidrollAdCode(index, "code", e.target.value)}
-                          className="flex-1 px-2 py-1.5 bg-white/5 border border-white/10 rounded text-white text-xs focus:outline-none focus:border-orange-500 font-mono"
-                        />
-                        <button
-                          onClick={() => removeMidrollAdCode(index)}
-                          className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                <label className="block text-white font-medium mb-2 text-sm">Mid-roll Ad Codes</label>
+                <div className="space-y-2 mb-3">
+                  {midrollAdCodes.map((ad, index) => (
+                    <div key={index} className="flex items-center gap-2 p-3 bg-white/5 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium">{ad.name}</p>
+                        <p className="text-white/40 text-xs truncate">{ad.code.substring(0, 50)}...</p>
                       </div>
-                    ))
-                  )}
+                      <button
+                        onClick={() => handleRemoveMidrollCode(index)}
+                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add New Mid-roll Code */}
+                <div className="space-y-2 p-4 bg-white/5 rounded-lg">
+                  <input
+                    type="text"
+                    value={newMidrollCode.name}
+                    onChange={(e) => setNewMidrollCode({ ...newMidrollCode, name: e.target.value })}
+                    placeholder="Ad Name (optional)"
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-orange-400"
+                  />
+                  <textarea
+                    value={newMidrollCode.code}
+                    onChange={(e) => setNewMidrollCode({ ...newMidrollCode, code: e.target.value })}
+                    placeholder="Paste ad embed code here..."
+                    rows={3}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-orange-400 resize-none font-mono"
+                  />
+                  <button
+                    onClick={handleAddMidrollCode}
+                    disabled={!newMidrollCode.code.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-400/20 hover:bg-orange-400/30 text-orange-400 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Mid-roll Ad
+                  </button>
                 </div>
               </div>
             </div>
@@ -422,7 +418,7 @@ export default function AdManagementPage() {
                   onChange={(e) => setFormData({ ...formData, horizontalAdCode: e.target.value })}
                   placeholder="<script>...</script>"
                   rows={3}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] transition-all resize-none font-mono text-sm"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] resize-none font-mono text-sm"
                 />
               </div>
 
@@ -433,7 +429,7 @@ export default function AdManagementPage() {
                   onChange={(e) => setFormData({ ...formData, verticalAdCode: e.target.value })}
                   placeholder="<script>...</script>"
                   rows={3}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] transition-all resize-none font-mono text-sm"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF] resize-none font-mono text-sm"
                 />
               </div>
             </div>
@@ -509,31 +505,6 @@ export default function AdManagementPage() {
               </>
             )}
           </button>
-        </motion.div>
-
-        {/* Info Box */}
-        <motion.div
-          className="mt-8 p-6 bg-[#00FFFF]/10 border border-[#00FFFF]/30 rounded-xl"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          <h3 className="text-white font-bold mb-3">Ad Configuration Tips:</h3>
-          <ul className="text-white/70 text-sm space-y-2 list-disc list-inside">
-            <li>
-              <strong>Pre-roll:</strong> Shown once before movie starts playing
-            </li>
-            <li>
-              <strong>Mid-roll:</strong> Shown at intervals during movie playback (e.g., every 20 minutes)
-            </li>
-            <li>
-              <strong>Skip Delay:</strong> How long users must wait before they can skip the ad
-            </li>
-            <li>
-              <strong>Rotation:</strong> If multiple ad codes, rotate between them at this interval
-            </li>
-            <li>Use VAST URLs from Adsterra or paste raw ad script codes</li>
-          </ul>
         </motion.div>
       </div>
     </div>

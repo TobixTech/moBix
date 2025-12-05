@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Heart, Star, Send, Loader, Download, Plus, Check, Play } from "lucide-react"
+import { Heart, Star, Send, Loader, Download, Plus, Check, Play, Calendar, Film } from "lucide-react"
 import { toggleLike, addComment, toggleWatchlist, rateMovie, getUserRating } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
@@ -48,6 +48,7 @@ interface RelatedMovie {
   posterUrl: string
   year?: number
   genre?: string
+  slug?: string
 }
 
 interface PrerollAdCode {
@@ -481,11 +482,10 @@ export default function MovieDetailClient({
           <div className="space-y-4">
             {relatedMovies.map((relMovie, index) => (
               <div key={relMovie.id}>
-                <Link href={`/movie/${relMovie.id}`} className="group block">
+                <Link href={`/movie/${relMovie.slug || relMovie.id}`} className="block group">
                   <motion.div
-                    className="flex gap-4 bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-3 hover:border-[#00FFFF]/50 transition-all"
-                    whileHover={{ x: 4 }}
-                    transition={{ duration: 0.2 }}
+                    className="flex gap-4 p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-lg hover:border-[#00FFFF]/50 transition-all"
+                    whileHover={{ scale: 1.01 }}
                   >
                     {/* Poster */}
                     <div className="relative w-24 h-36 flex-shrink-0 rounded-lg overflow-hidden">
@@ -494,31 +494,38 @@ export default function MovieDetailClient({
                         alt={relMovie.title}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Play className="w-8 h-8 text-white fill-white" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white" />
                       </div>
                     </div>
+
                     {/* Info */}
-                    <div className="flex flex-col justify-center flex-1 min-w-0">
-                      <h3 className="text-white font-bold text-lg mb-1 truncate group-hover:text-[#00FFFF] transition-colors">
+                    <div className="flex-1 flex flex-col justify-center">
+                      <h3 className="text-white font-bold text-lg mb-2 group-hover:text-[#00FFFF] transition-colors">
                         {relMovie.title}
                       </h3>
-                      <div className="flex items-center gap-2 text-[#888888] text-sm">
-                        {relMovie.year && <span>{relMovie.year}</span>}
-                        {relMovie.year && relMovie.genre && <span>•</span>}
-                        {relMovie.genre && <span className="truncate">{relMovie.genre}</span>}
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-[#888888]">
+                        {relMovie.year && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {relMovie.year}
+                          </span>
+                        )}
+                        {relMovie.genre && (
+                          <span className="flex items-center gap-1">
+                            <Film className="w-4 h-4" />
+                            {relMovie.genre}
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-2">
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#00FFFF]/10 text-[#00FFFF] text-xs font-medium rounded-full">
-                          <Play className="w-3 h-3" />
-                          Watch Now
-                        </span>
-                      </div>
+                      <button className="mt-3 w-fit px-4 py-2 bg-[#00FFFF]/10 border border-[#00FFFF]/30 text-[#00FFFF] rounded-lg text-sm font-medium hover:bg-[#00FFFF]/20 transition-colors">
+                        Watch Now
+                      </button>
                     </div>
                   </motion.div>
                 </Link>
 
-                {/* Show ad after every 2 movies */}
+                {/* Ad after every 2 movies */}
                 {(index + 1) % 2 === 0 && index < relatedMovies.length - 1 && (
                   <div className="my-4">
                     <AdBanner type="horizontal" placement="movieDetail" />

@@ -92,6 +92,7 @@ export default async function MovieDetail({
   const skipDelay = adSettings?.skipDelaySeconds || 10
   const rotationInterval = adSettings?.rotationIntervalSeconds || 5
   const showPrerollAds = adSettings?.showPrerollAds ?? true
+
   const showMidrollAds = adSettings?.showMidrollAds ?? false
   const midrollIntervalMinutes = adSettings?.midrollIntervalMinutes || 20
 

@@ -16,7 +16,7 @@ interface ProductionVideoPlayerProps {
   posterUrl: string
   title: string
   skipIntro?: boolean
-  prerollEnabled?: boolean
+  showPrerollAds?: boolean
   midrollEnabled?: boolean
   prerollAdCodes?: PrerollAdCode[]
   midrollAdCodes?: PrerollAdCode[]
@@ -32,7 +32,7 @@ export default function ProductionVideoPlayer({
   posterUrl,
   title,
   skipIntro = false,
-  prerollEnabled = true,
+  showPrerollAds = true,
   midrollEnabled = false,
   prerollAdCodes = [],
   midrollAdCodes = [],
@@ -91,7 +91,7 @@ export default function ProductionVideoPlayer({
   const handleIntroComplete = () => {
     setShowIntro(false)
     const hasPrerollAds =
-      prerollEnabled && prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
+      showPrerollAds && prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
     if (hasPrerollAds) {
       setShowPrerollAd(true)
     } else {
@@ -112,7 +112,8 @@ export default function ProductionVideoPlayer({
   }
 
   useEffect(() => {
-    if (!midrollEnabled || !showVideo || midrollAdCodes.length === 0) return
+    const hasMidrollAds = midrollAdCodes.length > 0 && midrollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
+    if (!midrollEnabled || !showVideo || !hasMidrollAds) return
 
     const video = videoRef.current
     if (!video) return
