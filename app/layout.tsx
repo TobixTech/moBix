@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster"
 import PWAInstallPrompt from "@/components/pwa-install-prompt"
 import MobileBottomNav from "@/components/mobile-bottom-nav"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/seo-structured-data"
+import { UserSync } from "@/components/user-sync"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -122,6 +123,7 @@ export default function RootLayout({
           <OrganizationStructuredData />
         </head>
         <body className={`font-sans antialiased bg-[#0B0C10] text-white`}>
+          <UserSync />
           {children}
           <MobileBottomNav />
           <PWAInstallPrompt />

@@ -75,6 +75,9 @@ import Image from "next/image" // Added Image import
 import { toast } from "sonner"
 import { COUNTRIES, getCountryByName } from "@/lib/countries" // Added
 
+// Import SendPromoModal
+import { SendPromoModal } from "@/components/send-promo-modal" // Added SendPromoModal import
+
 // Update AdminTab type
 type AdminTab = "overview" | "movies" | "upload" | "users" | "comments" | "ads" | "feedback" | "reports" | "promotions" // Added "promotions" to AdminTab type
 
@@ -205,12 +208,12 @@ export default function AdminDashboard() {
   const [blacklistReason, setBlacklistReason] = useState("")
   const [randomWinner, setRandomWinner] = useState<any>(null)
 
-  const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
-  const [editModalOpen, setEditModalOpen] = useState(false)
-
   // State for the Send Notification Modal
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [showSendNotificationModal, setShowSendNotificationModal] = useState(false)
+
+  // Add state for send promo modal
+  const [showSendPromoModal, setShowSendPromoModal] = useState(false)
 
   // FIND THE adSettings STATE AROUND LINE 143-165 AND UPDATE IT
   const [adSettings, setAdSettings] = useState({
@@ -280,6 +283,10 @@ export default function AdminDashboard() {
   } | null>(null)
   const [respondingToFeedback, setRespondingToFeedback] = useState<string | null>(null)
   const [feedbackResponse, setFeedbackResponse] = useState("")
+
+  // ADDED STATE FOR EDIT MODAL
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
 
   // ... existing handlePinSubmit ...
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -1864,15 +1871,6 @@ export default function AdminDashboard() {
                                     <Users className="w-4 h-4" />
                                   </button>
                                 )}
-                                {/* <select
-                                  value={user.role}
-                                  onChange={(e) => handleRoleChange(user.clerkId, e.target.value)}
-                                  className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
-                                >
-                                  <option value="USER">User</option>
-                                  <option value="ADMIN">Admin</option>
-                                </select> */}
-
                                 {/* CHANGE START */}
                                 <select
                                   value={user.role}
@@ -2461,6 +2459,13 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        onClick={() => setShowSendPromoModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition"
+                      >
+                        <Send className="w-4 h-4" />
+                        Send Direct
+                      </button>
+                      <button
                         onClick={handlePickWinner}
                         className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500/30 transition"
                       >
@@ -2756,6 +2761,9 @@ export default function AdminDashboard() {
           )}
         </div>
       </main>
+
+      {/* Add the modal at the end of the component before closing tags */}
+      <SendPromoModal isOpen={showSendPromoModal} onClose={() => setShowSendPromoModal(false)} />
     </div>
   )
 }

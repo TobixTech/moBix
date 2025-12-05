@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { User, Bell, Shield, Palette, Trash2, Save, Loader2, Check } from "lucide-react"
+import { User, Bell, Shield, Palette, Trash2, Save, Loader2, Check, Globe, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,8 +10,15 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { updateUserProfile, saveUserSettings } from "@/lib/server-actions"
+import {
+  updateUserProfile,
+  saveUserSettings,
+  getUserSettings,
+  updateUserCountry,
+  getCurrentUserDetails,
+} from "@/lib/server-actions"
 import { useClerk } from "@clerk/nextjs"
+import { COUNTRIES } from "@/lib/countries"
 
 interface SettingsPageClientProps {
   user: {
@@ -31,6 +38,13 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
   const [saved, setSaved] = useState(false)
   const [savingNotifications, setSavingNotifications] = useState(false)
   const [savingPrivacy, setSavingPrivacy] = useState(false)
+  const [loadingSettings, setLoadingSettings] = useState(true)
+
+  const [userCountry, setUserCountry] = useState<string | null>(null)
+  const [canChangeCountry, setCanChangeCountry] = useState(true)
+  const [selectedCountry, setSelectedCountry] = useState("")
+  const [savingCountry, setSavingCountry] = useState(false)
+  const [showCountrySelect, setShowCountrySelect] = useState(false)
 
   const [profile, setProfile] = useState({
     username: user?.username || "",
@@ -50,6 +64,38 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
     watchHistory: true,
     showActivityStatus: false,
   })
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const [notifResult, privacyResult, userDetails] = await Promise.all([
+          getUserSettings("notifications"),
+          getUserSettings("privacy"),
+          getCurrentUserDetails(),
+        ])
+
+        if (notifResult.success && notifResult.settings) {
+          setNotifications(notifResult.settings as typeof notifications)
+        }
+
+        if (privacyResult.success && privacyResult.settings) {
+          setPrivacy(privacyResult.settings as typeof privacy)
+        }
+
+        if (userDetails) {
+          setUserCountry(userDetails.country || null)
+          setCanChangeCountry(!userDetails.countryChangedAt)
+          setSelectedCountry(userDetails.country || "")
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error)
+      } finally {
+        setLoadingSettings(false)
+      }
+    }
+
+    loadSettings()
+  }, [])
 
   const handleSaveProfile = async () => {
     setSaving(true)
@@ -77,6 +123,38 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleChangeCountry = async () => {
+    if (!selectedCountry || selectedCountry === userCountry) return
+
+    setSavingCountry(true)
+    try {
+      const result = await updateUserCountry(selectedCountry)
+      if (result.success) {
+        setUserCountry(selectedCountry)
+        setCanChangeCountry(false)
+        setShowCountrySelect(false)
+        toast({
+          title: "Country Updated",
+          description: "Your country has been updated successfully.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update country.",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingCountry(false)
     }
   }
 
@@ -140,6 +218,8 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
       description: "Please contact support to delete your account.",
     })
   }
+
+  const countryInfo = userCountry ? COUNTRIES.find((c) => c.name === userCountry || c.code === userCountry) : null
 
   return (
     <div className="py-8">
@@ -242,6 +322,96 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                 <p className="text-sm text-white/40">Email cannot be changed here. Contact support for assistance.</p>
               </div>
 
+              <div className="space-y-2">
+                <Label className="text-white flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  Country
+                </Label>
+
+                {loadingSettings ? (
+                  <div className="flex items-center gap-2 text-white/60">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg">
+                        {countryInfo ? (
+                          <>
+                            <span className="text-xl">{countryInfo.flag}</span>
+                            <span className="text-white">{countryInfo.name}</span>
+                          </>
+                        ) : (
+                          <span className="text-white/60">Not set</span>
+                        )}
+                      </div>
+
+                      {canChangeCountry && !showCountrySelect && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowCountrySelect(true)}
+                          className="border-white/20 text-white hover:bg-white/10"
+                        >
+                          Change
+                        </Button>
+                      )}
+                    </div>
+
+                    {showCountrySelect && canChangeCountry && (
+                      <div className="mt-3 p-4 bg-white/5 border border-white/10 rounded-lg space-y-3">
+                        <div className="flex items-center gap-2 text-amber-400 text-sm">
+                          <AlertCircle className="w-4 h-4" />
+                          You can only change your country once
+                        </div>
+                        <select
+                          value={selectedCountry}
+                          onChange={(e) => setSelectedCountry(e.target.value)}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
+                        >
+                          <option value="">Select country</option>
+                          {COUNTRIES.map((c) => (
+                            <option key={c.code} value={c.name}>
+                              {c.flag} {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleChangeCountry}
+                            disabled={savingCountry || !selectedCountry}
+                            className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10]"
+                          >
+                            {savingCountry ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Confirm Change"
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowCountrySelect(false)}
+                            className="border-white/20 text-white hover:bg-white/10"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!canChangeCountry && (
+                      <p className="text-sm text-white/40">
+                        Country has already been changed and cannot be modified again.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
               <Button
                 onClick={handleSaveProfile}
                 disabled={saving}
@@ -276,67 +446,75 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
               <CardDescription className="text-white/60">Choose what notifications you want to receive</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Email Updates</Label>
-                  <p className="text-sm text-white/40">Receive updates about your account</p>
+              {loadingSettings ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
                 </div>
-                <Switch
-                  checked={notifications.emailUpdates}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, emailUpdates: checked })}
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">Email Updates</Label>
+                      <p className="text-sm text-white/40">Receive updates about your account</p>
+                    </div>
+                    <Switch
+                      checked={notifications.emailUpdates}
+                      onCheckedChange={(checked) => setNotifications({ ...notifications, emailUpdates: checked })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">New Releases</Label>
-                  <p className="text-sm text-white/40">Get notified when new movies are added</p>
-                </div>
-                <Switch
-                  checked={notifications.newReleases}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, newReleases: checked })}
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">New Releases</Label>
+                      <p className="text-sm text-white/40">Get notified when new movies are added</p>
+                    </div>
+                    <Switch
+                      checked={notifications.newReleases}
+                      onCheckedChange={(checked) => setNotifications({ ...notifications, newReleases: checked })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Watchlist Reminders</Label>
-                  <p className="text-sm text-white/40">Remind me about movies in my watchlist</p>
-                </div>
-                <Switch
-                  checked={notifications.watchlistReminders}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, watchlistReminders: checked })}
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">Watchlist Reminders</Label>
+                      <p className="text-sm text-white/40">Remind me about movies in my watchlist</p>
+                    </div>
+                    <Switch
+                      checked={notifications.watchlistReminders}
+                      onCheckedChange={(checked) => setNotifications({ ...notifications, watchlistReminders: checked })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Promotional Emails</Label>
-                  <p className="text-sm text-white/40">Receive special offers and promotions</p>
-                </div>
-                <Switch
-                  checked={notifications.promotions}
-                  onCheckedChange={(checked) => setNotifications({ ...notifications, promotions: checked })}
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">Promotional Emails</Label>
+                      <p className="text-sm text-white/40">Receive special offers and promotions</p>
+                    </div>
+                    <Switch
+                      checked={notifications.promotions}
+                      onCheckedChange={(checked) => setNotifications({ ...notifications, promotions: checked })}
+                    />
+                  </div>
 
-              <Button
-                onClick={handleSaveNotifications}
-                disabled={savingNotifications}
-                className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
-              >
-                {savingNotifications ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Preferences
-                  </>
-                )}
-              </Button>
+                  <Button
+                    onClick={handleSaveNotifications}
+                    disabled={savingNotifications}
+                    className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
+                  >
+                    {savingNotifications ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Preferences
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -351,79 +529,87 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Profile Visibility</Label>
-                  <p className="text-sm text-white/40">Allow others to see your profile</p>
+              {loadingSettings ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
                 </div>
-                <Switch
-                  checked={privacy.profileVisibility}
-                  onCheckedChange={(checked) => setPrivacy({ ...privacy, profileVisibility: checked })}
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">Profile Visibility</Label>
+                      <p className="text-sm text-white/40">Allow others to see your profile</p>
+                    </div>
+                    <Switch
+                      checked={privacy.profileVisibility}
+                      onCheckedChange={(checked) => setPrivacy({ ...privacy, profileVisibility: checked })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Watch History</Label>
-                  <p className="text-sm text-white/40">Save your watch history for recommendations</p>
-                </div>
-                <Switch
-                  checked={privacy.watchHistory}
-                  onCheckedChange={(checked) => setPrivacy({ ...privacy, watchHistory: checked })}
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">Watch History</Label>
+                      <p className="text-sm text-white/40">Save your watch history for recommendations</p>
+                    </div>
+                    <Switch
+                      checked={privacy.watchHistory}
+                      onCheckedChange={(checked) => setPrivacy({ ...privacy, watchHistory: checked })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Show Activity Status</Label>
-                  <p className="text-sm text-white/40">Show when you're online</p>
-                </div>
-                <Switch
-                  checked={privacy.showActivityStatus}
-                  onCheckedChange={(checked) => setPrivacy({ ...privacy, showActivityStatus: checked })}
-                />
-              </div>
-
-              <Button
-                onClick={handleSavePrivacy}
-                disabled={savingPrivacy}
-                className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
-              >
-                {savingPrivacy ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Privacy Settings
-                  </>
-                )}
-              </Button>
-
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-white font-medium mb-4">Account Actions</h3>
-
-                <div className="space-y-4">
-                  <Button
-                    variant="outline"
-                    className="w-full border-white/20 text-white hover:bg-white/10 justify-start bg-transparent"
-                    onClick={() => signOut()}
-                  >
-                    Sign Out of All Devices
-                  </Button>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white">Show Activity Status</Label>
+                      <p className="text-sm text-white/40">Show when you're online</p>
+                    </div>
+                    <Switch
+                      checked={privacy.showActivityStatus}
+                      onCheckedChange={(checked) => setPrivacy({ ...privacy, showActivityStatus: checked })}
+                    />
+                  </div>
 
                   <Button
-                    variant="outline"
-                    className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 justify-start bg-transparent"
-                    onClick={handleDeleteAccount}
+                    onClick={handleSavePrivacy}
+                    disabled={savingPrivacy}
+                    className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
                   >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Account
+                    {savingPrivacy ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Privacy Settings
+                      </>
+                    )}
                   </Button>
-                </div>
-              </div>
+
+                  <div className="border-t border-white/10 pt-6">
+                    <h3 className="text-white font-medium mb-4">Account Actions</h3>
+
+                    <div className="space-y-4">
+                      <Button
+                        variant="outline"
+                        className="w-full border-white/20 text-white hover:bg-white/10 justify-start bg-transparent"
+                        onClick={() => signOut()}
+                      >
+                        Sign Out of All Devices
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 justify-start bg-transparent"
+                        onClick={handleDeleteAccount}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Account
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

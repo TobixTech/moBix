@@ -14,6 +14,7 @@ export const users = pgTable("User", {
   role: text("role").default("USER").notNull(),
   country: text("country"),
   ipAddress: text("ipAddress"),
+  countryChangedAt: timestamp("countryChangedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")
     .defaultNow()

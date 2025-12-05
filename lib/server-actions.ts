@@ -17,6 +17,7 @@ import {
   promotions, // Import promotions table
   promotionSettings, // Import promotionSettings table
   ipBlacklist, // Import ipBlacklist table
+  targetedPromotions, // Import targetedPromotions table
 } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
@@ -2442,14 +2443,15 @@ export async function syncUserToDatabase(
     })
 
     if (existingUser) {
-      // Update existing user
+      // Update existing user - but don't overwrite country if already set
       await db
         .update(users)
         .set({
           email,
           firstName: firstName || existingUser.firstName,
           lastName: lastName || existingUser.lastName,
-          country: country || existingUser.country,
+          // Only update country if not already set
+          country: existingUser.country || country,
           ipAddress: ipAddress || existingUser.ipAddress,
         })
         .where(eq(users.clerkId, clerkId))
@@ -2457,7 +2459,7 @@ export async function syncUserToDatabase(
       return existingUser
     }
 
-    // Create new user
+    // Create new user with auto-detected country
     const [newUser] = await db
       .insert(users)
       .values({
@@ -2476,5 +2478,133 @@ export async function syncUserToDatabase(
   } catch (error) {
     console.error("Error syncing user to database:", error)
     throw error
+  }
+}
+
+export async function updateUserCountry(newCountry: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Check if user has already changed their country
+    if (user.countryChangedAt) {
+      return { success: false, error: "Country can only be changed once" }
+    }
+
+    await db
+      .update(users)
+      .set({
+        country: newCountry,
+        countryChangedAt: new Date(),
+      })
+      .where(eq(users.clerkId, userId))
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating user country:", error)
+    return { success: false, error: "Failed to update country" }
+  }
+}
+
+export async function getCurrentUserDetails() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return null
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    return user
+  } catch (error) {
+    console.error("Error getting user details:", error)
+    return null
+  }
+}
+
+export async function targetUserForPromotion(targetUserId: string, reason?: string) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    // Verify admin
+    const admin = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!admin || admin.role !== "ADMIN") {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    // Check if user already has a pending targeted promotion
+    const existing = await db.query.targetedPromotions.findFirst({
+      where: and(
+        eq(targetedPromotions.userId, targetUserId),
+        eq(targetedPromotions.shown, false),
+        eq(targetedPromotions.dismissed, false),
+      ),
+    })
+
+    if (existing) {
+      return { success: false, error: "User already has a pending promotion" }
+    }
+
+    await db.insert(targetedPromotions).values({
+      userId: targetUserId,
+      reason: reason || "Admin selected",
+      shown: false,
+      dismissed: false,
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error targeting user for promotion:", error)
+    return { success: false, error: "Failed to target user" }
+  }
+}
+
+export async function getAllUsersForTargeting() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return []
+    }
+
+    const admin = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    })
+
+    if (!admin || admin.role !== "ADMIN") {
+      return []
+    }
+
+    const allUsers = await db.query.users.findMany({
+      orderBy: [desc(users.createdAt)],
+    })
+
+    return allUsers.map((u) => ({
+      id: u.id,
+      email: u.email,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      country: u.country,
+    }))
+  } catch (error) {
+    console.error("Error getting users for targeting:", error)
+    return []
   }
 }
