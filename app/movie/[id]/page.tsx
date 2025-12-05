@@ -92,6 +92,8 @@ export default async function MovieDetail({
   const skipDelay = adSettings?.skipDelaySeconds || 10
   const rotationInterval = adSettings?.rotationIntervalSeconds || 5
   const showPrerollAds = adSettings?.showPrerollAds ?? true
+  const showMidrollAds = adSettings?.showMidrollAds ?? false
+  const midrollIntervalMinutes = adSettings?.midrollIntervalMinutes || 20
 
   let prerollAdCodes: { code: string; name?: string }[] = []
   try {
@@ -102,9 +104,18 @@ export default async function MovieDetail({
     console.error("Error parsing preroll ad codes:", e)
   }
 
+  let midrollAdCodes: { code: string; name?: string }[] = []
+  try {
+    if (adSettings?.midrollAdCodes) {
+      midrollAdCodes = JSON.parse(adSettings.midrollAdCodes)
+    }
+  } catch (e) {
+    console.error("Error parsing midroll ad codes:", e)
+  }
+
   const relatedMovies = await getRelatedMovies(movie.id, movie.genre || "Action")
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobixtv.online"
   const moviePath = movie.slug || movie.id
   const breadcrumbs = [
     { name: "Home", url: baseUrl },
@@ -125,6 +136,9 @@ export default async function MovieDetail({
           movie={movie}
           relatedMovies={relatedMovies}
           prerollAdCodes={prerollAdCodes}
+          midrollAdCodes={midrollAdCodes}
+          midrollEnabled={showMidrollAds}
+          midrollIntervalMinutes={midrollIntervalMinutes}
           smartLinkUrl={adSettings?.smartLinkUrl}
           adTimeout={adTimeout}
           skipDelay={skipDelay}

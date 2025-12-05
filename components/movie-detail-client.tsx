@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Heart, Star, Send, Loader, Download, Plus, Check } from "lucide-react"
+import { Heart, Star, Send, Loader, Download, Plus, Check, Play } from "lucide-react"
 import { toggleLike, addComment, toggleWatchlist, rateMovie, getUserRating } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
@@ -12,6 +12,7 @@ import ProductionVideoPlayer from "./production-video-player"
 import SocialShare from "./social-share"
 import StarRating from "./star-rating"
 import ReportContentModal from "./report-content-modal"
+import AdBanner from "./ad-banner"
 
 interface Comment {
   id: string
@@ -45,6 +46,8 @@ interface RelatedMovie {
   id: string
   title: string
   posterUrl: string
+  year?: number
+  genre?: string
 }
 
 interface PrerollAdCode {
@@ -58,6 +61,9 @@ export default function MovieDetailClient({
   adBannerVertical,
   adBannerHorizontal,
   prerollAdCodes = [],
+  midrollAdCodes = [],
+  midrollEnabled = false,
+  midrollIntervalMinutes = 20,
   smartLinkUrl,
   adTimeout = 20,
   skipDelay = 10,
@@ -70,6 +76,9 @@ export default function MovieDetailClient({
   adBannerVertical?: React.ReactNode
   adBannerHorizontal?: React.ReactNode
   prerollAdCodes?: PrerollAdCode[]
+  midrollAdCodes?: PrerollAdCode[]
+  midrollEnabled?: boolean
+  midrollIntervalMinutes?: number
   smartLinkUrl?: string
   adTimeout?: number
   skipDelay?: number
@@ -210,6 +219,9 @@ export default function MovieDetailClient({
               title={movie.title}
               showPrerollAds={showPrerollAds}
               prerollAdCodes={prerollAdCodes}
+              midrollEnabled={midrollEnabled}
+              midrollAdCodes={midrollAdCodes}
+              midrollIntervalMinutes={midrollIntervalMinutes}
               adTimeout={adTimeout}
               skipDelay={skipDelay}
               rotationInterval={rotationInterval}
@@ -458,7 +470,6 @@ export default function MovieDetailClient({
 
       {adBannerHorizontal}
 
-      {/* Related Movies */}
       {relatedMovies.length > 0 && (
         <motion.div
           className="mb-12"
@@ -466,26 +477,54 @@ export default function MovieDetailClient({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
         >
-          <h2 className="text-2xl font-bold text-white mb-6">Related Movies</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {relatedMovies.map((relMovie) => (
-              <Link key={relMovie.id} href={`/movie/${relMovie.id}`} className="group">
-                <motion.div
-                  className="relative aspect-[2/3] rounded-lg overflow-hidden border border-[#2A2B33]"
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <img
-                    src={relMovie.posterUrl || "/placeholder.svg?height=450&width=300"}
-                    alt={relMovie.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                    <h3 className="text-white font-bold text-sm">{relMovie.title}</h3>
+          <h2 className="text-2xl font-bold text-white mb-6">You May Also Like</h2>
+          <div className="space-y-4">
+            {relatedMovies.map((relMovie, index) => (
+              <div key={relMovie.id}>
+                <Link href={`/movie/${relMovie.id}`} className="group block">
+                  <motion.div
+                    className="flex gap-4 bg-[#1A1B23] border border-[#2A2B33] rounded-lg p-3 hover:border-[#00FFFF]/50 transition-all"
+                    whileHover={{ x: 4 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {/* Poster */}
+                    <div className="relative w-24 h-36 flex-shrink-0 rounded-lg overflow-hidden">
+                      <img
+                        src={relMovie.posterUrl || "/placeholder.svg?height=144&width=96&query=movie poster"}
+                        alt={relMovie.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white fill-white" />
+                      </div>
+                    </div>
+                    {/* Info */}
+                    <div className="flex flex-col justify-center flex-1 min-w-0">
+                      <h3 className="text-white font-bold text-lg mb-1 truncate group-hover:text-[#00FFFF] transition-colors">
+                        {relMovie.title}
+                      </h3>
+                      <div className="flex items-center gap-2 text-[#888888] text-sm">
+                        {relMovie.year && <span>{relMovie.year}</span>}
+                        {relMovie.year && relMovie.genre && <span>•</span>}
+                        {relMovie.genre && <span className="truncate">{relMovie.genre}</span>}
+                      </div>
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#00FFFF]/10 text-[#00FFFF] text-xs font-medium rounded-full">
+                          <Play className="w-3 h-3" />
+                          Watch Now
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                </Link>
+
+                {/* Show ad after every 2 movies */}
+                {(index + 1) % 2 === 0 && index < relatedMovies.length - 1 && (
+                  <div className="my-4">
+                    <AdBanner type="horizontal" placement="movieDetail" />
                   </div>
-                </motion.div>
-              </Link>
+                )}
+              </div>
             ))}
           </div>
         </motion.div>
