@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Gift, Loader2, CheckCircle, Phone, Wifi } from "lucide-react"
@@ -19,9 +18,20 @@ interface PromotionSettings {
 interface PromotionModalProps {
   userCountry: string
   settings: PromotionSettings
+  onClose?: () => void
+  onSuccess?: () => void
+  isTargeted?: boolean
+  forceShow?: boolean
 }
 
-export default function PromotionModal({ userCountry, settings }: PromotionModalProps) {
+export default function PromotionModal({
+  userCountry,
+  settings,
+  onClose,
+  onSuccess,
+  isTargeted = false,
+  forceShow = false,
+}: PromotionModalProps) {
   const { user, isSignedIn } = useUser()
   const [isOpen, setIsOpen] = useState(false)
   const [phone, setPhone] = useState("")
@@ -32,44 +42,30 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
   const [honeypot, setHoneypot] = useState("")
 
   useEffect(() => {
-    console.log("[v0] PromotionModal checking conditions:", {
-      isActive: settings.isActive,
-      enabledCountries: settings.enabledCountries,
-      userCountry,
-      isCountryEnabled: settings.enabledCountries.includes(userCountry),
-    })
-
-    // Check if modal should show
-    if (!settings.isActive) {
-      console.log("[v0] Promotion not active")
+    if (forceShow || isTargeted) {
+      setIsOpen(true)
       return
     }
 
-    if (!settings.enabledCountries.includes(userCountry)) {
-      console.log("[v0] Country not enabled:", userCountry)
-      return
-    }
+    // Normal flow - check conditions
+    if (!settings.isActive) return
+    if (!settings.enabledCountries.includes(userCountry)) return
 
-    // Check localStorage for already shown
+    // Check localStorage for already shown (only for non-targeted)
     const hasSeenPromo = localStorage.getItem("promo_modal_shown")
-    if (hasSeenPromo) {
-      console.log("[v0] User already seen promo")
-      return
-    }
+    if (hasSeenPromo) return
 
     // Show modal after a short delay
-    console.log("[v0] Showing promotion modal")
     const timer = setTimeout(() => {
       setIsOpen(true)
-    }, 2000)
+    }, 1500)
 
     return () => clearTimeout(timer)
-  }, [settings, userCountry])
+  }, [settings, userCountry, isTargeted, forceShow])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Honeypot check
     if (honeypot) return
 
     if (!phone || !network) {
@@ -77,7 +73,6 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
       return
     }
 
-    // Basic phone validation
     const phoneRegex = /^[\d\s\-+()]{8,20}$/
     if (!phoneRegex.test(phone)) {
       setError("Please enter a valid phone number")
@@ -108,10 +103,12 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
 
       setSubmitted(true)
       localStorage.setItem("promo_modal_shown", "true")
+      onSuccess?.()
 
       setTimeout(() => {
         setIsOpen(false)
-      }, 3000)
+        onClose?.()
+      }, 2500)
     } catch {
       setError("Unable to submit. Please try again.")
     }
@@ -121,7 +118,10 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
 
   const handleClose = () => {
     setIsOpen(false)
-    localStorage.setItem("promo_modal_shown", "true")
+    if (!isTargeted) {
+      localStorage.setItem("promo_modal_shown", "true")
+    }
+    onClose?.()
   }
 
   const networks = settings.networkOptions[userCountry] || ["MTN", "Airtel", "Glo", "9mobile", "Other"]
@@ -145,9 +145,10 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header with gradient */}
+          {/* Header */}
           <div className="relative bg-gradient-to-r from-[#00FFFF]/20 to-purple-500/20 p-6 pb-8">
             <button
               onClick={handleClose}
@@ -182,7 +183,6 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
               </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Honeypot field - hidden from users */}
                 <input
                   type="text"
                   name="website"
@@ -193,7 +193,6 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
                   autoComplete="off"
                 />
 
-                {/* Email - auto-filled if signed in */}
                 <div>
                   <label className="block text-white/70 text-sm mb-2">Email</label>
                   <input
@@ -205,7 +204,6 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
                   />
                 </div>
 
-                {/* Phone Number */}
                 <div>
                   <label className="block text-white/70 text-sm mb-2">
                     <Phone className="w-4 h-4 inline mr-2" />
@@ -221,7 +219,6 @@ export default function PromotionModal({ userCountry, settings }: PromotionModal
                   />
                 </div>
 
-                {/* Network Provider */}
                 <div>
                   <label className="block text-white/70 text-sm mb-2">
                     <Wifi className="w-4 h-4 inline mr-2" />

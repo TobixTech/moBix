@@ -1,144 +1,202 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useSignUp, useSignIn, useClerk } from "@clerk/nextjs"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Mail, Lock, Eye, EyeOff, User, Loader2, ArrowLeft, Check, Globe, ChevronDown, Search } from "lucide-react"
+import {
+  X,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
+  ArrowRight,
+  CheckCircle,
+  User,
+  Globe,
+  ChevronDown,
+  Search,
+} from "lucide-react"
+import { useSignIn, useSignUp, useClerk } from "@clerk/nextjs"
 import { countries } from "@/lib/countries"
 
 interface AuthModalProps {
-  trigger: React.ReactNode
-  defaultMode?: "login" | "signup"
+  isOpen: boolean
+  onClose: () => void
+  defaultMode?: "sign-in" | "sign-up"
 }
 
-export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
-  const router = useRouter()
-  const { signUp, isLoaded: signUpLoaded, setActive: setActiveSignUp } = useSignUp()
-  const { signIn, isLoaded: signInLoaded, setActive: setActiveSignIn } = useSignIn()
-  const { signOut } = useClerk()
+const COUNTRY_LIST = countries.map((c) => ({ code: c.code, name: c.name, flag: c.flag }))
 
-  const isLoaded = signUpLoaded && signInLoaded
+export default function AuthModal({ isOpen, onClose, defaultMode = "sign-in" }: AuthModalProps) {
+  const { signIn, isLoaded: signInLoaded, setActive: setSignInActive } = useSignIn()
+  const { signUp, isLoaded: signUpLoaded, setActive: setSignUpActive } = useSignUp()
+  const { client } = useClerk()
 
-  const [isOpen, setIsOpen] = useState(false)
-  const [mode, setMode] = useState<"login" | "signup">(defaultMode)
-  const [step, setStep] = useState<
-    "form" | "verification" | "forgot" | "reset-code" | "new-password" | "reset-success"
-  >("form")
-
-  // Form fields
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(defaultMode)
+  const [step, setStep] = useState<"form" | "verification">("form")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
   const [country, setCountry] = useState("")
-  const [countrySearch, setCountrySearch] = useState("")
-  const [showCountryDropdown, setShowCountryDropdown] = useState(false)
-
-  // OTP
-  const [otp, setOtp] = useState(["", "", "", "", "", ""])
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([])
-  const isVerifying = useRef(false)
-
-  // Reset password
-  const [resetCode, setResetCode] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-
-  // UI state
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
+  const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
-  const [error, setError] = useState("")
-  const [successMessage, setSuccessMessage] = useState("")
-  const [countdown, setCountdown] = useState(0)
+  const [otp, setOtp] = useState(["", "", "", "", "", ""])
+  const [countdown, setCountdown] = useState(120)
   const [canResend, setCanResend] = useState(false)
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false)
+  const [countrySearch, setCountrySearch] = useState("")
 
-  // Country dropdown ref for click outside
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const isVerifyingRef = useRef(false)
   const countryDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Filtered countries
-  const filteredCountries = useMemo(() => {
-    if (!countrySearch) return countries.slice(0, 10)
-    return countries
-      .filter(
-        (c) =>
-          c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-          c.code.toLowerCase().includes(countrySearch.toLowerCase()),
-      )
-      .slice(0, 10)
-  }, [countrySearch])
-
-  // Get selected country
-  const selectedCountry = useMemo(() => {
-    return countries.find((c) => c.code === country)
-  }, [country])
-
-  // Validation
+  // Memoized validations
   const isEmailValid = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), [email])
   const isPasswordValid = useMemo(() => password.length >= 8, [password])
   const doPasswordsMatch = useMemo(() => password === confirmPassword, [password, confirmPassword])
 
-  // Auto-detect country on mount
-  useEffect(() => {
-    if (!country && isOpen && mode === "signup") {
-      fetch("/api/detect-country")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.countryCode) {
-            setCountry(data.countryCode)
-          }
-        })
-        .catch(() => {})
-    }
-  }, [isOpen, mode, country])
+  // Filtered countries
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch) return COUNTRY_LIST
+    const search = countrySearch.toLowerCase()
+    return COUNTRY_LIST.filter((c) => c.name.toLowerCase().includes(search) || c.code.toLowerCase().includes(search))
+  }, [countrySearch])
 
-  // Click outside to close country dropdown
+  // Close country dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target as Node)) {
-        setShowCountryDropdown(false)
+    const handleClickOutside = (e: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target as Node)) {
+        setCountryDropdownOpen(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Countdown timer
+  // Auto-detect country on mount
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
-    } else if (countdown === 0 && step === "verification") {
+    if (!country && mode === "sign-up") {
+      fetch("/api/detect-country")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.country && COUNTRY_LIST.some((c) => c.name === data.country)) {
+            setCountry(data.country)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [country, mode])
+
+  // Countdown timer for OTP
+  useEffect(() => {
+    if (step === "verification" && countdown > 0) {
+      const timer = setInterval(() => setCountdown((c) => c - 1), 1000)
+      return () => clearInterval(timer)
+    } else if (countdown === 0) {
       setCanResend(true)
     }
-  }, [countdown, step])
+  }, [step, countdown])
 
-  // Remember me
+  // Reset on modal open
   useEffect(() => {
-    const remembered = localStorage.getItem("remembered_email")
-    if (remembered) {
-      setEmail(remembered)
-      setRememberMe(true)
+    if (isOpen) {
+      setMode(defaultMode)
+      setStep("form")
+      setError("")
+      setOtp(["", "", "", "", "", ""])
+      isVerifyingRef.current = false
     }
-  }, [])
+  }, [isOpen, defaultMode])
 
-  const handleOpen = () => {
-    setIsOpen(true)
-    setMode(defaultMode)
-    setStep("form")
-    setError("")
-  }
+  const verifyOtp = useCallback(
+    async (code: string) => {
+      if (isVerifyingRef.current || code.length !== 6 || !signUp) return
 
-  const handleClose = () => {
-    setIsOpen(false)
-    setStep("form")
-    setError("")
-    setLoadingMessage("")
-    setOtp(["", "", "", "", "", ""])
-  }
+      isVerifyingRef.current = true
+      setIsLoading(true)
+      setLoadingMessage("Verifying...")
+      setError("")
+
+      try {
+        const result = await signUp.attemptEmailAddressVerification({ code })
+
+        if (result.status === "complete" && result.createdSessionId) {
+          setLoadingMessage("Success! Redirecting...")
+          await setSignUpActive({ session: result.createdSessionId })
+
+          onClose()
+          window.location.href = "/home"
+        } else {
+          setError("Verification incomplete. Please try again.")
+          isVerifyingRef.current = false
+        }
+      } catch (err: any) {
+        const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Invalid code"
+        setError(msg)
+        setOtp(["", "", "", "", "", ""])
+        otpInputRefs.current[0]?.focus()
+        isVerifyingRef.current = false
+      } finally {
+        setIsLoading(false)
+        setLoadingMessage("")
+      }
+    },
+    [signUp, setSignUpActive, onClose],
+  )
+
+  // OTP input handler with auto-verify
+  const handleOtpChange = useCallback(
+    (index: number, value: string) => {
+      if (!/^\d*$/.test(value)) return
+
+      const newOtp = [...otp]
+      newOtp[index] = value.slice(-1)
+      setOtp(newOtp)
+
+      // Auto-advance to next input
+      if (value && index < 5) {
+        otpInputRefs.current[index + 1]?.focus()
+      }
+
+      // Auto-verify when all 6 digits entered
+      const fullCode = newOtp.join("")
+      if (fullCode.length === 6) {
+        verifyOtp(fullCode)
+      }
+    },
+    [otp, verifyOtp],
+  )
+
+  // Handle OTP paste
+  const handleOtpPaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      e.preventDefault()
+      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6)
+      if (pasted.length === 6) {
+        const newOtp = pasted.split("")
+        setOtp(newOtp)
+        verifyOtp(pasted)
+      }
+    },
+    [verifyOtp],
+  )
+
+  // Handle OTP backspace
+  const handleOtpKeyDown = useCallback(
+    (index: number, e: React.KeyboardEvent) => {
+      if (e.key === "Backspace" && !otp[index] && index > 0) {
+        otpInputRefs.current[index - 1]?.focus()
+      }
+    },
+    [otp],
+  )
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -167,38 +225,45 @@ export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
     setError("")
 
     try {
-      await signUp.create({
+      const createPromise = signUp.create({
         emailAddress: email,
         password,
-        firstName,
-        lastName,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
         unsafeMetadata: { country },
       })
 
-      setLoadingMessage("Sending verification code...")
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+      await createPromise
 
       setStep("verification")
       setCountdown(120)
       setCanResend(false)
+      setLoadingMessage("Sending code...")
 
-      // Focus first OTP input after transition
-      setTimeout(() => otpInputRefs.current[0]?.focus(), 100)
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+
+      // Focus first OTP input
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 50)
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Sign up failed"
       setError(msg)
+      setStep("form")
     } finally {
       setIsLoading(false)
       setLoadingMessage("")
     }
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!signIn) return
 
     if (!isEmailValid) {
-      setError("Please enter a valid email address")
+      setError("Please enter a valid email")
+      return
+    }
+    if (!password) {
+      setError("Please enter your password")
       return
     }
 
@@ -213,19 +278,16 @@ export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
       })
 
       if (result.status === "complete") {
-        if (rememberMe) {
-          localStorage.setItem("remembered_email", email)
-        } else {
-          localStorage.removeItem("remembered_email")
-        }
+        setLoadingMessage("Success!")
+        await setSignInActive({ session: result.createdSessionId })
 
-        setLoadingMessage("Redirecting...")
-        await setActiveSignIn({ session: result.createdSessionId })
-        handleClose()
-        router.push("/home")
+        onClose()
+        window.location.href = "/home"
+      } else {
+        setError("Sign in incomplete. Please try again.")
       }
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Login failed"
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Sign in failed"
       setError(msg)
     } finally {
       setIsLoading(false)
@@ -233,86 +295,19 @@ export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
     }
   }
 
-  // OTP handlers
-  const handleOtpChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return
-
-    const newOtp = [...otp]
-    newOtp[index] = value.slice(-1)
-    setOtp(newOtp)
-
-    // Auto-advance to next input
-    if (value && index < 5) {
-      otpInputRefs.current[index + 1]?.focus()
-    }
-
-    // Auto-verify when complete
-    const fullCode = newOtp.join("")
-    if (fullCode.length === 6 && !isVerifying.current) {
-      handleVerifyOtp(fullCode)
-    }
-  }
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus()
-    }
-  }
-
-  const handleOtpPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault()
-    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6)
-    if (pastedData.length === 6) {
-      const newOtp = pastedData.split("")
-      setOtp(newOtp)
-      if (!isVerifying.current) {
-        handleVerifyOtp(pastedData)
-      }
-    }
-  }
-
-  const handleVerifyOtp = async (code: string) => {
-    if (!signUp || isVerifying.current) return
-
-    isVerifying.current = true
-    setIsLoading(true)
-    setLoadingMessage("Verifying...")
-    setError("")
-
-    try {
-      const result = await signUp.attemptEmailAddressVerification({ code })
-
-      if (result.status === "complete") {
-        setLoadingMessage("Success! Redirecting...")
-        await setActiveSignUp({ session: result.createdSessionId })
-        handleClose()
-        router.push("/home")
-      }
-    } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Invalid code"
-      setError(msg)
-      setOtp(["", "", "", "", "", ""])
-      otpInputRefs.current[0]?.focus()
-    } finally {
-      setIsLoading(false)
-      setLoadingMessage("")
-      isVerifying.current = false
-    }
-  }
-
-  const handleResendCode = async () => {
+  // Resend OTP
+  const handleResendOtp = async () => {
     if (!signUp || !canResend) return
 
     setIsLoading(true)
-    setLoadingMessage("Sending code...")
+    setLoadingMessage("Resending code...")
 
     try {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
       setCountdown(120)
       setCanResend(false)
-      setSuccessMessage("Code sent!")
-      setTimeout(() => setSuccessMessage(""), 3000)
-    } catch {
+      setOtp(["", "", "", "", "", ""])
+    } catch (err: any) {
       setError("Failed to resend code")
     } finally {
       setIsLoading(false)
@@ -320,406 +315,99 @@ export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
     }
   }
 
-  // Forgot password handlers
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!signIn) return
-
-    if (!isEmailValid) {
-      setError("Please enter a valid email address")
-      return
-    }
+  // Google sign-in
+  const handleGoogleSignIn = async () => {
+    if (!client) return
 
     setIsLoading(true)
-    setLoadingMessage("Sending reset code...")
-    setError("")
+    setLoadingMessage("Connecting to Google...")
 
     try {
-      await signIn.create({
-        strategy: "reset_password_email_code",
-        identifier: email,
+      const redirectUrl = window.location.origin + "/sso-callback"
+      const signInOrUp = mode === "sign-in" ? signIn : signUp
+
+      await signInOrUp?.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl,
+        redirectUrlComplete: "/home",
       })
-      setStep("reset-code")
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Failed to send reset code"
-      setError(msg)
-    } finally {
+      setError("Google sign-in failed")
       setIsLoading(false)
       setLoadingMessage("")
     }
   }
 
-  const handleVerifyResetCode = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (resetCode.length !== 6) {
-      setError("Please enter the 6-digit code")
-      return
-    }
-    setStep("new-password")
-    setError("")
-  }
+  const selectedCountry = COUNTRY_LIST.find((c) => c.name === country)
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!signIn) return
+  if (!isOpen) return null
 
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters")
-      return
-    }
+  const isClerkLoaded = mode === "sign-in" ? signInLoaded : signUpLoaded
 
-    setIsLoading(true)
-    setLoadingMessage("Resetting password...")
-    setError("")
-
-    try {
-      const result = await signIn.attemptFirstFactor({
-        strategy: "reset_password_email_code",
-        code: resetCode,
-        password: newPassword,
-      })
-
-      if (result.status === "complete") {
-        await setActiveSignIn({ session: result.createdSessionId })
-        setStep("reset-success")
-        setTimeout(() => {
-          handleClose()
-          router.push("/home")
-        }, 2000)
-      }
-    } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Failed to reset password"
-      setError(msg)
-    } finally {
-      setIsLoading(false)
-      setLoadingMessage("")
-    }
-  }
-
-  // Loading state while Clerk loads
-  if (!isLoaded) {
-    return (
-      <>
-        {trigger}
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        onClick={onClose}
+      >
+        {/* Loading Overlay */}
         <AnimatePresence>
-          {isOpen && (
+          {isLoading && (
             <motion.div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+              className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/90"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.1 }}
             >
-              <Loader2 className="w-8 h-8 text-[#00FFFF] animate-spin" />
+              <Loader2 className="w-10 h-10 text-[#00FFFF] animate-spin mb-4" />
+              <p className="text-white text-lg">{loadingMessage || "Please wait..."}</p>
             </motion.div>
           )}
         </AnimatePresence>
-      </>
-    )
-  }
 
-  return (
-    <>
-      <div onClick={handleOpen}>{trigger}</div>
+        <motion.div
+          className="bg-gradient-to-b from-[#1A1B23] to-[#0B0C10] border border-[#00FFFF]/20 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {!isClerkLoaded ? (
+            <div className="p-8 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-[#00FFFF] animate-spin" />
+            </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="relative p-6 pb-4">
+                <button
+                  onClick={onClose}
+                  className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition"
+                >
+                  <X className="w-5 h-5 text-white/70" />
+                </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            {/* Loading overlay */}
-            {isLoading && (
-              <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/90">
-                <Loader2 className="w-12 h-12 text-[#00FFFF] animate-spin mb-4" />
-                <p className="text-white text-lg font-medium">{loadingMessage}</p>
+                <h2 className="text-2xl font-bold text-white">
+                  {step === "verification" ? "Verify Email" : mode === "sign-in" ? "Welcome Back" : "Create Account"}
+                </h2>
+                <p className="text-white/60 text-sm mt-1">
+                  {step === "verification"
+                    ? `Enter the 6-digit code sent to ${email}`
+                    : mode === "sign-in"
+                      ? "Sign in to continue"
+                      : "Join us today"}
+                </p>
               </div>
-            )}
 
-            <motion.div
-              className="relative w-full max-w-md bg-gradient-to-b from-[#1A1B23] to-[#0B0C10] rounded-2xl border border-[#2A2B33] shadow-2xl overflow-hidden"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              {/* Close button */}
-              <button
-                onClick={handleClose}
-                className="absolute top-4 right-4 p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="p-6 pt-12">
-                {/* Header */}
-                {step === "form" && (
-                  <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-white mb-2">
-                      {mode === "login" ? "Welcome Back" : "Create Account"}
-                    </h2>
-                    <p className="text-white/60">{mode === "login" ? "Sign in to continue" : "Join us today"}</p>
-                  </div>
-                )}
-
-                {step === "verification" && (
-                  <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-white mb-2">Verify Email</h2>
-                    <p className="text-white/60">Enter the 6-digit code sent to {email}</p>
-                  </div>
-                )}
-
-                {/* Error/Success messages */}
-                {error && (
-                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">
-                    {error}
-                  </div>
-                )}
-                {successMessage && (
-                  <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm text-center">
-                    {successMessage}
-                  </div>
-                )}
-
-                {/* Login Form */}
-                {step === "form" && mode === "login" && (
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email address"
-                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password"
-                        className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rememberMe}
-                          onChange={(e) => setRememberMe(e.target.checked)}
-                          className="w-4 h-4 rounded border-[#2A2B33] bg-[#0B0C10] text-[#00FFFF] focus:ring-[#00FFFF]"
-                        />
-                        <span className="text-sm text-white/60">Remember me</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setStep("forgot")}
-                        className="text-sm text-[#00FFFF] hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
-                    >
-                      Sign In
-                    </button>
-
-                    <p className="text-center text-white/60">
-                      Don't have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode("signup")
-                          setError("")
-                        }}
-                        className="text-[#00FFFF] hover:underline font-medium"
-                      >
-                        Sign up
-                      </button>
-                    </p>
-                  </form>
-                )}
-
-                {/* Signup Form */}
-                {step === "form" && mode === "signup" && (
-                  <form onSubmit={handleSignup} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                        <input
-                          type="text"
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          placeholder="First name"
-                          className="w-full pl-11 pr-3 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        />
-                      </div>
-                      <input
-                        type="text"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        placeholder="Last name"
-                        className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email address"
-                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <div className="relative" ref={countryDropdownRef}>
-                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 z-10" />
-                      <button
-                        type="button"
-                        onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                        className="w-full pl-11 pr-10 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-left text-white focus:outline-none focus:border-[#00FFFF] transition-colors"
-                      >
-                        {selectedCountry ? (
-                          <span className="flex items-center gap-2">
-                            <span className="text-lg">{selectedCountry.flag}</span>
-                            <span>{selectedCountry.name}</span>
-                          </span>
-                        ) : (
-                          <span className="text-white/40">Select your country</span>
-                        )}
-                      </button>
-                      <ChevronDown
-                        className={`absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 transition-transform ${showCountryDropdown ? "rotate-180" : ""}`}
-                      />
-
-                      {showCountryDropdown && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1A1B23] border border-[#2A2B33] rounded-xl shadow-xl z-50 max-h-60 overflow-hidden">
-                          <div className="p-2 border-b border-[#2A2B33]">
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-                              <input
-                                type="text"
-                                value={countrySearch}
-                                onChange={(e) => setCountrySearch(e.target.value)}
-                                placeholder="Search country..."
-                                className="w-full pl-9 pr-3 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#00FFFF]"
-                                autoFocus
-                              />
-                            </div>
-                          </div>
-                          <div className="overflow-y-auto max-h-48">
-                            {filteredCountries.map((c) => (
-                              <button
-                                key={c.code}
-                                type="button"
-                                onClick={() => {
-                                  setCountry(c.code)
-                                  setShowCountryDropdown(false)
-                                  setCountrySearch("")
-                                }}
-                                className={`w-full px-4 py-2.5 text-left hover:bg-[#2A2B33] transition-colors flex items-center gap-3 ${country === c.code ? "bg-[#00FFFF]/10 text-[#00FFFF]" : "text-white"}`}
-                              >
-                                <span className="text-lg">{c.flag}</span>
-                                <span>{c.name}</span>
-                              </button>
-                            ))}
-                            {filteredCountries.length === 0 && (
-                              <div className="px-4 py-3 text-white/40 text-center">No countries found</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password (min 8 characters)"
-                        className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
-
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm password"
-                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                      {confirmPassword && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {doPasswordsMatch ? (
-                            <Check className="w-5 h-5 text-green-500" />
-                          ) : (
-                            <X className="w-5 h-5 text-red-500" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
-                    >
-                      Create Account
-                    </button>
-
-                    <p className="text-center text-white/60">
-                      Already have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode("login")
-                          setError("")
-                        }}
-                        className="text-[#00FFFF] hover:underline font-medium"
-                      >
-                        Sign in
-                      </button>
-                    </p>
-                  </form>
-                )}
-
-                {/* OTP Verification */}
-                {step === "verification" && (
+              <div className="p-6 pt-0">
+                {step === "verification" ? (
+                  /* OTP Verification */
                   <div className="space-y-6">
                     <div className="flex justify-center gap-2">
                       {otp.map((digit, index) => (
@@ -735,168 +423,325 @@ export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
                           onChange={(e) => handleOtpChange(index, e.target.value)}
                           onKeyDown={(e) => handleOtpKeyDown(index, e)}
                           onPaste={handleOtpPaste}
-                          className="w-12 h-14 text-center text-2xl font-bold bg-[#0B0C10] border-2 border-[#2A2B33] rounded-xl text-white focus:outline-none focus:border-[#00FFFF] transition-colors"
+                          className="w-12 h-14 text-center text-xl font-bold bg-[#0B0C10] border-2 border-white/20 rounded-xl text-white focus:border-[#00FFFF] focus:outline-none transition"
+                          disabled={isLoading}
                         />
                       ))}
                     </div>
 
+                    {error && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm text-center">
+                        {error}
+                      </div>
+                    )}
+
                     <div className="text-center">
-                      {countdown > 0 ? (
-                        <p className="text-white/60">
-                          Resend code in{" "}
-                          <span className="text-[#00FFFF]">
-                            {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, "0")}
-                          </span>
-                        </p>
-                      ) : (
+                      {canResend ? (
                         <button
-                          onClick={handleResendCode}
-                          disabled={!canResend || isLoading}
-                          className="text-[#00FFFF] hover:underline disabled:opacity-50"
+                          onClick={handleResendOtp}
+                          className="text-[#00FFFF] hover:underline text-sm"
+                          disabled={isLoading}
                         >
-                          Resend code
+                          Resend Code
                         </button>
+                      ) : (
+                        <p className="text-white/50 text-sm">
+                          Resend code in {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, "0")}
+                        </p>
                       )}
                     </div>
 
                     <button
-                      type="button"
                       onClick={() => {
                         setStep("form")
                         setOtp(["", "", "", "", "", ""])
-                        setError("")
+                        isVerifyingRef.current = false
                       }}
-                      className="w-full py-3 border border-[#2A2B33] text-white rounded-xl hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
+                      className="w-full text-white/60 hover:text-white text-sm transition"
                     >
-                      <ArrowLeft className="w-4 h-4" />
-                      Back to signup
+                      Back to sign up
                     </button>
                   </div>
-                )}
-
-                {/* Forgot Password */}
-                {step === "forgot" && (
-                  <form onSubmit={handleForgotPassword} className="space-y-4">
-                    <div className="text-center mb-4">
-                      <h2 className="text-2xl font-bold text-white mb-2">Reset Password</h2>
-                      <p className="text-white/60">Enter your email to receive a reset code</p>
-                    </div>
-
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Email address"
-                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
-                    >
-                      Send Reset Code
-                    </button>
-
+                ) : (
+                  /* Sign In / Sign Up Form */
+                  <form onSubmit={mode === "sign-in" ? handleSignin : handleSignup} className="space-y-4">
+                    {/* Google Button */}
                     <button
                       type="button"
-                      onClick={() => {
-                        setStep("form")
-                        setError("")
-                      }}
-                      className="w-full py-3 border border-[#2A2B33] text-white rounded-xl hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
+                      onClick={handleGoogleSignIn}
+                      className="w-full py-3 bg-white text-gray-800 font-medium rounded-xl flex items-center justify-center gap-3 hover:bg-gray-100 transition"
+                      disabled={isLoading}
                     >
-                      <ArrowLeft className="w-4 h-4" />
-                      Back to login
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                        />
+                      </svg>
+                      Continue with Google
                     </button>
-                  </form>
-                )}
 
-                {/* Reset Code */}
-                {step === "reset-code" && (
-                  <form onSubmit={handleVerifyResetCode} className="space-y-4">
-                    <div className="text-center mb-4">
-                      <h2 className="text-2xl font-bold text-white mb-2">Enter Code</h2>
-                      <p className="text-white/60">Check your email for the 6-digit code</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-white/10"></div>
+                      <span className="text-white/40 text-sm">or</span>
+                      <div className="flex-1 h-px bg-white/10"></div>
                     </div>
 
-                    <input
-                      type="text"
-                      value={resetCode}
-                      onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="Enter 6-digit code"
-                      className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white text-center text-xl tracking-widest placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                      maxLength={6}
-                    />
+                    {/* Name fields for sign up */}
+                    {mode === "sign-up" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-white/70 text-sm mb-1.5">First Name</label>
+                          <div className="relative">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                            <input
+                              type="text"
+                              value={firstName}
+                              onChange={(e) => setFirstName(e.target.value)}
+                              className="w-full pl-10 pr-4 py-3 bg-[#0B0C10] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF]/50 transition"
+                              placeholder="John"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-white/70 text-sm mb-1.5">Last Name</label>
+                          <input
+                            type="text"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            className="w-full px-4 py-3 bg-[#0B0C10] border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#00FFFF]/50 transition"
+                            placeholder="Doe"
+                          />
+                        </div>
+                      </div>
+                    )}
 
-                    <button
-                      type="submit"
-                      disabled={isLoading || resetCode.length !== 6}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
-                    >
-                      Verify Code
-                    </button>
-                  </form>
-                )}
-
-                {/* New Password */}
-                {step === "new-password" && (
-                  <form onSubmit={handleResetPassword} className="space-y-4">
-                    <div className="text-center mb-4">
-                      <h2 className="text-2xl font-bold text-white mb-2">New Password</h2>
-                      <p className="text-white/60">Enter your new password</p>
+                    {/* Email */}
+                    <div>
+                      <label className="block text-white/70 text-sm mb-1.5">Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className={`w-full pl-10 pr-4 py-3 bg-[#0B0C10] border rounded-xl text-white placeholder-white/30 focus:outline-none transition ${
+                            email && !isEmailValid ? "border-red-500/50" : "border-white/10 focus:border-[#00FFFF]/50"
+                          }`}
+                          placeholder="you@example.com"
+                          required
+                        />
+                        {email && isEmailValid && (
+                          <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-400" />
+                        )}
+                      </div>
                     </div>
 
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="New password (min 8 characters)"
-                        className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
+                    {/* Country - Sign Up Only */}
+                    {mode === "sign-up" && (
+                      <div ref={countryDropdownRef}>
+                        <label className="block text-white/70 text-sm mb-1.5">Country *</label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setCountryDropdownOpen(!countryDropdownOpen)}
+                            className={`w-full px-4 py-3 bg-[#0B0C10] border rounded-xl text-left flex items-center justify-between transition ${
+                              !country ? "border-white/10" : "border-[#00FFFF]/30"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Globe className="w-5 h-5 text-white/40" />
+                              {selectedCountry ? (
+                                <>
+                                  <span className="text-lg">{selectedCountry.flag}</span>
+                                  <span className="text-white">{selectedCountry.name}</span>
+                                </>
+                              ) : (
+                                <span className="text-white/40">Select your country</span>
+                              )}
+                            </span>
+                            <ChevronDown
+                              className={`w-5 h-5 text-white/40 transition ${countryDropdownOpen ? "rotate-180" : ""}`}
+                            />
+                          </button>
+
+                          {countryDropdownOpen && (
+                            <div className="absolute z-50 w-full mt-2 bg-[#1A1B23] border border-white/10 rounded-xl shadow-xl max-h-60 overflow-hidden">
+                              <div className="p-2 border-b border-white/10">
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                                  <input
+                                    type="text"
+                                    value={countrySearch}
+                                    onChange={(e) => setCountrySearch(e.target.value)}
+                                    placeholder="Search country..."
+                                    className="w-full pl-9 pr-3 py-2 bg-[#0B0C10] border border-white/10 rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#00FFFF]/50"
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-48 overflow-y-auto">
+                                {filteredCountries.map((c) => (
+                                  <button
+                                    key={c.code}
+                                    type="button"
+                                    onClick={() => {
+                                      setCountry(c.name)
+                                      setCountryDropdownOpen(false)
+                                      setCountrySearch("")
+                                    }}
+                                    className={`w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-white/5 transition ${
+                                      country === c.name ? "bg-[#00FFFF]/10 text-[#00FFFF]" : "text-white"
+                                    }`}
+                                  >
+                                    <span className="text-lg">{c.flag}</span>
+                                    <span>{c.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Password */}
+                    <div>
+                      <label className="block text-white/70 text-sm mb-1.5">Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className={`w-full pl-10 pr-12 py-3 bg-[#0B0C10] border rounded-xl text-white placeholder-white/30 focus:outline-none transition ${
+                            password && !isPasswordValid && mode === "sign-up"
+                              ? "border-red-500/50"
+                              : "border-white/10 focus:border-[#00FFFF]/50"
+                          }`}
+                          placeholder="••••••••"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full transition"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-5 h-5 text-white/40" />
+                          ) : (
+                            <Eye className="w-5 h-5 text-white/40" />
+                          )}
+                        </button>
+                      </div>
+                      {mode === "sign-up" && password && !isPasswordValid && (
+                        <p className="text-red-400 text-xs mt-1">Password must be at least 8 characters</p>
+                      )}
                     </div>
 
+                    {/* Confirm Password - Sign Up Only */}
+                    {mode === "sign-up" && (
+                      <div>
+                        <label className="block text-white/70 text-sm mb-1.5">Confirm Password</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                          <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className={`w-full pl-10 pr-12 py-3 bg-[#0B0C10] border rounded-xl text-white placeholder-white/30 focus:outline-none transition ${
+                              confirmPassword && !doPasswordsMatch
+                                ? "border-red-500/50"
+                                : "border-white/10 focus:border-[#00FFFF]/50"
+                            }`}
+                            placeholder="••••••••"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full transition"
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="w-5 h-5 text-white/40" />
+                            ) : (
+                              <Eye className="w-5 h-5 text-white/40" />
+                            )}
+                          </button>
+                        </div>
+                        {confirmPassword && !doPasswordsMatch && (
+                          <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Remember Me */}
+                    {mode === "sign-in" && (
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="w-4 h-4 rounded border-white/20 bg-[#0B0C10] text-[#00FFFF] focus:ring-[#00FFFF]/50"
+                          />
+                          <span className="text-white/60 text-sm">Remember me</span>
+                        </label>
+                        <button type="button" className="text-[#00FFFF] text-sm hover:underline">
+                          Forgot password?
+                        </button>
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm text-center">
+                        {error}
+                      </div>
+                    )}
+
+                    {/* Submit Button */}
                     <button
                       type="submit"
                       disabled={isLoading}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
+                      className="w-full py-3.5 bg-gradient-to-r from-[#00FFFF] to-cyan-400 text-[#0B0C10] font-bold rounded-xl hover:shadow-lg hover:shadow-[#00FFFF]/30 transition disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      Reset Password
+                      {mode === "sign-in" ? "Sign In" : "Continue"}
+                      <ArrowRight className="w-5 h-5" />
                     </button>
+
+                    {/* Toggle Mode */}
+                    <p className="text-center text-white/60 text-sm">
+                      {mode === "sign-in" ? "Don't have an account?" : "Already have an account?"}{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode(mode === "sign-in" ? "sign-up" : "sign-in")
+                          setError("")
+                        }}
+                        className="text-[#00FFFF] hover:underline"
+                      >
+                        {mode === "sign-in" ? "Sign Up" : "Sign In"}
+                      </button>
+                    </p>
                   </form>
                 )}
-
-                {/* Reset Success */}
-                {step === "reset-success" && (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Check className="w-8 h-8 text-green-500" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Password Reset!</h2>
-                    <p className="text-white/60">Redirecting you now...</p>
-                  </div>
-                )}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+            </>
+          )}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
-
-export default AuthModal
