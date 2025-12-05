@@ -138,14 +138,15 @@ export default function SeriesDetailClient({
         {currentEpisode ? (
           <div className="w-full aspect-video bg-black">
             <ProductionVideoPlayer
-              src={currentEpisode.videoUrl}
-              poster={currentEpisode.thumbnailUrl || series.bannerUrl || series.posterUrl}
+              videoUrl={currentEpisode.videoUrl}
+              posterUrl={currentEpisode.thumbnailUrl || series.bannerUrl || series.posterUrl}
               title={`${series.title} - S${selectedSeason?.seasonNumber}E${currentEpisode.episodeNumber}: ${currentEpisode.title}`}
               movieId={series.id}
               prerollAdCodes={adSettings.prerollEnabled ? adSettings.prerollAdCodes : []}
               midrollAdCodes={adSettings.midrollEnabled ? adSettings.midrollAdCodes : []}
               midrollEnabled={adSettings.midrollEnabled}
               midrollIntervalMinutes={adSettings.midrollIntervalMinutes}
+              showPrerollAds={adSettings.prerollEnabled}
             />
           </div>
         ) : (
