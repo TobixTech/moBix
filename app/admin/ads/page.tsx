@@ -26,7 +26,6 @@ export default function AdManagementPage() {
     homepageEnabled: true,
     movieDetailEnabled: true,
     dashboardEnabled: true,
-    // Mid-roll settings
     midrollEnabled: false,
     midrollIntervalMinutes: 20,
   })
@@ -50,11 +49,10 @@ export default function AdManagementPage() {
           homepageEnabled: settings.homepageEnabled ?? true,
           movieDetailEnabled: settings.movieDetailEnabled ?? true,
           dashboardEnabled: settings.dashboardEnabled ?? true,
-          midrollEnabled: settings.showMidrollAds ?? false,
+          midrollEnabled: settings.midrollEnabled ?? false,
           midrollIntervalMinutes: settings.midrollIntervalMinutes || 20,
         })
 
-        // Parse preroll ad codes
         try {
           if (settings.prerollAdCodes) {
             const codes = JSON.parse(settings.prerollAdCodes)
@@ -64,7 +62,6 @@ export default function AdManagementPage() {
           console.error("Error parsing preroll codes:", e)
         }
 
-        // Parse midroll ad codes
         try {
           if (settings.midrollAdCodes) {
             const codes = JSON.parse(settings.midrollAdCodes)
@@ -467,7 +464,7 @@ export default function AdManagementPage() {
                     onClick={() =>
                       setFormData({
                         ...formData,
-                        [item.key]: !formData[item.key as keyof typeof formData],
+                        [item.key as keyof typeof formData]: !formData[item.key as keyof typeof formData],
                       })
                     }
                     className={`relative w-14 h-7 rounded-full transition-colors ${

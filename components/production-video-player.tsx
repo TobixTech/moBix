@@ -25,6 +25,7 @@ interface ProductionVideoPlayerProps {
   skipDelay?: number
   rotationInterval?: number
   movieId?: string
+  movieDuration?: number
 }
 
 export default function ProductionVideoPlayer({
@@ -41,6 +42,7 @@ export default function ProductionVideoPlayer({
   skipDelay = 10,
   rotationInterval = 5,
   movieId,
+  movieDuration = 120,
 }: ProductionVideoPlayerProps) {
   const [showIntro, setShowIntro] = useState(!skipIntro)
   const [showPrerollAd, setShowPrerollAd] = useState(false)
@@ -49,6 +51,8 @@ export default function ProductionVideoPlayer({
   const [lastMidrollTime, setLastMidrollTime] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const lastProgressUpdate = useRef(0)
+  const embeddedStartTime = useRef<number>(0)
+  const embeddedIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const saveProgress = useCallback(async () => {
     if (!movieId || !videoRef.current) return
@@ -57,36 +61,67 @@ export default function ProductionVideoPlayer({
     const progress = Math.floor((video.currentTime / video.duration) * 100)
     const duration = Math.floor(video.duration)
 
-    // Only save if progress changed significantly
     if (Math.abs(progress - lastProgressUpdate.current) >= 5) {
       lastProgressUpdate.current = progress
       await updateWatchProgress(movieId, progress, duration)
     }
   }, [movieId])
 
+  const saveEmbeddedProgress = useCallback(async () => {
+    if (!movieId) return
+
+    const elapsedMinutes = (Date.now() - embeddedStartTime.current) / 1000 / 60
+    const estimatedDuration = movieDuration // Use movie duration from props
+    const progress = Math.min(Math.floor((elapsedMinutes / estimatedDuration) * 100), 95)
+
+    if (progress > lastProgressUpdate.current && progress >= 5) {
+      lastProgressUpdate.current = progress
+      await updateWatchProgress(movieId, progress, estimatedDuration * 60)
+    }
+  }, [movieId, movieDuration])
+
   useEffect(() => {
     if (!showVideo || !movieId) return
 
-    const video = videoRef.current
-    if (!video) return
+    const isEmbed = isEmbedUrl(videoUrl)
 
-    // Save progress every 30 seconds
-    const interval = setInterval(saveProgress, 30000)
+    if (isEmbed) {
+      embeddedStartTime.current = Date.now()
 
-    // Save progress on pause and before unload
-    const handlePause = () => saveProgress()
-    const handleBeforeUnload = () => saveProgress()
+      // Save progress every 30 seconds for embedded videos
+      embeddedIntervalRef.current = setInterval(saveEmbeddedProgress, 30000)
 
-    video.addEventListener("pause", handlePause)
-    window.addEventListener("beforeunload", handleBeforeUnload)
+      // Save on page unload
+      const handleBeforeUnload = () => saveEmbeddedProgress()
+      window.addEventListener("beforeunload", handleBeforeUnload)
 
-    return () => {
-      clearInterval(interval)
-      video.removeEventListener("pause", handlePause)
-      window.removeEventListener("beforeunload", handleBeforeUnload)
-      saveProgress() // Save on unmount
+      return () => {
+        if (embeddedIntervalRef.current) {
+          clearInterval(embeddedIntervalRef.current)
+        }
+        window.removeEventListener("beforeunload", handleBeforeUnload)
+        saveEmbeddedProgress()
+      }
+    } else {
+      // Native video tracking
+      const video = videoRef.current
+      if (!video) return
+
+      const interval = setInterval(saveProgress, 30000)
+      const handlePause = () => saveProgress()
+      const handleBeforeUnload = () => saveProgress()
+
+      video.addEventListener("pause", handlePause)
+      window.addEventListener("beforeunload", handleBeforeUnload)
+
+      return () => {
+        clearInterval(interval)
+        video.removeEventListener("pause", handlePause)
+        window.removeEventListener("beforeunload", handleBeforeUnload)
+        saveProgress()
+      }
     }
-  }, [showVideo, movieId, saveProgress])
+  }, [showVideo, movieId, saveProgress, saveEmbeddedProgress, videoUrl])
 
   const handleIntroComplete = () => {
     setShowIntro(false)
@@ -139,7 +174,9 @@ export default function ProductionVideoPlayer({
       url.includes("youtu.be") ||
       url.includes("vimeo.com") ||
       url.includes("dailymotion.com") ||
-      url.includes("drive.google.com")
+      url.includes("drive.google.com") ||
+      url.includes("iframe") ||
+      url.includes("embed")
     )
   }
 

@@ -93,7 +93,7 @@ export default async function MovieDetail({
   const rotationInterval = adSettings?.rotationIntervalSeconds || 5
   const showPrerollAds = adSettings?.showPrerollAds ?? true
 
-  const showMidrollAds = adSettings?.showMidrollAds ?? false
+  const midrollEnabled = adSettings?.midrollEnabled ?? false
   const midrollIntervalMinutes = adSettings?.midrollIntervalMinutes || 20
 
   let prerollAdCodes: { code: string; name?: string }[] = []
@@ -138,7 +138,7 @@ export default async function MovieDetail({
           relatedMovies={relatedMovies}
           prerollAdCodes={prerollAdCodes}
           midrollAdCodes={midrollAdCodes}
-          midrollEnabled={showMidrollAds}
+          midrollEnabled={midrollEnabled}
           midrollIntervalMinutes={midrollIntervalMinutes}
           smartLinkUrl={adSettings?.smartLinkUrl}
           adTimeout={adTimeout}
