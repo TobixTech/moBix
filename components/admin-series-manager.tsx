@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Play, Save, Loader, Tv } from "lucide-react"
+import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Play, Loader, Tv, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import {
@@ -16,20 +16,19 @@ import {
   deleteEpisode,
   getAdminSeries,
 } from "@/lib/series-actions"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Episode {
-  id: number
+  id: string
   episodeNumber: number
   title: string
   description: string | null
-  duration: string | null
+  duration: number | null
   videoUrl: string | null
   thumbnailUrl: string | null
 }
 
 interface Season {
-  id: number
+  id: string
   seasonNumber: number
   title: string | null
   description: string | null
@@ -37,7 +36,7 @@ interface Season {
 }
 
 interface Series {
-  id: number
+  id: string
   title: string
   description: string | null
   posterUrl: string | null
@@ -50,11 +49,11 @@ interface Series {
 }
 
 export function AdminSeriesManager() {
-  const [series, setSeries] = useState<Series[]>([])
+  const [seriesList, setSeriesList] = useState<Series[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [expandedSeries, setExpandedSeries] = useState<number | null>(null)
-  const [expandedSeason, setExpandedSeason] = useState<number | null>(null)
+  const [expandedSeries, setExpandedSeries] = useState<string | null>(null)
+  const [expandedSeason, setExpandedSeason] = useState<string | null>(null)
 
   // Modal states
   const [showSeriesModal, setShowSeriesModal] = useState(false)
@@ -63,8 +62,8 @@ export function AdminSeriesManager() {
   const [editingSeries, setEditingSeries] = useState<Series | null>(null)
   const [editingSeason, setEditingSeason] = useState<Season | null>(null)
   const [editingEpisode, setEditingEpisode] = useState<Episode | null>(null)
-  const [currentSeriesId, setCurrentSeriesId] = useState<number | null>(null)
-  const [currentSeasonId, setCurrentSeasonId] = useState<number | null>(null)
+  const [currentSeriesId, setCurrentSeriesId] = useState<string | null>(null)
+  const [currentSeasonId, setCurrentSeasonId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   // Form states
@@ -76,7 +75,6 @@ export function AdminSeriesManager() {
     genre: "",
     status: "ongoing",
     releaseYear: new Date().getFullYear(),
-    rating: "",
   })
   const [seasonForm, setSeasonForm] = useState({
     seasonNumber: 1,
@@ -87,7 +85,7 @@ export function AdminSeriesManager() {
     episodeNumber: 1,
     title: "",
     description: "",
-    duration: "",
+    duration: 0,
     videoUrl: "",
     thumbnailUrl: "",
   })
@@ -100,15 +98,16 @@ export function AdminSeriesManager() {
     setLoading(true)
     try {
       const data = await getAdminSeries()
-      setSeries(data)
+      setSeriesList(data)
     } catch (error) {
+      console.error("Failed to load series:", error)
       toast.error("Failed to load series")
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredSeries = series.filter(
+  const filteredSeries = seriesList.filter(
     (s) =>
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.genre?.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -116,14 +115,26 @@ export function AdminSeriesManager() {
 
   // Series CRUD
   const handleSaveSeries = async () => {
+    if (!seriesForm.title || !seriesForm.description || !seriesForm.posterUrl || !seriesForm.genre) {
+      toast.error("Please fill in all required fields")
+      return
+    }
     setSaving(true)
     try {
       if (editingSeries) {
-        await updateSeries(editingSeries.id, seriesForm)
-        toast.success("Series updated successfully")
+        const result = await updateSeries(editingSeries.id, seriesForm)
+        if (result.success) {
+          toast.success("Series updated successfully")
+        } else {
+          toast.error(result.error || "Failed to update series")
+        }
       } else {
-        await createSeries(seriesForm)
-        toast.success("Series created successfully")
+        const result = await createSeries(seriesForm)
+        if (result.success) {
+          toast.success("Series created successfully")
+        } else {
+          toast.error(result.error || "Failed to create series")
+        }
       }
       setShowSeriesModal(false)
       resetSeriesForm()
@@ -135,12 +146,16 @@ export function AdminSeriesManager() {
     }
   }
 
-  const handleDeleteSeries = async (id: number) => {
+  const handleDeleteSeries = async (id: string) => {
     if (!confirm("Are you sure? This will delete all seasons and episodes.")) return
     try {
-      await deleteSeries(id)
-      toast.success("Series deleted")
-      loadSeries()
+      const result = await deleteSeries(id)
+      if (result.success) {
+        toast.success("Series deleted")
+        loadSeries()
+      } else {
+        toast.error(result.error || "Failed to delete series")
+      }
     } catch (error) {
       toast.error("Failed to delete series")
     }
@@ -156,7 +171,6 @@ export function AdminSeriesManager() {
       genre: s.genre || "",
       status: s.status,
       releaseYear: s.releaseYear || new Date().getFullYear(),
-      rating: s.rating || "",
     })
     setShowSeriesModal(true)
   }
@@ -171,7 +185,6 @@ export function AdminSeriesManager() {
       genre: "",
       status: "ongoing",
       releaseYear: new Date().getFullYear(),
-      rating: "",
     })
   }
 
@@ -181,11 +194,22 @@ export function AdminSeriesManager() {
     setSaving(true)
     try {
       if (editingSeason) {
-        await updateSeason(editingSeason.id, seasonForm)
-        toast.success("Season updated successfully")
+        const result = await updateSeason(editingSeason.id, seasonForm)
+        if (result.success) {
+          toast.success("Season updated successfully")
+        } else {
+          toast.error(result.error || "Failed to update season")
+        }
       } else {
-        await createSeason(currentSeriesId, seasonForm)
-        toast.success("Season created successfully")
+        const result = await createSeason({
+          seriesId: currentSeriesId,
+          ...seasonForm,
+        })
+        if (result.success) {
+          toast.success("Season created successfully")
+        } else {
+          toast.error(result.error || "Failed to create season")
+        }
       }
       setShowSeasonModal(false)
       resetSeasonForm()
@@ -197,26 +221,30 @@ export function AdminSeriesManager() {
     }
   }
 
-  const handleDeleteSeason = async (id: number) => {
+  const handleDeleteSeason = async (id: string) => {
     if (!confirm("Are you sure? This will delete all episodes.")) return
     try {
-      await deleteSeason(id)
-      toast.success("Season deleted")
-      loadSeries()
+      const result = await deleteSeason(id)
+      if (result.success) {
+        toast.success("Season deleted")
+        loadSeries()
+      } else {
+        toast.error(result.error || "Failed to delete season")
+      }
     } catch (error) {
       toast.error("Failed to delete season")
     }
   }
 
-  const openAddSeason = (seriesId: number) => {
+  const openAddSeason = (seriesId: string) => {
     setCurrentSeriesId(seriesId)
-    const s = series.find((x) => x.id === seriesId)
+    const s = seriesList.find((x) => x.id === seriesId)
     const nextSeasonNum = s ? s.seasons.length + 1 : 1
     setSeasonForm({ seasonNumber: nextSeasonNum, title: "", description: "" })
     setShowSeasonModal(true)
   }
 
-  const openEditSeason = (seriesId: number, season: Season) => {
+  const openEditSeason = (seriesId: string, season: Season) => {
     setCurrentSeriesId(seriesId)
     setEditingSeason(season)
     setSeasonForm({
@@ -234,15 +262,29 @@ export function AdminSeriesManager() {
 
   // Episode CRUD
   const handleSaveEpisode = async () => {
-    if (!currentSeasonId) return
+    if (!currentSeasonId || !episodeForm.title || !episodeForm.videoUrl) {
+      toast.error("Please fill in all required fields")
+      return
+    }
     setSaving(true)
     try {
       if (editingEpisode) {
-        await updateEpisode(editingEpisode.id, episodeForm)
-        toast.success("Episode updated successfully")
+        const result = await updateEpisode(editingEpisode.id, episodeForm)
+        if (result.success) {
+          toast.success("Episode updated successfully")
+        } else {
+          toast.error(result.error || "Failed to update episode")
+        }
       } else {
-        await createEpisode(currentSeasonId, episodeForm)
-        toast.success("Episode created successfully")
+        const result = await createEpisode({
+          seasonId: currentSeasonId,
+          ...episodeForm,
+        })
+        if (result.success) {
+          toast.success("Episode created successfully")
+        } else {
+          toast.error(result.error || "Failed to create episode")
+        }
       }
       setShowEpisodeModal(false)
       resetEpisodeForm()
@@ -254,38 +296,42 @@ export function AdminSeriesManager() {
     }
   }
 
-  const handleDeleteEpisode = async (id: number) => {
+  const handleDeleteEpisode = async (id: string) => {
     if (!confirm("Are you sure you want to delete this episode?")) return
     try {
-      await deleteEpisode(id)
-      toast.success("Episode deleted")
-      loadSeries()
+      const result = await deleteEpisode(id)
+      if (result.success) {
+        toast.success("Episode deleted")
+        loadSeries()
+      } else {
+        toast.error(result.error || "Failed to delete episode")
+      }
     } catch (error) {
       toast.error("Failed to delete episode")
     }
   }
 
-  const openAddEpisode = (seasonId: number, currentEpisodeCount: number) => {
+  const openAddEpisode = (seasonId: string, currentEpisodeCount: number) => {
     setCurrentSeasonId(seasonId)
     setEpisodeForm({
       episodeNumber: currentEpisodeCount + 1,
       title: "",
       description: "",
-      duration: "",
+      duration: 0,
       videoUrl: "",
       thumbnailUrl: "",
     })
     setShowEpisodeModal(true)
   }
 
-  const openEditEpisode = (seasonId: number, episode: Episode) => {
+  const openEditEpisode = (seasonId: string, episode: Episode) => {
     setCurrentSeasonId(seasonId)
     setEditingEpisode(episode)
     setEpisodeForm({
       episodeNumber: episode.episodeNumber,
       title: episode.title,
       description: episode.description || "",
-      duration: episode.duration || "",
+      duration: episode.duration || 0,
       videoUrl: episode.videoUrl || "",
       thumbnailUrl: episode.thumbnailUrl || "",
     })
@@ -298,7 +344,7 @@ export function AdminSeriesManager() {
       episodeNumber: 1,
       title: "",
       description: "",
-      duration: "",
+      duration: 0,
       videoUrl: "",
       thumbnailUrl: "",
     })
@@ -354,7 +400,7 @@ export function AdminSeriesManager() {
                 onClick={() => setExpandedSeries(expandedSeries === s.id ? null : s.id)}
               >
                 <img
-                  src={s.posterUrl || "/placeholder.svg?height=80&width=60"}
+                  src={s.posterUrl || "/placeholder.svg?height=80&width=60&query=tv+series+poster"}
                   alt={s.title}
                   className="w-14 h-20 object-cover rounded-lg"
                 />
@@ -513,7 +559,9 @@ export function AdminSeriesManager() {
                                           <p className="text-white text-sm truncate">
                                             E{ep.episodeNumber}: {ep.title}
                                           </p>
-                                          <p className="text-white/40 text-xs">{ep.duration || "N/A"}</p>
+                                          <p className="text-white/40 text-xs">
+                                            {ep.duration ? `${ep.duration} min` : "N/A"}
+                                          </p>
                                         </div>
                                         <div className="flex items-center gap-1">
                                           <button
@@ -548,261 +596,259 @@ export function AdminSeriesManager() {
       </div>
 
       {/* Series Modal */}
-      <Dialog open={showSeriesModal} onOpenChange={setShowSeriesModal}>
-        <DialogContent className="bg-[#1a1a2e] border-white/10 text-white max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingSeries ? "Edit Series" : "Add New Series"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Title *</label>
-              <input
-                type="text"
-                value={seriesForm.title}
-                onChange={(e) => setSeriesForm({ ...seriesForm, title: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                placeholder="Series title"
-              />
+      {showSeriesModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white">{editingSeries ? "Edit Series" : "Add New Series"}</h3>
+              <button onClick={() => setShowSeriesModal(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                <X className="w-5 h-5 text-white/70" />
+              </button>
             </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Description</label>
-              <textarea
-                value={seriesForm.description}
-                onChange={(e) => setSeriesForm({ ...seriesForm, description: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white h-20 resize-none"
-                placeholder="Series description"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="p-6 space-y-4">
               <div>
-                <label className="block text-white/70 text-sm mb-1">Poster URL</label>
+                <label className="text-white/70 text-sm mb-1 block">Title *</label>
+                <input
+                  type="text"
+                  value={seriesForm.title}
+                  onChange={(e) => setSeriesForm({ ...seriesForm, title: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="Series title"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Description *</label>
+                <textarea
+                  value={seriesForm.description}
+                  onChange={(e) => setSeriesForm({ ...seriesForm, description: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 min-h-[100px]"
+                  placeholder="Series description"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Poster URL *</label>
                 <input
                   type="text"
                   value={seriesForm.posterUrl}
                   onChange={(e) => setSeriesForm({ ...seriesForm, posterUrl: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
                   placeholder="https://..."
                 />
               </div>
               <div>
-                <label className="block text-white/70 text-sm mb-1">Banner URL</label>
+                <label className="text-white/70 text-sm mb-1 block">Banner URL</label>
                 <input
                   type="text"
                   value={seriesForm.bannerUrl}
                   onChange={(e) => setSeriesForm({ ...seriesForm, bannerUrl: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
                   placeholder="https://..."
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-white/70 text-sm mb-1">Genre</label>
-                <input
-                  type="text"
-                  value={seriesForm.genre}
-                  onChange={(e) => setSeriesForm({ ...seriesForm, genre: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                  placeholder="Drama, Action"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-white/70 text-sm mb-1 block">Genre *</label>
+                  <input
+                    type="text"
+                    value={seriesForm.genre}
+                    onChange={(e) => setSeriesForm({ ...seriesForm, genre: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                    placeholder="Drama, Action..."
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm mb-1 block">Year</label>
+                  <input
+                    type="number"
+                    value={seriesForm.releaseYear}
+                    onChange={(e) => setSeriesForm({ ...seriesForm, releaseYear: Number.parseInt(e.target.value) })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-white/70 text-sm mb-1">Release Year</label>
-                <input
-                  type="number"
-                  value={seriesForm.releaseYear}
-                  onChange={(e) => setSeriesForm({ ...seriesForm, releaseYear: Number.parseInt(e.target.value) })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-white/70 text-sm mb-1">Status</label>
+                <label className="text-white/70 text-sm mb-1 block">Status</label>
                 <select
                   value={seriesForm.status}
                   onChange={(e) => setSeriesForm({ ...seriesForm, status: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
                 >
                   <option value="ongoing">Ongoing</option>
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-white/70 text-sm mb-1">Rating</label>
-                <input
-                  type="text"
-                  value={seriesForm.rating}
-                  onChange={(e) => setSeriesForm({ ...seriesForm, rating: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
-                  placeholder="8.5"
-                />
-              </div>
             </div>
-            <div className="flex gap-3 pt-4">
+            <div className="p-6 border-t border-white/10 flex gap-3">
               <button
                 onClick={() => setShowSeriesModal(false)}
-                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+                className="flex-1 px-4 py-3 bg-white/5 text-white rounded-xl hover:bg-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveSeries}
-                disabled={saving || !seriesForm.title}
-                className="flex-1 px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={saving}
+                className="flex-1 px-4 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save
+                {saving && <Loader className="w-4 h-4 animate-spin" />}
+                {editingSeries ? "Update" : "Create"}
               </button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Season Modal */}
-      <Dialog open={showSeasonModal} onOpenChange={setShowSeasonModal}>
-        <DialogContent className="bg-[#1a1a2e] border-white/10 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingSeason ? "Edit Season" : "Add New Season"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Season Number *</label>
-              <input
-                type="number"
-                value={seasonForm.seasonNumber}
-                onChange={(e) => setSeasonForm({ ...seasonForm, seasonNumber: Number.parseInt(e.target.value) })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                min="1"
-              />
+      {showSeasonModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white">{editingSeason ? "Edit Season" : "Add New Season"}</h3>
+              <button onClick={() => setShowSeasonModal(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                <X className="w-5 h-5 text-white/70" />
+              </button>
             </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Title (optional)</label>
-              <input
-                type="text"
-                value={seasonForm.title}
-                onChange={(e) => setSeasonForm({ ...seasonForm, title: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                placeholder="e.g. The Beginning"
-              />
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Season Number</label>
+                <input
+                  type="number"
+                  value={seasonForm.seasonNumber}
+                  onChange={(e) => setSeasonForm({ ...seasonForm, seasonNumber: Number.parseInt(e.target.value) })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Title (optional)</label>
+                <input
+                  type="text"
+                  value={seasonForm.title}
+                  onChange={(e) => setSeasonForm({ ...seasonForm, title: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="e.g., The Beginning"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Description (optional)</label>
+                <textarea
+                  value={seasonForm.description}
+                  onChange={(e) => setSeasonForm({ ...seasonForm, description: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="Season description"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Description</label>
-              <textarea
-                value={seasonForm.description}
-                onChange={(e) => setSeasonForm({ ...seasonForm, description: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white h-20 resize-none"
-                placeholder="Season description"
-              />
-            </div>
-            <div className="flex gap-3 pt-4">
+            <div className="p-6 border-t border-white/10 flex gap-3">
               <button
                 onClick={() => setShowSeasonModal(false)}
-                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+                className="flex-1 px-4 py-3 bg-white/5 text-white rounded-xl hover:bg-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveSeason}
                 disabled={saving}
-                className="flex-1 px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save
+                {saving && <Loader className="w-4 h-4 animate-spin" />}
+                {editingSeason ? "Update" : "Create"}
               </button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Episode Modal */}
-      <Dialog open={showEpisodeModal} onOpenChange={setShowEpisodeModal}>
-        <DialogContent className="bg-[#1a1a2e] border-white/10 text-white max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingEpisode ? "Edit Episode" : "Add New Episode"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-white/70 text-sm mb-1">Episode Number *</label>
-                <input
-                  type="number"
-                  value={episodeForm.episodeNumber}
-                  onChange={(e) => setEpisodeForm({ ...episodeForm, episodeNumber: Number.parseInt(e.target.value) })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                  min="1"
-                />
+      {showEpisodeModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white">{editingEpisode ? "Edit Episode" : "Add New Episode"}</h3>
+              <button onClick={() => setShowEpisodeModal(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                <X className="w-5 h-5 text-white/70" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-white/70 text-sm mb-1 block">Episode Number</label>
+                  <input
+                    type="number"
+                    value={episodeForm.episodeNumber}
+                    onChange={(e) => setEpisodeForm({ ...episodeForm, episodeNumber: Number.parseInt(e.target.value) })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/70 text-sm mb-1 block">Duration (min)</label>
+                  <input
+                    type="number"
+                    value={episodeForm.duration}
+                    onChange={(e) => setEpisodeForm({ ...episodeForm, duration: Number.parseInt(e.target.value) })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-white/70 text-sm mb-1">Duration</label>
+                <label className="text-white/70 text-sm mb-1 block">Title *</label>
                 <input
                   type="text"
-                  value={episodeForm.duration}
-                  onChange={(e) => setEpisodeForm({ ...episodeForm, duration: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                  placeholder="45 min"
+                  value={episodeForm.title}
+                  onChange={(e) => setEpisodeForm({ ...episodeForm, title: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="Episode title"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Description</label>
+                <textarea
+                  value={episodeForm.description}
+                  onChange={(e) => setEpisodeForm({ ...episodeForm, description: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="Episode description"
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Video URL *</label>
+                <input
+                  type="text"
+                  value={episodeForm.videoUrl}
+                  onChange={(e) => setEpisodeForm({ ...episodeForm, videoUrl: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className="text-white/70 text-sm mb-1 block">Thumbnail URL</label>
+                <input
+                  type="text"
+                  value={episodeForm.thumbnailUrl}
+                  onChange={(e) => setEpisodeForm({ ...episodeForm, thumbnailUrl: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="https://..."
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Title *</label>
-              <input
-                type="text"
-                value={episodeForm.title}
-                onChange={(e) => setEpisodeForm({ ...episodeForm, title: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                placeholder="Episode title"
-              />
-            </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Description</label>
-              <textarea
-                value={episodeForm.description}
-                onChange={(e) => setEpisodeForm({ ...episodeForm, description: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white h-20 resize-none"
-                placeholder="Episode description"
-              />
-            </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Video URL *</label>
-              <input
-                type="text"
-                value={episodeForm.videoUrl}
-                onChange={(e) => setEpisodeForm({ ...episodeForm, videoUrl: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                placeholder="https://... or embed URL"
-              />
-            </div>
-            <div>
-              <label className="block text-white/70 text-sm mb-1">Thumbnail URL</label>
-              <input
-                type="text"
-                value={episodeForm.thumbnailUrl}
-                onChange={(e) => setEpisodeForm({ ...episodeForm, thumbnailUrl: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-                placeholder="https://..."
-              />
-            </div>
-            <div className="flex gap-3 pt-4">
+            <div className="p-6 border-t border-white/10 flex gap-3">
               <button
                 onClick={() => setShowEpisodeModal(false)}
-                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+                className="flex-1 px-4 py-3 bg-white/5 text-white rounded-xl hover:bg-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEpisode}
-                disabled={saving || !episodeForm.title || !episodeForm.videoUrl}
-                className="flex-1 px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={saving}
+                className="flex-1 px-4 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save
+                {saving && <Loader className="w-4 h-4 animate-spin" />}
+                {editingEpisode ? "Update" : "Create"}
               </button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   )
 }

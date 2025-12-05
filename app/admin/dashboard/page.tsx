@@ -79,6 +79,7 @@ import { COUNTRIES, getCountryByName } from "@/lib/countries" // Added
 
 // Import SendPromoModal
 import { SendPromoModal } from "@/components/send-promo-modal" // Added SendPromoModal import
+import { AdminSeriesManager } from "@/components/admin-series-manager" // First add the import at the top with other imports
 
 // Update AdminTab type
 type AdminTab =
@@ -2806,92 +2807,7 @@ export default function AdminDashboard() {
           {activeTab === "series" && (
             <div className="space-y-6">
               <h3 className="text-2xl font-bold text-white mb-6">TV Series Management</h3>
-              <div className="flex flex-col md:flex-row gap-4 justify-between">
-                <div className="relative flex-1 max-w-md">
-                  <input
-                    type="text"
-                    placeholder="Search series..."
-                    // Add search functionality for series if needed
-                    // value={seriesSearch}
-                    // onChange={(e) => setSeriesSearch(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pl-10 text-white focus:outline-none focus:border-cyan-500/50"
-                  />
-                  <Search className="w-5 h-5 text-white/30 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                </div>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Filter
-                  </button>
-                  <button
-                    // onClick={() => setActiveTab("uploadSeries")} // Add handler for uploading series
-                    className="px-4 py-2 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 flex items-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Add New Series
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-white/5 border-b border-white/10">
-                      <tr>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Series</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Genre</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Seasons</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Episodes</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Status</th>
-                        <th className="px-6 py-4 text-xs font-bold text-white/60 uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {series.map(
-                        (
-                          s, // Use the 'series' state here
-                        ) => (
-                          <tr key={s.id} className="hover:bg-white/5 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-bold text-white">{s.title}</div>
-                            </td>
-                            <td className="px-6 py-4 text-white/70">{s.genre}</td>
-                            <td className="px-6 py-4 text-white/70">{s.seasons}</td>
-                            <td className="px-6 py-4 text-white/70">{s.episodesPerSeason}</td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`px-2 py-1 rounded text-xs font-bold border ${
-                                  s.status === "Published"
-                                    ? "bg-green-500/10 text-green-400 border-green-500/20"
-                                    : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                                }`}
-                              >
-                                {s.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex gap-2">
-                                <button
-                                  // onClick={() => handleEditSeries(s)} // Add series edit handler
-                                  className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-cyan-400 transition-colors"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  // onClick={() => handleDeleteSeries(s.id)} // Add series delete handler
-                                  className="p-2 hover:bg-white/10 rounded-lg text-white/70 hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <AdminSeriesManager /> {/* Find the series tab content and replace it with AdminSeriesManager */}
             </div>
           )}
         </div>

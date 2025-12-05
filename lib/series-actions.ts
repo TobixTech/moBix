@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { series, seasons, episodes, seriesWatchHistory, seriesWatchlist, seriesRatings } from "@/lib/db/schema"
+import { series, seasons, episodes, seriesWatchlist, seriesRatings } from "@/lib/db/schema"
 import { eq, desc, asc, sql, and, ilike, or } from "drizzle-orm"
 import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
@@ -30,7 +30,12 @@ export async function createSeries(data: {
     const result = await db
       .insert(series)
       .values({
-        ...data,
+        title: data.title,
+        description: data.description,
+        posterUrl: data.posterUrl,
+        bannerUrl: data.bannerUrl || null,
+        genre: data.genre,
+        releaseYear: data.releaseYear,
         slug,
         status: data.status || "ongoing",
       })
@@ -60,7 +65,7 @@ export async function updateSeries(
   },
 ) {
   try {
-    const updateData: any = { ...data }
+    const updateData: Record<string, unknown> = { ...data }
     if (data.title) {
       updateData.slug = generateSlug(data.title)
     }
@@ -170,14 +175,27 @@ export async function createSeason(data: {
   releaseYear?: number
 }) {
   try {
-    const result = await db.insert(seasons).values(data).returning()
+    const result = await db
+      .insert(seasons)
+      .values({
+        seriesId: data.seriesId,
+        seasonNumber: data.seasonNumber,
+        title: data.title || null,
+        description: data.description || null,
+        posterUrl: data.posterUrl || null,
+        releaseYear: data.releaseYear || null,
+      })
+      .returning()
 
     // Update series total seasons count
+    const seasonCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(seasons)
+      .where(eq(seasons.seriesId, data.seriesId))
+
     await db
       .update(series)
-      .set({
-        totalSeasons: sql`(SELECT COUNT(*) FROM "Season" WHERE "seriesId" = ${data.seriesId})`,
-      })
+      .set({ totalSeasons: Number(seasonCount[0]?.count || 0) })
       .where(eq(series.id, data.seriesId))
 
     revalidatePath("/admin/dashboard")
@@ -213,12 +231,16 @@ export async function deleteSeason(id: string) {
     const season = await db.select().from(seasons).where(eq(seasons.id, id)).limit(1)
     if (season[0]) {
       await db.delete(seasons).where(eq(seasons.id, id))
+
       // Update series total seasons count
+      const seasonCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(seasons)
+        .where(eq(seasons.seriesId, season[0].seriesId))
+
       await db
         .update(series)
-        .set({
-          totalSeasons: sql`(SELECT COUNT(*) FROM "Season" WHERE "seriesId" = ${season[0].seriesId})`,
-        })
+        .set({ totalSeasons: Number(seasonCount[0]?.count || 0) })
         .where(eq(series.id, season[0].seriesId))
     }
     revalidatePath("/admin/dashboard")
@@ -257,24 +279,44 @@ export async function createEpisode(data: {
   downloadEnabled?: boolean
 }) {
   try {
-    const result = await db.insert(episodes).values(data).returning()
+    const result = await db
+      .insert(episodes)
+      .values({
+        seasonId: data.seasonId,
+        episodeNumber: data.episodeNumber,
+        title: data.title,
+        description: data.description || null,
+        duration: data.duration || null,
+        thumbnailUrl: data.thumbnailUrl || null,
+        videoUrl: data.videoUrl,
+        downloadUrl: data.downloadUrl || null,
+        downloadEnabled: data.downloadEnabled || false,
+      })
+      .returning()
 
     // Update season total episodes count
     const season = await db.select().from(seasons).where(eq(seasons.id, data.seasonId)).limit(1)
     if (season[0]) {
+      const episodeCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(episodes)
+        .where(eq(episodes.seasonId, data.seasonId))
+
       await db
         .update(seasons)
-        .set({
-          totalEpisodes: sql`(SELECT COUNT(*) FROM "Episode" WHERE "seasonId" = ${data.seasonId})`,
-        })
+        .set({ totalEpisodes: Number(episodeCount[0]?.count || 0) })
         .where(eq(seasons.id, data.seasonId))
 
       // Update series total episodes count
+      const totalEpisodes = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(episodes)
+        .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
+        .where(eq(seasons.seriesId, season[0].seriesId))
+
       await db
         .update(series)
-        .set({
-          totalEpisodes: sql`(SELECT COUNT(*) FROM "Episode" e JOIN "Season" s ON e."seasonId" = s."id" WHERE s."seriesId" = ${season[0].seriesId})`,
-        })
+        .set({ totalEpisodes: Number(totalEpisodes[0]?.count || 0) })
         .where(eq(series.id, season[0].seriesId))
     }
 
@@ -314,22 +356,30 @@ export async function deleteEpisode(id: string) {
     const episode = await db.select().from(episodes).where(eq(episodes.id, id)).limit(1)
     if (episode[0]) {
       await db.delete(episodes).where(eq(episodes.id, id))
+
       const season = await db.select().from(seasons).where(eq(seasons.id, episode[0].seasonId)).limit(1)
       if (season[0]) {
         // Update season total episodes count
+        const episodeCount = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(episodes)
+          .where(eq(episodes.seasonId, episode[0].seasonId))
+
         await db
           .update(seasons)
-          .set({
-            totalEpisodes: sql`(SELECT COUNT(*) FROM "Episode" WHERE "seasonId" = ${episode[0].seasonId})`,
-          })
+          .set({ totalEpisodes: Number(episodeCount[0]?.count || 0) })
           .where(eq(seasons.id, episode[0].seasonId))
 
         // Update series total episodes count
+        const totalEpisodes = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(episodes)
+          .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
+          .where(eq(seasons.seriesId, season[0].seriesId))
+
         await db
           .update(series)
-          .set({
-            totalEpisodes: sql`(SELECT COUNT(*) FROM "Episode" e JOIN "Season" s ON e."seasonId" = s."id" WHERE s."seriesId" = ${season[0].seriesId})`,
-          })
+          .set({ totalEpisodes: Number(totalEpisodes[0]?.count || 0) })
           .where(eq(series.id, season[0].seriesId))
       }
     }
@@ -408,206 +458,7 @@ export async function getSeriesWithSeasons(seriesIdOrSlug: string) {
   }
 }
 
-// ============ USER ACTIONS ============
-
-export async function addToSeriesWatchlist(seriesId: string) {
-  try {
-    const { userId: clerkId } = await auth()
-    if (!clerkId) return { success: false, error: "Not authenticated" }
-
-    const user = await db
-      .select()
-      .from(require("@/lib/db/schema").users)
-      .where(eq(require("@/lib/db/schema").users.clerkId, clerkId))
-      .limit(1)
-    if (!user[0]) return { success: false, error: "User not found" }
-
-    await db.insert(seriesWatchlist).values({ userId: user[0].id, seriesId }).onConflictDoNothing()
-
-    revalidatePath("/watchlist")
-    return { success: true }
-  } catch (error) {
-    console.error("Error adding to series watchlist:", error)
-    return { success: false, error: "Failed to add to watchlist" }
-  }
-}
-
-export async function removeFromSeriesWatchlist(seriesId: string) {
-  try {
-    const { userId: clerkId } = await auth()
-    if (!clerkId) return { success: false, error: "Not authenticated" }
-
-    const user = await db
-      .select()
-      .from(require("@/lib/db/schema").users)
-      .where(eq(require("@/lib/db/schema").users.clerkId, clerkId))
-      .limit(1)
-    if (!user[0]) return { success: false, error: "User not found" }
-
-    await db
-      .delete(seriesWatchlist)
-      .where(and(eq(seriesWatchlist.userId, user[0].id), eq(seriesWatchlist.seriesId, seriesId)))
-
-    revalidatePath("/watchlist")
-    return { success: true }
-  } catch (error) {
-    console.error("Error removing from series watchlist:", error)
-    return { success: false, error: "Failed to remove from watchlist" }
-  }
-}
-
-export async function isSeriesInWatchlist(seriesId: string) {
-  try {
-    const { userId: clerkId } = await auth()
-    if (!clerkId) return false
-
-    const user = await db
-      .select()
-      .from(require("@/lib/db/schema").users)
-      .where(eq(require("@/lib/db/schema").users.clerkId, clerkId))
-      .limit(1)
-    if (!user[0]) return false
-
-    const result = await db
-      .select()
-      .from(seriesWatchlist)
-      .where(and(eq(seriesWatchlist.userId, user[0].id), eq(seriesWatchlist.seriesId, seriesId)))
-      .limit(1)
-
-    return result.length > 0
-  } catch (error) {
-    console.error("Error checking series watchlist:", error)
-    return false
-  }
-}
-
-export async function rateSeriesAction(seriesId: string, rating: number) {
-  try {
-    const { userId: clerkId } = await auth()
-    if (!clerkId) return { success: false, error: "Not authenticated" }
-
-    const user = await db
-      .select()
-      .from(require("@/lib/db/schema").users)
-      .where(eq(require("@/lib/db/schema").users.clerkId, clerkId))
-      .limit(1)
-    if (!user[0]) return { success: false, error: "User not found" }
-
-    await db
-      .insert(seriesRatings)
-      .values({ userId: user[0].id, seriesId, rating })
-      .onConflictDoUpdate({
-        target: [seriesRatings.userId, seriesRatings.seriesId],
-        set: { rating },
-      })
-
-    // Update average rating
-    const avgResult = await db
-      .select({ avg: sql<number>`AVG(rating)` })
-      .from(seriesRatings)
-      .where(eq(seriesRatings.seriesId, seriesId))
-
-    await db
-      .update(series)
-      .set({ averageRating: String(avgResult[0]?.avg || 0) })
-      .where(eq(series.id, seriesId))
-
-    revalidatePath(`/series/${seriesId}`)
-    return { success: true }
-  } catch (error) {
-    console.error("Error rating series:", error)
-    return { success: false, error: "Failed to rate series" }
-  }
-}
-
-export async function updateEpisodeWatchProgress(
-  episodeId: string,
-  seriesId: string,
-  progress: number,
-  duration: number,
-) {
-  try {
-    const { userId: clerkId } = await auth()
-    if (!clerkId) return { success: false }
-
-    const user = await db
-      .select()
-      .from(require("@/lib/db/schema").users)
-      .where(eq(require("@/lib/db/schema").users.clerkId, clerkId))
-      .limit(1)
-    if (!user[0]) return { success: false }
-
-    await db
-      .insert(seriesWatchHistory)
-      .values({
-        userId: user[0].id,
-        seriesId,
-        episodeId,
-        progress,
-        duration,
-      })
-      .onConflictDoUpdate({
-        target: [seriesWatchHistory.userId, seriesWatchHistory.episodeId],
-        set: { progress, duration, watchedAt: new Date() },
-      })
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error updating episode watch progress:", error)
-    return { success: false }
-  }
-}
-
-export async function getContinueWatchingSeries() {
-  try {
-    const { userId: clerkId } = await auth()
-    if (!clerkId) return []
-
-    const user = await db
-      .select()
-      .from(require("@/lib/db/schema").users)
-      .where(eq(require("@/lib/db/schema").users.clerkId, clerkId))
-      .limit(1)
-    if (!user[0]) return []
-
-    const result = await db
-      .select({
-        series: series,
-        episode: episodes,
-        season: seasons,
-        progress: seriesWatchHistory.progress,
-        watchedAt: seriesWatchHistory.watchedAt,
-      })
-      .from(seriesWatchHistory)
-      .innerJoin(series, eq(seriesWatchHistory.seriesId, series.id))
-      .innerJoin(episodes, eq(seriesWatchHistory.episodeId, episodes.id))
-      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
-      .where(
-        and(
-          eq(seriesWatchHistory.userId, user[0].id),
-          sql`${seriesWatchHistory.progress} > 5`,
-          sql`${seriesWatchHistory.progress} < 95`,
-        ),
-      )
-      .orderBy(desc(seriesWatchHistory.watchedAt))
-      .limit(10)
-
-    return result
-  } catch (error) {
-    console.error("Error fetching continue watching series:", error)
-    return []
-  }
-}
-
-export async function getSeriesGenres() {
-  try {
-    const result = await db.selectDistinct({ genre: series.genre }).from(series).orderBy(asc(series.genre))
-    return result.map((r) => r.genre)
-  } catch (error) {
-    console.error("Error fetching series genres:", error)
-    return []
-  }
-}
+// ============ ADMIN FUNCTIONS ============
 
 export async function getAdminSeries() {
   try {
@@ -630,16 +481,16 @@ export async function getAdminSeries() {
               .where(eq(episodes.seasonId, season.id))
               .orderBy(asc(episodes.episodeNumber))
             return {
-              id: Number(season.id),
+              id: season.id,
               seasonNumber: season.seasonNumber,
               title: season.title,
               description: season.description,
               episodes: episodesData.map((ep) => ({
-                id: Number(ep.id),
+                id: ep.id,
                 episodeNumber: ep.episodeNumber,
                 title: ep.title,
                 description: ep.description,
-                duration: ep.duration ? String(ep.duration) : null,
+                duration: ep.duration,
                 videoUrl: ep.videoUrl,
                 thumbnailUrl: ep.thumbnailUrl,
               })),
@@ -648,7 +499,7 @@ export async function getAdminSeries() {
         )
 
         return {
-          id: Number(s.id),
+          id: s.id,
           title: s.title,
           description: s.description,
           posterUrl: s.posterUrl,
@@ -666,5 +517,116 @@ export async function getAdminSeries() {
   } catch (error) {
     console.error("Error fetching admin series:", error)
     return []
+  }
+}
+
+// ============ USER ACTIONS ============
+
+export async function addToSeriesWatchlist(seriesId: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return { success: false, error: "Not authenticated" }
+
+    const { users } = await import("@/lib/db/schema")
+    const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!user[0]) return { success: false, error: "User not found" }
+
+    await db.insert(seriesWatchlist).values({ userId: user[0].id, seriesId }).onConflictDoNothing()
+
+    revalidatePath("/watchlist")
+    return { success: true }
+  } catch (error) {
+    console.error("Error adding to series watchlist:", error)
+    return { success: false, error: "Failed to add to watchlist" }
+  }
+}
+
+export async function removeFromSeriesWatchlist(seriesId: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return { success: false, error: "Not authenticated" }
+
+    const { users } = await import("@/lib/db/schema")
+    const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!user[0]) return { success: false, error: "User not found" }
+
+    await db
+      .delete(seriesWatchlist)
+      .where(and(eq(seriesWatchlist.userId, user[0].id), eq(seriesWatchlist.seriesId, seriesId)))
+
+    revalidatePath("/watchlist")
+    return { success: true }
+  } catch (error) {
+    console.error("Error removing from series watchlist:", error)
+    return { success: false, error: "Failed to remove from watchlist" }
+  }
+}
+
+export async function getSeriesGenres() {
+  try {
+    const result = await db.selectDistinct({ genre: series.genre }).from(series).orderBy(asc(series.genre))
+    return result.map((r) => r.genre).filter(Boolean) as string[]
+  } catch (error) {
+    console.error("Error fetching series genres:", error)
+    return []
+  }
+}
+
+export async function isSeriesInWatchlist(seriesId: string): Promise<boolean> {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return false
+
+    const { users } = await import("@/lib/db/schema")
+    const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!user[0]) return false
+
+    const result = await db
+      .select()
+      .from(seriesWatchlist)
+      .where(and(eq(seriesWatchlist.userId, user[0].id), eq(seriesWatchlist.seriesId, seriesId)))
+      .limit(1)
+
+    return result.length > 0
+  } catch (error) {
+    console.error("Error checking series watchlist:", error)
+    return false
+  }
+}
+
+export async function rateSeriesAction(seriesId: string, rating: number) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return { success: false, error: "Not authenticated" }
+
+    const { users } = await import("@/lib/db/schema")
+    const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!user[0]) return { success: false, error: "User not found" }
+
+    // Upsert the rating
+    await db
+      .insert(seriesRatings)
+      .values({ userId: user[0].id, seriesId, rating })
+      .onConflictDoUpdate({
+        target: [seriesRatings.userId, seriesRatings.seriesId],
+        set: { rating },
+      })
+
+    // Update average rating on series
+    const avgResult = await db
+      .select({ avg: sql<number>`AVG(rating)` })
+      .from(seriesRatings)
+      .where(eq(seriesRatings.seriesId, seriesId))
+
+    await db
+      .update(series)
+      .set({ averageRating: String(avgResult[0]?.avg?.toFixed(1) || "0") })
+      .where(eq(series.id, seriesId))
+
+    revalidatePath(`/series/${seriesId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error rating series:", error)
+    return { success: false, error: "Failed to rate series" }
   }
 }
