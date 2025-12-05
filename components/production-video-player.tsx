@@ -171,6 +171,7 @@ export default function ProductionVideoPlayer({
   const isEmbedUrl = (url: string) => {
     return (
       url.includes("youtube.com/embed") ||
+      url.includes("youtube.com/watch") ||
       url.includes("youtu.be") ||
       url.includes("vimeo.com") ||
       url.includes("dailymotion.com") ||
@@ -181,14 +182,22 @@ export default function ProductionVideoPlayer({
   }
 
   const getEmbedUrl = (url: string) => {
+    // YouTube watch URL
     if (url.includes("youtube.com/watch")) {
       const videoId = new URL(url).searchParams.get("v")
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1`
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`
     }
+    // YouTube short URL
     if (url.includes("youtu.be/")) {
       const videoId = url.split("youtu.be/")[1].split("?")[0]
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1`
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`
     }
+    // YouTube embed URL - ensure autoplay
+    if (url.includes("youtube.com/embed")) {
+      const hasParams = url.includes("?")
+      return hasParams ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
+    }
+    // Vimeo URL
     if (url.includes("vimeo.com/") && !url.includes("/video/")) {
       const videoId = url.split("vimeo.com/")[1].split("?")[0]
       return `https://player.vimeo.com/video/${videoId}?autoplay=1`
@@ -225,14 +234,16 @@ export default function ProductionVideoPlayer({
       {showVideo && (
         <>
           {isEmbedUrl(videoUrl) ? (
-            <iframe
-              src={getEmbedUrl(videoUrl)}
-              title={title}
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{ border: "none" }}
-            />
+            <div className="w-full h-full">
+              <iframe
+                src={getEmbedUrl(videoUrl)}
+                title={title}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowFullScreen
+                style={{ border: "none" }}
+              />
+            </div>
           ) : (
             <video
               ref={videoRef}

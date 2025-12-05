@@ -4,6 +4,7 @@ import { useRef } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import SeriesCard from "./series-card"
+import { AdBannerClient } from "./ad-banner-client"
 
 interface Series {
   id: string
@@ -22,9 +23,10 @@ interface SeriesCarouselProps {
   title: string
   series: Series[]
   showSeeMore?: boolean
+  showAds?: boolean
 }
 
-export default function SeriesCarousel({ title, series, showSeeMore = true }: SeriesCarouselProps) {
+export default function SeriesCarousel({ title, series, showSeeMore = true, showAds = true }: SeriesCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const scroll = (direction: "left" | "right") => {
@@ -38,6 +40,15 @@ export default function SeriesCarousel({ title, series, showSeeMore = true }: Se
   }
 
   if (series.length === 0) return null
+
+  // Insert ads after every 2 series
+  const seriesWithAds: (Series | { isAd: true; index: number })[] = []
+  series.forEach((s, index) => {
+    seriesWithAds.push(s)
+    if (showAds && (index + 1) % 2 === 0 && index < series.length - 1) {
+      seriesWithAds.push({ isAd: true, index })
+    }
+  })
 
   return (
     <div className="relative group">
@@ -63,11 +74,20 @@ export default function SeriesCarousel({ title, series, showSeeMore = true }: Se
           className="flex gap-4 overflow-x-auto scrollbar-hide pb-4"
           style={{ scrollSnapType: "x mandatory" }}
         >
-          {series.map((s) => (
-            <div key={s.id} style={{ scrollSnapAlign: "start" }}>
-              <SeriesCard series={s} />
-            </div>
-          ))}
+          {seriesWithAds.map((item, index) => {
+            if ("isAd" in item) {
+              return (
+                <div key={`ad-${item.index}`} className="flex-shrink-0 w-[200px]" style={{ scrollSnapAlign: "start" }}>
+                  <AdBannerClient type="vertical" placement="seriesCarousel" />
+                </div>
+              )
+            }
+            return (
+              <div key={item.id} style={{ scrollSnapAlign: "start" }}>
+                <SeriesCard series={item} />
+              </div>
+            )
+          })}
         </div>
 
         <button

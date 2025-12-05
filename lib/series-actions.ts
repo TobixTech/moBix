@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { series, seasons, episodes, seriesWatchlist, seriesRatings } from "@/lib/db/schema"
+import { series, seasons, episodes, seriesWatchlist, seriesRatings, users } from "@/lib/db/schema"
 import { eq, desc, asc, sql, and, ilike, or } from "drizzle-orm"
 import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
@@ -188,7 +188,6 @@ export async function createSeason(data: {
       })
       .returning()
 
-    // Update series total seasons count
     const seasonCount = await db
       .select({ count: sql<number>`count(*)` })
       .from(seasons)
@@ -233,7 +232,6 @@ export async function deleteSeason(id: string) {
     if (season[0]) {
       await db.delete(seasons).where(eq(seasons.id, id))
 
-      // Update series total seasons count
       const seasonCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(seasons)
@@ -295,7 +293,6 @@ export async function createEpisode(data: {
       })
       .returning()
 
-    // Update season total episodes count
     const season = await db.select().from(seasons).where(eq(seasons.id, data.seasonId)).limit(1)
     if (season[0]) {
       const episodeCount = await db
@@ -308,7 +305,6 @@ export async function createEpisode(data: {
         .set({ totalEpisodes: Number(episodeCount[0]?.count || 0) })
         .where(eq(seasons.id, data.seasonId))
 
-      // Update series total episodes count
       const totalEpisodes = await db
         .select({ count: sql<number>`count(*)` })
         .from(episodes)
@@ -360,7 +356,6 @@ export async function deleteEpisode(id: string) {
 
       const season = await db.select().from(seasons).where(eq(seasons.id, episode[0].seasonId)).limit(1)
       if (season[0]) {
-        // Update season total episodes count
         const episodeCount = await db
           .select({ count: sql<number>`count(*)` })
           .from(episodes)
@@ -371,7 +366,6 @@ export async function deleteEpisode(id: string) {
           .set({ totalEpisodes: Number(episodeCount[0]?.count || 0) })
           .where(eq(seasons.id, episode[0].seasonId))
 
-        // Update series total episodes count
         const totalEpisodes = await db
           .select({ count: sql<number>`count(*)` })
           .from(episodes)
@@ -436,7 +430,6 @@ export async function getSeriesWithSeasons(seriesIdOrSlug: string) {
       .where(eq(seasons.seriesId, seriesData[0].id))
       .orderBy(asc(seasons.seasonNumber))
 
-    // Get episodes for each season
     const seasonsWithEpisodes = await Promise.all(
       seasonsData.map(async (season) => {
         const episodesData = await db
@@ -448,7 +441,6 @@ export async function getSeriesWithSeasons(seriesIdOrSlug: string) {
       }),
     )
 
-    // Increment view count
     await db
       .update(series)
       .set({ views: sql`${series.views} + 1` })
@@ -467,7 +459,6 @@ export async function getAdminSeries() {
   try {
     const allSeries = await db.select().from(series).orderBy(desc(series.createdAt))
 
-    // Get seasons and episodes for each series
     const seriesWithDetails = await Promise.all(
       allSeries.map(async (s) => {
         const seasonsData = await db
@@ -530,7 +521,6 @@ export async function addToSeriesWatchlist(seriesId: string) {
     const { userId: clerkId } = await auth()
     if (!clerkId) return { success: false, error: "Not authenticated" }
 
-    const { users } = await import("@/lib/db/schema")
     const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
     if (!user[0]) return { success: false, error: "User not found" }
 
@@ -549,7 +539,6 @@ export async function removeFromSeriesWatchlist(seriesId: string) {
     const { userId: clerkId } = await auth()
     if (!clerkId) return { success: false, error: "Not authenticated" }
 
-    const { users } = await import("@/lib/db/schema")
     const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
     if (!user[0]) return { success: false, error: "User not found" }
 
@@ -580,7 +569,6 @@ export async function isSeriesInWatchlist(seriesId: string): Promise<boolean> {
     const { userId: clerkId } = await auth()
     if (!clerkId) return false
 
-    const { users } = await import("@/lib/db/schema")
     const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
     if (!user[0]) return false
 
@@ -602,11 +590,9 @@ export async function rateSeriesAction(seriesId: string, rating: number) {
     const { userId: clerkId } = await auth()
     if (!clerkId) return { success: false, error: "Not authenticated" }
 
-    const { users } = await import("@/lib/db/schema")
     const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
     if (!user[0]) return { success: false, error: "User not found" }
 
-    // Upsert the rating
     await db
       .insert(seriesRatings)
       .values({ userId: user[0].id, seriesId, rating })
@@ -615,7 +601,6 @@ export async function rateSeriesAction(seriesId: string, rating: number) {
         set: { rating },
       })
 
-    // Update average rating on series
     const avgResult = await db
       .select({ avg: sql<number>`AVG(rating)` })
       .from(seriesRatings)
@@ -631,5 +616,66 @@ export async function rateSeriesAction(seriesId: string, rating: number) {
   } catch (error) {
     console.error("Error rating series:", error)
     return { success: false, error: "Failed to rate series" }
+  }
+}
+
+// ============ SERIES LIKES ============
+
+export async function toggleSeriesLike(seriesId: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return { success: false, error: "Not authenticated" }
+
+    const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!user[0]) return { success: false, error: "User not found" }
+
+    const existing = await db
+      .select()
+      .from(seriesWatchlist)
+      .where(and(eq(seriesWatchlist.userId, user[0].id), eq(seriesWatchlist.seriesId, seriesId)))
+      .limit(1)
+
+    if (existing[0]) {
+      await db
+        .delete(seriesWatchlist)
+        .where(and(eq(seriesWatchlist.userId, user[0].id), eq(seriesWatchlist.seriesId, seriesId)))
+      return { success: true, liked: false }
+    } else {
+      await db.insert(seriesWatchlist).values({ userId: user[0].id, seriesId }).onConflictDoNothing()
+      return { success: true, liked: true }
+    }
+  } catch (error) {
+    console.error("Error toggling series like:", error)
+    return { success: false, error: "Failed to toggle like" }
+  }
+}
+
+// ============ SERIES COMMENTS ============
+
+export async function addSeriesComment(seriesId: string, text: string, rating: number) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return { success: false, error: "Not authenticated" }
+
+    const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!user[0]) return { success: false, error: "User not found" }
+
+    const comment = {
+      id: crypto.randomUUID(),
+      text,
+      rating,
+      createdAt: new Date(),
+      user: {
+        email: user[0].email,
+        firstName: user[0].firstName,
+        displayName: user[0].username || user[0].firstName || user[0].email.split("@")[0],
+      },
+    }
+
+    revalidatePath(`/series/${seriesId}`)
+    return { success: true, comment }
+  } catch (error) {
+    console.error("Error adding series comment:", error)
+    return { success: false, error: "Failed to add comment" }
   }
 }

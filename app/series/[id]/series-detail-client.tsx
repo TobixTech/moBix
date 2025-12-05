@@ -4,12 +4,30 @@ import type React from "react"
 
 import { useState } from "react"
 import { useUser } from "@clerk/nextjs"
-import { Play, Plus, Check, ChevronDown, ChevronUp, Star, Calendar, Tv, Clock } from "lucide-react"
+import { Play, Plus, Check, ChevronDown, ChevronUp, Star, Calendar, Tv, Clock, Heart, Send, Loader } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import ProductionVideoPlayer from "@/components/production-video-player"
 import StarRating from "@/components/star-rating"
-import { addToSeriesWatchlist, removeFromSeriesWatchlist, rateSeriesAction } from "@/lib/series-actions"
+import {
+  addToSeriesWatchlist,
+  removeFromSeriesWatchlist,
+  rateSeriesAction,
+  addSeriesComment,
+  toggleSeriesLike,
+} from "@/lib/series-actions"
 import { toast } from "sonner"
+
+interface Comment {
+  id: string
+  text: string
+  rating: number
+  createdAt: Date
+  user: {
+    email: string
+    firstName?: string | null
+    displayName?: string
+  }
+}
 
 interface Episode {
   id: string
@@ -26,6 +44,7 @@ interface Season {
   seasonNumber: number
   title?: string
   description?: string
+  releaseYear?: number
   episodes: Episode[]
 }
 
@@ -43,12 +62,15 @@ interface Series {
   totalEpisodes: number
   averageRating?: string | number | null
   views: number
+  likesCount?: number
   seasons: Season[]
+  comments?: Comment[]
 }
 
 interface SeriesDetailClientProps {
   series: Series
   inWatchlist: boolean
+  isLiked?: boolean
   adSettings: {
     prerollEnabled: boolean
     prerollAdCodes: { name: string; code: string }[]
@@ -63,17 +85,27 @@ interface SeriesDetailClientProps {
 export default function SeriesDetailClient({
   series,
   inWatchlist: initialInWatchlist,
+  isLiked: initialIsLiked = false,
   adSettings,
   adBannerHorizontal,
   adBannerVertical,
 }: SeriesDetailClientProps) {
   const { isSignedIn } = useUser()
   const [inWatchlist, setInWatchlist] = useState(initialInWatchlist)
+  const [isLiked, setIsLiked] = useState(initialIsLiked)
+  const [likesCount, setLikesCount] = useState(series.likesCount || 0)
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(series.seasons[0] || null)
   const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null)
   const [expandedSeasons, setExpandedSeasons] = useState<Set<string>>(new Set([series.seasons[0]?.id]))
   const [userRating, setUserRating] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLiking, setIsLiking] = useState(false)
+
+  // Comment state
+  const [commentText, setCommentText] = useState("")
+  const [commentRating, setCommentRating] = useState(5)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [comments, setComments] = useState<Comment[]>(series.comments || [])
 
   const rating =
     typeof series.averageRating === "string" ? Number.parseFloat(series.averageRating) : series.averageRating || 0
@@ -101,6 +133,25 @@ export default function SeriesDetailClient({
     setIsLoading(false)
   }
 
+  const handleLike = async () => {
+    if (!isSignedIn) {
+      toast.error("Please sign in to like")
+      return
+    }
+
+    setIsLiking(true)
+    try {
+      const result = await toggleSeriesLike(series.id)
+      if (result.success) {
+        setIsLiked(result.liked || false)
+        setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
+      }
+    } catch (error) {
+      toast.error("Failed to like")
+    }
+    setIsLiking(false)
+  }
+
   const handleRating = async (rating: number) => {
     if (!isSignedIn) {
       toast.error("Please sign in to rate")
@@ -112,6 +163,33 @@ export default function SeriesDetailClient({
     if (result.success) {
       toast.success("Rating saved")
     }
+  }
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!isSignedIn) {
+      toast.error("Please sign in to comment")
+      return
+    }
+
+    if (commentText.trim().length < 10) {
+      toast.error("Comment must be at least 10 characters")
+      return
+    }
+
+    setIsSubmitting(true)
+    const result = await addSeriesComment(series.id, commentText, commentRating)
+
+    if (result.success && result.comment) {
+      setComments((prev) => [result.comment as Comment, ...prev])
+      setCommentText("")
+      setCommentRating(5)
+      toast.success("Comment posted")
+    } else {
+      toast.error(result.error || "Failed to post comment")
+    }
+    setIsSubmitting(false)
   }
 
   const toggleSeason = (seasonId: string) => {
@@ -222,13 +300,13 @@ export default function SeriesDetailClient({
             <p className="text-white/80 text-lg mb-6 max-w-3xl">{series.description}</p>
 
             {/* Actions */}
-            <div className="flex flex-wrap gap-4 mb-8">
+            <div className="flex flex-wrap gap-3 mb-8">
               {series.seasons.length > 0 && series.seasons[0].episodes.length > 0 && (
                 <button
                   onClick={() => playEpisode(series.seasons[0].episodes[0])}
-                  className="flex items-center gap-2 px-8 py-4 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition"
+                  className="flex items-center gap-2 px-6 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition"
                 >
-                  <Play className="w-6 h-6" />
+                  <Play className="w-5 h-5" />
                   Play S1:E1
                 </button>
               )}
@@ -236,14 +314,31 @@ export default function SeriesDetailClient({
               <button
                 onClick={handleWatchlistToggle}
                 disabled={isLoading}
-                className={`flex items-center gap-2 px-6 py-4 rounded-xl font-bold transition ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition ${
                   inWatchlist
                     ? "bg-green-500/20 text-green-400 border border-green-500/30"
                     : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
                 }`}
               >
                 {inWatchlist ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                {inWatchlist ? "In Watchlist" : "Add to Watchlist"}
+                {inWatchlist ? "In Watchlist" : "Watchlist"}
+              </button>
+
+              <button
+                onClick={handleLike}
+                disabled={isLiking}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition ${
+                  isLiked
+                    ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                    : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                }`}
+              >
+                {isLiking ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Heart className={`w-5 h-5 ${isLiked ? "fill-cyan-400" : ""}`} />
+                )}
+                <span>{likesCount}</span>
               </button>
             </div>
 
@@ -267,10 +362,11 @@ export default function SeriesDetailClient({
           </div>
         </div>
 
-        {adBannerHorizontal}
+        {/* Ad Banner */}
+        <div className="my-6">{adBannerHorizontal}</div>
 
         {/* Seasons & Episodes */}
-        <div className="mt-12">
+        <div className="mt-8">
           <h2 className="text-2xl font-bold text-white mb-6">Seasons & Episodes</h2>
 
           <div className="space-y-4">
@@ -369,7 +465,98 @@ export default function SeriesDetailClient({
           </div>
         </div>
 
-        <div className="mt-8">{adBannerHorizontal}</div>
+        {/* Ad Banner */}
+        <div className="my-8">{adBannerHorizontal}</div>
+
+        {/* Comments Section */}
+        <div className="mt-8 mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6">Reviews & Comments</h2>
+
+          {/* Add Comment Form */}
+          <form onSubmit={handleCommentSubmit} className="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+            <div className="mb-4">
+              <label className="block text-white font-medium mb-2">Your Rating</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setCommentRating(star)}
+                    className="transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className={`w-8 h-8 ${star <= commentRating ? "fill-cyan-400 text-cyan-400" : "text-white/20"}`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-white font-medium mb-2">Your Comment</label>
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Share your thoughts about this series..."
+                rows={4}
+                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-500 transition resize-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full px-6 py-3 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader className="w-5 h-5 animate-spin" />
+                  <span>Posting...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  <span>Post Comment</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Comments List */}
+          <div className="space-y-4">
+            {comments.length === 0 ? (
+              <p className="text-white/50 text-center py-8">No comments yet. Be the first to comment!</p>
+            ) : (
+              comments.map((comment) => (
+                <motion.div
+                  key={comment.id}
+                  className="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-cyan-500/30 transition"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="text-white font-bold">
+                      {comment.user.displayName || comment.user.firstName || comment.user.email.split("@")[0]}
+                    </h4>
+                    <div className="flex gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${i < comment.rating ? "fill-cyan-400 text-cyan-400" : "text-white/20"}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-white/80">{comment.text}</p>
+                  <p className="text-white/40 text-xs mt-2">{new Date(comment.createdAt).toLocaleDateString()}</p>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar Ad */}
+        <div className="mb-8">{adBannerVertical}</div>
       </div>
     </div>
   )
