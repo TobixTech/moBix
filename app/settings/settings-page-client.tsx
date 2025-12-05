@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import { User, Bell, Shield, Palette, Trash2, Save, Loader2, Check, Globe, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -10,13 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import {
-  updateUserProfile,
-  saveUserSettings,
-  getUserSettings,
-  updateUserCountry,
-  getCurrentUserDetails,
-} from "@/lib/server-actions"
+import { updateUserProfile, getCurrentUserDetails } from "@/lib/server-actions"
 import { useClerk } from "@clerk/nextjs"
 import { COUNTRIES } from "@/lib/countries"
 
@@ -36,8 +30,6 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
   const { signOut } = useClerk()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [savingNotifications, setSavingNotifications] = useState(false)
-  const [savingPrivacy, setSavingPrivacy] = useState(false)
   const [loadingSettings, setLoadingSettings] = useState(true)
 
   const [userCountry, setUserCountry] = useState<string | null>(null)
@@ -53,49 +45,55 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
   })
 
   const [notifications, setNotifications] = useState({
-    emailUpdates: true,
-    newReleases: true,
+    emailUpdates: false,
+    newReleases: false,
     watchlistReminders: false,
     promotions: false,
   })
 
   const [privacy, setPrivacy] = useState({
-    profileVisibility: true,
-    watchHistory: true,
+    profileVisibility: false,
+    watchHistory: false,
     showActivityStatus: false,
   })
 
-  useEffect(() => {
-    async function loadSettings() {
-      try {
-        const [notifResult, privacyResult, userDetails] = await Promise.all([
-          getUserSettings("notifications"),
-          getUserSettings("privacy"),
-          getCurrentUserDetails(),
-        ])
+  const loadSettings = useCallback(async () => {
+    try {
+      setLoadingSettings(true)
 
-        if (notifResult.success && notifResult.settings) {
-          setNotifications(notifResult.settings as typeof notifications)
-        }
+      // Fetch notification settings
+      const notifRes = await fetch("/api/user/settings?type=notifications")
+      const notifData = await notifRes.json()
 
-        if (privacyResult.success && privacyResult.settings) {
-          setPrivacy(privacyResult.settings as typeof privacy)
-        }
-
-        if (userDetails) {
-          setUserCountry(userDetails.country || null)
-          setCanChangeCountry(!userDetails.countryChangedAt)
-          setSelectedCountry(userDetails.country || "")
-        }
-      } catch (error) {
-        console.error("Failed to load settings:", error)
-      } finally {
-        setLoadingSettings(false)
+      if (notifData.success && notifData.settings) {
+        setNotifications(notifData.settings)
       }
-    }
 
-    loadSettings()
+      // Fetch privacy settings
+      const privacyRes = await fetch("/api/user/settings?type=privacy")
+      const privacyData = await privacyRes.json()
+
+      if (privacyData.success && privacyData.settings) {
+        setPrivacy(privacyData.settings)
+      }
+
+      // Fetch user details for country
+      const userDetails = await getCurrentUserDetails()
+      if (userDetails) {
+        setUserCountry(userDetails.country || null)
+        setCanChangeCountry(!userDetails.countryChangedAt)
+        setSelectedCountry(userDetails.country || "")
+      }
+    } catch (error) {
+      console.error("[v0] Failed to load settings:", error)
+    } finally {
+      setLoadingSettings(false)
+    }
   }, [])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
 
   const handleSaveProfile = async () => {
     setSaving(true)
@@ -131,7 +129,13 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
 
     setSavingCountry(true)
     try {
-      const result = await updateUserCountry(selectedCountry)
+      const res = await fetch("/api/user/country", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ country: selectedCountry }),
+      })
+      const result = await res.json()
+
       if (result.success) {
         setUserCountry(selectedCountry)
         setCanChangeCountry(false)
@@ -158,57 +162,64 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
     }
   }
 
-  const handleSaveNotifications = async () => {
-    setSavingNotifications(true)
+  const handleNotificationToggle = async (key: keyof typeof notifications, value: boolean) => {
+    const updatedNotifications = { ...notifications, [key]: value }
+    setNotifications(updatedNotifications)
+
     try {
-      const result = await saveUserSettings({ type: "notifications", settings: notifications })
-      if (result.success) {
-        toast({
-          title: "Preferences Saved",
-          description: "Your notification preferences have been updated.",
-        })
-      } else {
+      const res = await fetch("/api/user/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "notifications", settings: updatedNotifications }),
+      })
+      const result = await res.json()
+
+      if (!result.success) {
+        // Revert on error
+        setNotifications(notifications)
         toast({
           title: "Error",
-          description: result.error || "Failed to save preferences.",
+          description: "Failed to save preference.",
           variant: "destructive",
         })
       }
     } catch {
+      setNotifications(notifications)
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: "Something went wrong.",
         variant: "destructive",
       })
-    } finally {
-      setSavingNotifications(false)
     }
   }
 
-  const handleSavePrivacy = async () => {
-    setSavingPrivacy(true)
+  const handlePrivacyToggle = async (key: keyof typeof privacy, value: boolean) => {
+    const updatedPrivacy = { ...privacy, [key]: value }
+    setPrivacy(updatedPrivacy)
+
     try {
-      const result = await saveUserSettings({ type: "privacy", settings: privacy })
-      if (result.success) {
-        toast({
-          title: "Privacy Settings Saved",
-          description: "Your privacy settings have been updated.",
-        })
-      } else {
+      const res = await fetch("/api/user/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "privacy", settings: updatedPrivacy }),
+      })
+      const result = await res.json()
+
+      if (!result.success) {
+        setPrivacy(privacy)
         toast({
           title: "Error",
-          description: result.error || "Failed to save settings.",
+          description: "Failed to save setting.",
           variant: "destructive",
         })
       }
     } catch {
+      setPrivacy(privacy)
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: "Something went wrong.",
         variant: "destructive",
       })
-    } finally {
-      setSavingPrivacy(false)
     }
   }
 
@@ -322,6 +333,7 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                 <p className="text-sm text-white/40">Email cannot be changed here. Contact support for assistance.</p>
               </div>
 
+              {/* Country Section */}
               <div className="space-y-2">
                 <Label className="text-white flex items-center gap-2">
                   <Globe className="w-4 h-4" />
@@ -368,7 +380,7 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                         <select
                           value={selectedCountry}
                           onChange={(e) => setSelectedCountry(e.target.value)}
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
+                          className="w-full px-4 py-2 bg-[#1a1b20] border border-white/10 rounded-lg text-white"
                         >
                           <option value="">Select country</option>
                           {COUNTRIES.map((c) => (
@@ -459,18 +471,18 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                     </div>
                     <Switch
                       checked={notifications.emailUpdates}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, emailUpdates: checked })}
+                      onCheckedChange={(checked) => handleNotificationToggle("emailUpdates", checked)}
                     />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-white">New Releases</Label>
+                      <Label className="text-white">New Movie Releases</Label>
                       <p className="text-sm text-white/40">Get notified when new movies are added</p>
                     </div>
                     <Switch
                       checked={notifications.newReleases}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, newReleases: checked })}
+                      onCheckedChange={(checked) => handleNotificationToggle("newReleases", checked)}
                     />
                   </div>
 
@@ -481,7 +493,7 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                     </div>
                     <Switch
                       checked={notifications.watchlistReminders}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, watchlistReminders: checked })}
+                      onCheckedChange={(checked) => handleNotificationToggle("watchlistReminders", checked)}
                     />
                   </div>
 
@@ -492,27 +504,13 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                     </div>
                     <Switch
                       checked={notifications.promotions}
-                      onCheckedChange={(checked) => setNotifications({ ...notifications, promotions: checked })}
+                      onCheckedChange={(checked) => handleNotificationToggle("promotions", checked)}
                     />
                   </div>
 
-                  <Button
-                    onClick={handleSaveNotifications}
-                    disabled={savingNotifications}
-                    className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
-                  >
-                    {savingNotifications ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Preferences
-                      </>
-                    )}
-                  </Button>
+                  <p className="text-xs text-white/30 pt-4 border-t border-white/10">
+                    Settings are saved automatically when you toggle them.
+                  </p>
                 </>
               )}
             </CardContent>
@@ -542,7 +540,7 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                     </div>
                     <Switch
                       checked={privacy.profileVisibility}
-                      onCheckedChange={(checked) => setPrivacy({ ...privacy, profileVisibility: checked })}
+                      onCheckedChange={(checked) => handlePrivacyToggle("profileVisibility", checked)}
                     />
                   </div>
 
@@ -553,63 +551,48 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
                     </div>
                     <Switch
                       checked={privacy.watchHistory}
-                      onCheckedChange={(checked) => setPrivacy({ ...privacy, watchHistory: checked })}
+                      onCheckedChange={(checked) => handlePrivacyToggle("watchHistory", checked)}
                     />
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-white">Show Activity Status</Label>
-                      <p className="text-sm text-white/40">Show when you're online</p>
+                      <Label className="text-white">Activity Status</Label>
+                      <p className="text-sm text-white/40">Show when you're active on the platform</p>
                     </div>
                     <Switch
                       checked={privacy.showActivityStatus}
-                      onCheckedChange={(checked) => setPrivacy({ ...privacy, showActivityStatus: checked })}
+                      onCheckedChange={(checked) => handlePrivacyToggle("showActivityStatus", checked)}
                     />
                   </div>
 
-                  <Button
-                    onClick={handleSavePrivacy}
-                    disabled={savingPrivacy}
-                    className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold"
-                  >
-                    {savingPrivacy ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Privacy Settings
-                      </>
-                    )}
-                  </Button>
-
-                  <div className="border-t border-white/10 pt-6">
-                    <h3 className="text-white font-medium mb-4">Account Actions</h3>
-
-                    <div className="space-y-4">
-                      <Button
-                        variant="outline"
-                        className="w-full border-white/20 text-white hover:bg-white/10 justify-start bg-transparent"
-                        onClick={() => signOut()}
-                      >
-                        Sign Out of All Devices
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 justify-start bg-transparent"
-                        onClick={handleDeleteAccount}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete Account
-                      </Button>
-                    </div>
-                  </div>
+                  <p className="text-xs text-white/30 pt-4 border-t border-white/10">
+                    Settings are saved automatically when you toggle them.
+                  </p>
                 </>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="bg-red-500/10 border-red-500/20 mt-6">
+            <CardHeader>
+              <CardTitle className="text-red-400">Danger Zone</CardTitle>
+              <CardDescription className="text-red-400/60">
+                These actions are irreversible. Please proceed with caution.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-medium">Delete Account</p>
+                  <p className="text-sm text-white/40">Permanently delete your account and all data</p>
+                </div>
+                <Button variant="destructive" onClick={handleDeleteAccount}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -619,44 +602,10 @@ export default function SettingsPageClient({ user }: SettingsPageClientProps) {
           <Card className="bg-white/5 border-white/10">
             <CardHeader>
               <CardTitle className="text-white">Appearance</CardTitle>
-              <CardDescription className="text-white/60">Customize how moBix looks for you</CardDescription>
+              <CardDescription className="text-white/60">Customize how the app looks</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <Label className="text-white mb-4 block">Theme</Label>
-                <div className="grid grid-cols-3 gap-4">
-                  <button className="p-4 rounded-lg border-2 border-[#00FFFF] bg-[#0B0C10] text-center">
-                    <div className="w-8 h-8 rounded-full bg-[#0B0C10] border border-white/20 mx-auto mb-2" />
-                    <span className="text-white text-sm">Dark</span>
-                  </button>
-                  <button className="p-4 rounded-lg border border-white/20 bg-white/5 text-center opacity-50 cursor-not-allowed">
-                    <div className="w-8 h-8 rounded-full bg-white mx-auto mb-2" />
-                    <span className="text-white/60 text-sm">Light</span>
-                    <p className="text-xs text-white/40">Coming Soon</p>
-                  </button>
-                  <button className="p-4 rounded-lg border border-white/20 bg-white/5 text-center opacity-50 cursor-not-allowed">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-b from-white to-[#0B0C10] mx-auto mb-2" />
-                    <span className="text-white/60 text-sm">Auto</span>
-                    <p className="text-xs text-white/40">Coming Soon</p>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Autoplay Previews</Label>
-                  <p className="text-sm text-white/40">Automatically play movie previews on hover</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-white">Reduce Motion</Label>
-                  <p className="text-sm text-white/40">Minimize animations and transitions</p>
-                </div>
-                <Switch />
-              </div>
+            <CardContent>
+              <p className="text-white/60">Theme customization coming soon...</p>
             </CardContent>
           </Card>
         </TabsContent>

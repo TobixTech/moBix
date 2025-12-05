@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Search, Send, Loader2, User, Globe, Check } from "lucide-react"
+import { X, Search, Send, Loader2, User, Globe, Check, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { getAllUsersForTargeting, targetUserForPromotion } from "@/lib/server-actions"
 
 interface SendPromoModalProps {
   isOpen: boolean
@@ -24,22 +23,45 @@ interface UserForTargeting {
 export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
   const { toast } = useToast()
   const [users, setUsers] = useState<UserForTargeting[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [sending, setSending] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasLoaded) {
       loadUsers()
     }
-  }, [isOpen])
+  }, [isOpen, hasLoaded])
 
   const loadUsers = async () => {
     setLoading(true)
-    const data = await getAllUsersForTargeting()
-    setUsers(data)
-    setLoading(false)
+    try {
+      const res = await fetch("/api/admin/users-for-targeting")
+      const data = await res.json()
+
+      if (data.users) {
+        setUsers(data.users)
+        setHasLoaded(true)
+      } else {
+        console.error("[v0] Failed to load users:", data.error)
+        toast({
+          title: "Error loading users",
+          description: data.error || "Could not load users",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load users",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredUsers = users.filter(
@@ -68,10 +90,20 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
     let failCount = 0
 
     for (const userId of selectedUsers) {
-      const result = await targetUserForPromotion(userId, "Admin direct send")
-      if (result.success) {
-        successCount++
-      } else {
+      try {
+        const res = await fetch("/api/promotions/target-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, reason: "Admin direct send" }),
+        })
+        const result = await res.json()
+
+        if (result.success) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch {
         failCount++
       }
     }
@@ -115,9 +147,14 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-white/10">
             <h2 className="text-xl font-bold text-white">Send Promotion to Users</h2>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition">
-              <X className="w-5 h-5 text-white/60" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={loadUsers} disabled={loading} className="p-2 rounded-full hover:bg-white/10 transition">
+                <RefreshCw className={`w-4 h-4 text-white/60 ${loading ? "animate-spin" : ""}`} />
+              </button>
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition">
+                <X className="w-5 h-5 text-white/60" />
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -131,19 +168,35 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
                 className="pl-10 bg-white/5 border-white/10 text-white"
               />
             </div>
-            {selectedUsers.length > 0 && (
-              <p className="text-sm text-cyan-400 mt-2">{selectedUsers.length} user(s) selected</p>
-            )}
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-sm text-white/60">{users.length} users loaded</p>
+              {selectedUsers.length > 0 && (
+                <p className="text-sm text-cyan-400">{selectedUsers.length} user(s) selected</p>
+              )}
+            </div>
           </div>
 
           {/* User List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+                <p className="text-white/60">Loading users...</p>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-white/60 mb-3">No users found</p>
+                <Button
+                  variant="outline"
+                  onClick={loadUsers}
+                  className="border-white/20 text-white hover:bg-white/10 bg-transparent"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
+                </Button>
               </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-white/60">No users found</div>
+              <div className="text-center py-8 text-white/60">No users match your search</div>
             ) : (
               filteredUsers.map((user) => (
                 <button
@@ -207,7 +260,7 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
               ) : (
                 <>
                   <Send className="w-4 h-4 mr-2" />
-                  Send to {selectedUsers.length} User(s)
+                  Send to {selectedUsers.length || 0} User(s)
                 </>
               )}
             </Button>
@@ -217,3 +270,5 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
     </AnimatePresence>
   )
 }
+
+export default SendPromoModal
