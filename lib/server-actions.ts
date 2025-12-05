@@ -833,21 +833,23 @@ export async function updateUserProfile(data: { username: string; firstName: str
       await db
         .update(users)
         .set({
-          username: data.username || undefined,
-          firstName: data.firstName || undefined,
-          lastName: data.lastName || undefined,
+          username: data.username || null,
+          firstName: data.firstName || null,
+          lastName: data.lastName || null,
+          updatedAt: new Date(),
         })
         .where(eq(users.clerkId, userId))
-    } catch (clerkError: any) {
-      return { success: false, error: clerkError.errors?.[0]?.message || "Failed to update profile" }
+    } catch (dbError: any) {
+      console.error("[v0] Database error updating profile:", dbError)
+      return { success: false, error: "Failed to update profile" }
     }
 
     revalidatePath("/profile")
     revalidatePath("/dashboard")
     return { success: true }
   } catch (error: any) {
-    console.error("Error updating user profile:", error)
-    return { success: false, error: error.message || "Failed to update profile" }
+    console.error("[v0] Error updating user profile:", error)
+    return { success: false, error: "Failed to update profile" }
   }
 }
 

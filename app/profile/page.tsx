@@ -92,17 +92,32 @@ export default function ProfilePage() {
       setError("")
       setSuccess("")
 
+      console.log("[v0] Saving profile with data:", formData)
+
       const result = await updateUserProfile(formData)
+
+      console.log("[v0] Update result:", result)
 
       if (result.success) {
         setSuccess("Profile updated successfully!")
         setIsEditing(false)
+        // Reload profile to get fresh data
         await loadProfile()
+        toast({
+          title: "Profile Updated",
+          description: "Your profile has been saved successfully.",
+        })
         setTimeout(() => setSuccess(""), 3000)
       } else {
         setError(result.error || "Failed to update profile")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update profile",
+          variant: "destructive",
+        })
       }
     } catch (err) {
+      console.error("[v0] Error saving profile:", err)
       setError("Failed to update profile")
     } finally {
       setIsSaving(false)
@@ -145,6 +160,16 @@ export default function ProfilePage() {
     } finally {
       setSavingCountry(false)
     }
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setFormData({
+      username: profile?.username || "",
+      firstName: profile?.firstName || "",
+      lastName: profile?.lastName || "",
+    })
+    setError("")
   }
 
   const countryInfo = userCountry ? COUNTRIES.find((c) => c.name === userCountry || c.code === userCountry) : null
@@ -226,12 +251,7 @@ export default function ProfilePage() {
               <button
                 onClick={() => {
                   if (isEditing) {
-                    setIsEditing(false)
-                    setFormData({
-                      username: profile?.username || "",
-                      firstName: profile?.firstName || "",
-                      lastName: profile?.lastName || "",
-                    })
+                    handleCancelEdit()
                   } else {
                     setIsEditing(true)
                   }
@@ -410,7 +430,10 @@ export default function ProfilePage() {
                   className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSaving ? (
-                    <LoadingSpinner />
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Saving...
+                    </>
                   ) : (
                     <>
                       <Save className="w-4 h-4" />

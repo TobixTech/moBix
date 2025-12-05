@@ -1,94 +1,104 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import {
-  X,
-  Mail,
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  Loader2,
-  ArrowLeft,
-  Key,
-  CheckCircle,
-  Globe,
-  ChevronDown,
-} from "lucide-react"
-import { useSignUp, useSignIn, useAuth } from "@clerk/nextjs"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useSignUp, useSignIn, useClerk } from "@clerk/nextjs"
 import { motion, AnimatePresence } from "framer-motion"
+import { X, Mail, Lock, Eye, EyeOff, User, Loader2, ArrowLeft, Check, Globe, ChevronDown, Search } from "lucide-react"
 import { countries } from "@/lib/countries"
 
 interface AuthModalProps {
-  isOpen: boolean
-  onClose: () => void
   trigger: React.ReactNode
-  defaultTab?: "login" | "signup" | "verification" | "forgot-password" | "reset-code" | "new-password" | "reset-success"
+  defaultMode?: "login" | "signup"
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export function AuthModal({ trigger, defaultMode = "login" }: AuthModalProps) {
+  const router = useRouter()
+  const { signUp, isLoaded: signUpLoaded, setActive: setActiveSignUp } = useSignUp()
+  const { signIn, isLoaded: signInLoaded, setActive: setActiveSignIn } = useSignIn()
+  const { signOut } = useClerk()
 
-export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "login" }: AuthModalProps) {
-  const [isLogin, setIsLogin] = useState(defaultTab === "login")
-  const [step, setStep] = useState<AuthModalProps["defaultTab"]>(defaultTab)
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
+  const isLoaded = signUpLoaded && signInLoaded
+
+  const [isOpen, setIsOpen] = useState(false)
+  const [mode, setMode] = useState<"login" | "signup">(defaultMode)
+  const [step, setStep] = useState<
+    "form" | "verification" | "forgot" | "reset-code" | "new-password" | "reset-success"
+  >("form")
+
+  // Form fields
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [resetCode, setResetCode] = useState("")
-  const [newPassword, setNewPassword] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
-  const [error, setError] = useState("")
-  const [successMessage, setSuccessMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [loadingMessage, setLoadingMessage] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [country, setCountry] = useState("")
   const [countrySearch, setCountrySearch] = useState("")
   const [showCountryDropdown, setShowCountryDropdown] = useState(false)
+
+  // OTP
   const [otp, setOtp] = useState(["", "", "", "", "", ""])
-  const [countdown, setCountdown] = useState(120)
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const isVerifying = useRef(false)
+
+  // Reset password
+  const [resetCode, setResetCode] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+
+  // UI state
+  const [isLoading, setIsLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState("")
+  const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
+  const [countdown, setCountdown] = useState(0)
   const [canResend, setCanResend] = useState(false)
 
-  const isVerifying = useRef(false)
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  // Country dropdown ref for click outside
   const countryDropdownRef = useRef<HTMLDivElement>(null)
 
-  const { signUp, setActive: setActiveSignUp } = useSignUp()
-  const { signIn, setActive: setActiveSignIn } = useSignIn()
-  const { isLoaded } = useAuth()
-  const router = useRouter()
-
+  // Filtered countries
   const filteredCountries = useMemo(() => {
-    if (!countrySearch) return countries
-    return countries.filter(
-      (c) =>
-        c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-        c.code.toLowerCase().includes(countrySearch.toLowerCase()),
-    )
+    if (!countrySearch) return countries.slice(0, 10)
+    return countries
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
+          c.code.toLowerCase().includes(countrySearch.toLowerCase()),
+      )
+      .slice(0, 10)
   }, [countrySearch])
 
-  useEffect(() => {
-    async function detectCountry() {
-      try {
-        const res = await fetch("/api/get-ip")
-        const data = await res.json()
-        if (data.country && !country) {
-          setCountry(data.country)
-        }
-      } catch {
-        // Silently fail
-      }
-    }
-    detectCountry()
-  }, [])
+  // Get selected country
+  const selectedCountry = useMemo(() => {
+    return countries.find((c) => c.code === country)
+  }, [country])
 
+  // Validation
+  const isEmailValid = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), [email])
+  const isPasswordValid = useMemo(() => password.length >= 8, [password])
+  const doPasswordsMatch = useMemo(() => password === confirmPassword, [password, confirmPassword])
+
+  // Auto-detect country on mount
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target as Node)) {
+    if (!country && isOpen && mode === "signup") {
+      fetch("/api/detect-country")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.countryCode) {
+            setCountry(data.countryCode)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [isOpen, mode, country])
+
+  // Click outside to close country dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target as Node)) {
         setShowCountryDropdown(false)
       }
     }
@@ -96,63 +106,57 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Validation helpers
-  const isEmailValid = useMemo(() => EMAIL_REGEX.test(email), [email])
-  const isPasswordValid = useMemo(() => password.length >= 8, [password])
-  const doPasswordsMatch = useMemo(() => password === confirmPassword, [password, confirmPassword])
-
-  // OTP countdown
+  // Countdown timer
   useEffect(() => {
-    if (step === "verification" && countdown > 0) {
+    if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
-    } else if (countdown === 0) {
+    } else if (countdown === 0 && step === "verification") {
       setCanResend(true)
     }
   }, [countdown, step])
 
-  // Auto-focus OTP input when verification step
+  // Remember me
   useEffect(() => {
-    if (step === "verification") {
-      setTimeout(() => otpInputRefs.current[0]?.focus(), 100)
-    }
-  }, [step])
-
-  // Load remembered email
-  useEffect(() => {
-    const savedEmail = localStorage.getItem("remembered_email")
-    if (savedEmail) {
-      setEmail(savedEmail)
+    const remembered = localStorage.getItem("remembered_email")
+    if (remembered) {
+      setEmail(remembered)
       setRememberMe(true)
     }
   }, [])
 
-  const handleClose = useCallback(() => {
-    setStep(defaultTab)
+  const handleOpen = () => {
+    setIsOpen(true)
+    setMode(defaultMode)
+    setStep("form")
     setError("")
-    setSuccessMessage("")
-    onClose()
-  }, [defaultTab, onClose])
+  }
+
+  const handleClose = () => {
+    setIsOpen(false)
+    setStep("form")
+    setError("")
+    setLoadingMessage("")
+    setOtp(["", "", "", "", "", ""])
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!signUp) return
 
+    // Quick validation
     if (!country) {
       setError("Please select your country")
       return
     }
-
     if (!isEmailValid) {
       setError("Please enter a valid email address")
       return
     }
-
     if (!isPasswordValid) {
       setError("Password must be at least 8 characters")
       return
     }
-
     if (!doPasswordsMatch) {
       setError("Passwords do not match")
       return
@@ -168,16 +172,18 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
         password,
         firstName,
         lastName,
-        unsafeMetadata: {
-          country, // Store country in metadata
-        },
+        unsafeMetadata: { country },
       })
 
+      setLoadingMessage("Sending verification code...")
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+
       setStep("verification")
       setCountdown(120)
       setCanResend(false)
-      setLoadingMessage("")
+
+      // Focus first OTP input after transition
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 100)
     } catch (err: any) {
       const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Sign up failed"
       setError(msg)
@@ -212,6 +218,8 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
         } else {
           localStorage.removeItem("remembered_email")
         }
+
+        setLoadingMessage("Redirecting...")
         await setActiveSignIn({ session: result.createdSessionId })
         handleClose()
         router.push("/home")
@@ -225,6 +233,7 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     }
   }
 
+  // OTP handlers
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return
 
@@ -232,15 +241,15 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     newOtp[index] = value.slice(-1)
     setOtp(newOtp)
 
-    // Auto-focus next input
+    // Auto-advance to next input
     if (value && index < 5) {
       otpInputRefs.current[index + 1]?.focus()
     }
 
-    // Auto-verify when all 6 digits entered
-    const fullOtp = newOtp.join("")
-    if (fullOtp.length === 6 && !isVerifying.current) {
-      handleVerifyOtp(fullOtp)
+    // Auto-verify when complete
+    const fullCode = newOtp.join("")
+    if (fullCode.length === 6 && !isVerifying.current) {
+      handleVerifyOtp(fullCode)
     }
   }
 
@@ -274,12 +283,13 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
       const result = await signUp.attemptEmailAddressVerification({ code })
 
       if (result.status === "complete") {
+        setLoadingMessage("Success! Redirecting...")
         await setActiveSignUp({ session: result.createdSessionId })
         handleClose()
         router.push("/home")
       }
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Verification failed"
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || "Invalid code"
       setError(msg)
       setOtp(["", "", "", "", "", ""])
       otpInputRefs.current[0]?.focus()
@@ -302,7 +312,7 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
       setCanResend(false)
       setSuccessMessage("Code sent!")
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
+    } catch {
       setError("Failed to resend code")
     } finally {
       setIsLoading(false)
@@ -310,6 +320,7 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     }
   }
 
+  // Forgot password handlers
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!signIn) return
@@ -340,13 +351,10 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
 
   const handleVerifyResetCode = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!signIn) return
-
     if (resetCode.length !== 6) {
       setError("Please enter the 6-digit code")
       return
     }
-
     setStep("new-password")
     setError("")
   }
@@ -388,6 +396,7 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     }
   }
 
+  // Loading state while Clerk loads
   if (!isLoaded) {
     return (
       <>
@@ -408,117 +417,104 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     )
   }
 
-  const selectedCountry = countries.find((c) => c.name === country)
-
   return (
     <>
-      {trigger}
+      <div onClick={handleOpen}>{trigger}</div>
+
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            onClick={handleClose}
           >
             {/* Loading overlay */}
-            <AnimatePresence>
-              {isLoading && loadingMessage && (
-                <motion.div
-                  className="absolute inset-0 z-[60] flex items-center justify-center bg-black/90"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-[#00FFFF] animate-spin" />
-                    <p className="text-white font-medium">{loadingMessage}</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {isLoading && (
+              <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/90">
+                <Loader2 className="w-12 h-12 text-[#00FFFF] animate-spin mb-4" />
+                <p className="text-white text-lg font-medium">{loadingMessage}</p>
+              </div>
+            )}
 
             <motion.div
-              className="bg-[#1A1B23] border border-[#2A2B33] rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+              className="relative w-full max-w-md bg-gradient-to-b from-[#1A1B23] to-[#0B0C10] rounded-2xl border border-[#2A2B33] shadow-2xl overflow-hidden"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-[#2A2B33]">
-                <h2 className="text-xl font-bold text-white">
-                  {step === "login" && "Welcome Back"}
-                  {step === "signup" && "Create Account"}
-                  {step === "verification" && "Verify Email"}
-                  {step === "forgot-password" && "Reset Password"}
-                  {step === "reset-code" && "Enter Code"}
-                  {step === "new-password" && "New Password"}
-                  {step === "reset-success" && "Success"}
-                </h2>
-                <button onClick={handleClose} className="p-2 hover:bg-[#2A2B33] rounded-lg transition">
-                  <X className="w-5 h-5 text-[#888888]" />
-                </button>
-              </div>
+              {/* Close button */}
+              <button
+                onClick={handleClose}
+                className="absolute top-4 right-4 p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
+              >
+                <X className="w-5 h-5" />
+              </button>
 
-              {/* Content */}
-              <div className="p-4">
-                {error && (
-                  <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                    {error}
+              <div className="p-6 pt-12">
+                {/* Header */}
+                {step === "form" && (
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-white mb-2">
+                      {mode === "login" ? "Welcome Back" : "Create Account"}
+                    </h2>
+                    <p className="text-white/60">{mode === "login" ? "Sign in to continue" : "Join us today"}</p>
                   </div>
                 )}
 
+                {step === "verification" && (
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-white mb-2">Verify Email</h2>
+                    <p className="text-white/60">Enter the 6-digit code sent to {email}</p>
+                  </div>
+                )}
+
+                {/* Error/Success messages */}
+                {error && (
+                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">
+                    {error}
+                  </div>
+                )}
                 {successMessage && (
-                  <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+                  <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm text-center">
                     {successMessage}
                   </div>
                 )}
 
                 {/* Login Form */}
-                {step === "login" && (
+                {step === "form" && mode === "login" && (
                   <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Email</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF]"
-                          placeholder="Enter your email"
-                          required
-                          autoComplete="email"
-                        />
-                      </div>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Email address"
+                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
                     </div>
 
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Password</label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF]"
-                          placeholder="Enter your password"
-                          required
-                          autoComplete="current-password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888888] hover:text-white"
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Password"
+                        className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -529,15 +525,12 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                           onChange={(e) => setRememberMe(e.target.checked)}
                           className="w-4 h-4 rounded border-[#2A2B33] bg-[#0B0C10] text-[#00FFFF] focus:ring-[#00FFFF]"
                         />
-                        <span className="text-[#888888] text-sm">Remember me</span>
+                        <span className="text-sm text-white/60">Remember me</span>
                       </label>
                       <button
                         type="button"
-                        onClick={() => {
-                          setStep("forgot-password")
-                          setError("")
-                        }}
-                        className="text-[#00FFFF] text-sm hover:underline"
+                        onClick={() => setStep("forgot")}
+                        className="text-sm text-[#00FFFF] hover:underline"
                       >
                         Forgot password?
                       </button>
@@ -545,18 +538,18 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
 
                     <button
                       type="submit"
-                      disabled={isLoading || !email || !password}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition disabled:opacity-50"
+                      disabled={isLoading}
+                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
                     >
                       Sign In
                     </button>
 
-                    <p className="text-center text-[#888888] text-sm">
+                    <p className="text-center text-white/60">
                       Don't have an account?{" "}
                       <button
                         type="button"
                         onClick={() => {
-                          setStep("signup")
+                          setMode("signup")
                           setError("")
                         }}
                         className="text-[#00FFFF] hover:underline font-medium"
@@ -568,203 +561,158 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                 )}
 
                 {/* Signup Form */}
-                {step === "signup" && (
-                  <form onSubmit={handleSignup} className="space-y-3">
+                {step === "form" && mode === "signup" && (
+                  <form onSubmit={handleSignup} className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[#888888] text-sm mb-1.5">First Name</label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                          <input
-                            type="text"
-                            value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            className="w-full pl-11 pr-3 py-2.5 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF]"
-                            placeholder="First"
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[#888888] text-sm mb-1.5">Last Name</label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                          <input
-                            type="text"
-                            value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            className="w-full pl-11 pr-3 py-2.5 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF]"
-                            placeholder="Last"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Email field - moved to be first after names */}
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Email</label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
                         <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className={`w-full pl-11 pr-4 py-2.5 bg-[#0B0C10] border rounded-lg text-white placeholder-[#666666] focus:outline-none transition ${
-                            email && !isEmailValid ? "border-red-500" : "border-[#2A2B33] focus:border-[#00FFFF]"
-                          }`}
-                          placeholder="Enter your email"
-                          required
-                          autoComplete="email"
+                          type="text"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="First name"
+                          className="w-full pl-11 pr-3 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
                         />
                       </div>
-                      {email && !isEmailValid && (
-                        <p className="text-red-400 text-xs mt-1">Please enter a valid email</p>
-                      )}
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Last name"
+                        className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                      />
                     </div>
 
-                    {/* Country field - right after email */}
-                    <div ref={countryDropdownRef}>
-                      <label className="block text-[#888888] text-sm mb-1.5">
-                        Country <span className="text-red-400">*</span>
-                      </label>
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                          className="w-full pl-11 pr-10 py-2.5 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-left focus:outline-none focus:border-[#00FFFF] transition"
-                        >
-                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                          {selectedCountry ? (
-                            <span className="text-white flex items-center gap-2">
-                              <span className="text-lg">{selectedCountry.flag}</span>
-                              {selectedCountry.name}
-                            </span>
-                          ) : (
-                            <span className="text-[#666666]">Select your country</span>
-                          )}
-                          <ChevronDown
-                            className={`absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888] transition ${showCountryDropdown ? "rotate-180" : ""}`}
-                          />
-                        </button>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Email address"
+                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
+                    </div>
 
-                        {showCountryDropdown && (
-                          <div className="absolute top-full left-0 right-0 mt-1 bg-[#0B0C10] border border-[#2A2B33] rounded-lg shadow-xl z-50 max-h-60 overflow-hidden">
-                            <div className="p-2 border-b border-[#2A2B33]">
+                    <div className="relative" ref={countryDropdownRef}>
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 z-10" />
+                      <button
+                        type="button"
+                        onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                        className="w-full pl-11 pr-10 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-left text-white focus:outline-none focus:border-[#00FFFF] transition-colors"
+                      >
+                        {selectedCountry ? (
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg">{selectedCountry.flag}</span>
+                            <span>{selectedCountry.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-white/40">Select your country</span>
+                        )}
+                      </button>
+                      <ChevronDown
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 transition-transform ${showCountryDropdown ? "rotate-180" : ""}`}
+                      />
+
+                      {showCountryDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1A1B23] border border-[#2A2B33] rounded-xl shadow-xl z-50 max-h-60 overflow-hidden">
+                          <div className="p-2 border-b border-[#2A2B33]">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                               <input
                                 type="text"
                                 value={countrySearch}
                                 onChange={(e) => setCountrySearch(e.target.value)}
                                 placeholder="Search country..."
-                                className="w-full px-3 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] text-sm"
+                                className="w-full pl-9 pr-3 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#00FFFF]"
                                 autoFocus
                               />
                             </div>
-                            <div className="max-h-48 overflow-y-auto">
-                              {filteredCountries.map((c) => (
-                                <button
-                                  key={c.code}
-                                  type="button"
-                                  onClick={() => {
-                                    setCountry(c.name)
-                                    setShowCountryDropdown(false)
-                                    setCountrySearch("")
-                                  }}
-                                  className={`w-full px-3 py-2.5 text-left hover:bg-[#2A2B33] flex items-center gap-3 transition ${country === c.name ? "bg-[#00FFFF]/10 text-[#00FFFF]" : "text-white"}`}
-                                >
-                                  <span className="text-lg">{c.flag}</span>
-                                  <span className="text-sm">{c.name}</span>
-                                </button>
-                              ))}
-                              {filteredCountries.length === 0 && (
-                                <p className="px-3 py-4 text-[#666666] text-sm text-center">No countries found</p>
-                              )}
-                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Password field */}
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Password</label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className={`w-full pl-11 pr-12 py-2.5 bg-[#0B0C10] border rounded-lg text-white placeholder-[#666666] focus:outline-none transition ${
-                            password && !isPasswordValid ? "border-red-500" : "border-[#2A2B33] focus:border-[#00FFFF]"
-                          }`}
-                          placeholder="Create password (8+ chars)"
-                          required
-                          autoComplete="new-password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888888] hover:text-white"
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      {password && !isPasswordValid && (
-                        <p className="text-red-400 text-xs mt-1">Password must be at least 8 characters</p>
+                          <div className="overflow-y-auto max-h-48">
+                            {filteredCountries.map((c) => (
+                              <button
+                                key={c.code}
+                                type="button"
+                                onClick={() => {
+                                  setCountry(c.code)
+                                  setShowCountryDropdown(false)
+                                  setCountrySearch("")
+                                }}
+                                className={`w-full px-4 py-2.5 text-left hover:bg-[#2A2B33] transition-colors flex items-center gap-3 ${country === c.code ? "bg-[#00FFFF]/10 text-[#00FFFF]" : "text-white"}`}
+                              >
+                                <span className="text-lg">{c.flag}</span>
+                                <span>{c.name}</span>
+                              </button>
+                            ))}
+                            {filteredCountries.length === 0 && (
+                              <div className="px-4 py-3 text-white/40 text-center">No countries found</div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
 
-                    {/* Confirm Password field */}
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Confirm Password</label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          className={`w-full pl-11 pr-4 py-2.5 bg-[#0B0C10] border rounded-lg text-white placeholder-[#666666] focus:outline-none transition ${
-                            confirmPassword && !doPasswordsMatch
-                              ? "border-red-500"
-                              : "border-[#2A2B33] focus:border-[#00FFFF]"
-                          }`}
-                          placeholder="Confirm password"
-                          required
-                          autoComplete="new-password"
-                        />
-                      </div>
-                      {confirmPassword && !doPasswordsMatch && (
-                        <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Password (min 8 characters)"
+                        className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm password"
+                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
+                      {confirmPassword && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {doPasswordsMatch ? (
+                            <Check className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <X className="w-5 h-5 text-red-500" />
+                          )}
+                        </div>
                       )}
                     </div>
 
                     <button
                       type="submit"
-                      disabled={
-                        isLoading ||
-                        !firstName ||
-                        !lastName ||
-                        !country ||
-                        !isEmailValid ||
-                        !isPasswordValid ||
-                        !doPasswordsMatch
-                      }
-                      className="w-full py-2.5 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition disabled:opacity-50"
+                      disabled={isLoading}
+                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
                     >
                       Create Account
                     </button>
 
-                    <p className="text-center text-[#888888] text-sm">
+                    <p className="text-center text-white/60">
                       Already have an account?{" "}
                       <button
                         type="button"
                         onClick={() => {
-                          setStep("login")
+                          setMode("login")
                           setError("")
                         }}
-                        className="text-[#00FFFF] hover:underline"
+                        className="text-[#00FFFF] hover:underline font-medium"
                       >
-                        Login
+                        Sign in
                       </button>
                     </p>
                   </form>
@@ -772,85 +720,84 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
 
                 {/* OTP Verification */}
                 {step === "verification" && (
-                  <div className="space-y-4">
-                    <p className="text-[#888888] text-sm text-center">
-                      Enter the 6-digit code sent to <span className="text-white">{email}</span>
-                    </p>
-
+                  <div className="space-y-6">
                     <div className="flex justify-center gap-2">
-                      {otp.map((digit, idx) => (
+                      {otp.map((digit, index) => (
                         <input
-                          key={idx}
+                          key={index}
                           ref={(el) => {
-                            otpInputRefs.current[idx] = el
+                            otpInputRefs.current[index] = el
                           }}
                           type="text"
                           inputMode="numeric"
                           maxLength={1}
                           value={digit}
-                          onChange={(e) => handleOtpChange(idx, e.target.value)}
-                          onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                          onPaste={idx === 0 ? handleOtpPaste : undefined}
-                          className="w-11 h-12 text-center text-xl font-bold bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white focus:outline-none focus:border-[#00FFFF]"
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          onPaste={handleOtpPaste}
+                          className="w-12 h-14 text-center text-2xl font-bold bg-[#0B0C10] border-2 border-[#2A2B33] rounded-xl text-white focus:outline-none focus:border-[#00FFFF] transition-colors"
                         />
                       ))}
                     </div>
 
                     <div className="text-center">
-                      {canResend ? (
+                      {countdown > 0 ? (
+                        <p className="text-white/60">
+                          Resend code in{" "}
+                          <span className="text-[#00FFFF]">
+                            {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, "0")}
+                          </span>
+                        </p>
+                      ) : (
                         <button
                           onClick={handleResendCode}
-                          disabled={isLoading}
-                          className="text-[#00FFFF] text-sm hover:underline"
+                          disabled={!canResend || isLoading}
+                          className="text-[#00FFFF] hover:underline disabled:opacity-50"
                         >
-                          Resend Code
+                          Resend code
                         </button>
-                      ) : (
-                        <p className="text-[#888888] text-sm">
-                          Resend in {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, "0")}
-                        </p>
                       )}
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => {
-                        setStep("signup")
+                        setStep("form")
                         setOtp(["", "", "", "", "", ""])
+                        setError("")
                       }}
-                      className="w-full py-2.5 border border-[#2A2B33] text-[#888888] rounded-lg hover:bg-[#2A2B33] transition flex items-center justify-center gap-2"
+                      className="w-full py-3 border border-[#2A2B33] text-white rounded-xl hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
                     >
                       <ArrowLeft className="w-4 h-4" />
-                      Back to Sign Up
+                      Back to signup
                     </button>
                   </div>
                 )}
 
                 {/* Forgot Password */}
-                {step === "forgot-password" && (
+                {step === "forgot" && (
                   <form onSubmit={handleForgotPassword} className="space-y-4">
-                    <p className="text-[#888888] text-sm">
-                      Enter your email and we'll send you a code to reset your password.
-                    </p>
+                    <div className="text-center mb-4">
+                      <h2 className="text-2xl font-bold text-white mb-2">Reset Password</h2>
+                      <p className="text-white/60">Enter your email to receive a reset code</p>
+                    </div>
 
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Email</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF]"
-                          placeholder="Enter your email"
-                          required
-                        />
-                      </div>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Email address"
+                        className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
                     </div>
 
                     <button
                       type="submit"
-                      disabled={isLoading || !isEmailValid}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition disabled:opacity-50"
+                      disabled={isLoading}
+                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
                     >
                       Send Reset Code
                     </button>
@@ -858,13 +805,13 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                     <button
                       type="button"
                       onClick={() => {
-                        setStep("login")
+                        setStep("form")
                         setError("")
                       }}
-                      className="w-full py-2.5 border border-[#2A2B33] text-[#888888] rounded-lg hover:bg-[#2A2B33] transition flex items-center justify-center gap-2"
+                      className="w-full py-3 border border-[#2A2B33] text-white rounded-xl hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
                     >
                       <ArrowLeft className="w-4 h-4" />
-                      Back to Login
+                      Back to login
                     </button>
                   </form>
                 )}
@@ -872,44 +819,26 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                 {/* Reset Code */}
                 {step === "reset-code" && (
                   <form onSubmit={handleVerifyResetCode} className="space-y-4">
-                    <p className="text-[#888888] text-sm text-center">
-                      Enter the 6-digit code sent to <span className="text-white">{email}</span>
-                    </p>
-
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">Reset Code</label>
-                      <div className="relative">
-                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type="text"
-                          value={resetCode}
-                          onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                          className="w-full pl-11 pr-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] text-center tracking-[0.5em] font-mono text-xl"
-                          placeholder="000000"
-                          maxLength={6}
-                          required
-                        />
-                      </div>
+                    <div className="text-center mb-4">
+                      <h2 className="text-2xl font-bold text-white mb-2">Enter Code</h2>
+                      <p className="text-white/60">Check your email for the 6-digit code</p>
                     </div>
+
+                    <input
+                      type="text"
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="Enter 6-digit code"
+                      className="w-full px-4 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white text-center text-xl tracking-widest placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                      maxLength={6}
+                    />
 
                     <button
                       type="submit"
-                      disabled={resetCode.length !== 6}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition disabled:opacity-50"
+                      disabled={isLoading || resetCode.length !== 6}
+                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
                     >
                       Verify Code
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStep("forgot-password")
-                        setResetCode("")
-                      }}
-                      className="w-full py-2.5 border border-[#2A2B33] text-[#888888] rounded-lg hover:bg-[#2A2B33] transition flex items-center justify-center gap-2"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      Back
                     </button>
                   </form>
                 )}
@@ -917,34 +846,34 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                 {/* New Password */}
                 {step === "new-password" && (
                   <form onSubmit={handleResetPassword} className="space-y-4">
-                    <p className="text-[#888888] text-sm">Create a new password for your account.</p>
+                    <div className="text-center mb-4">
+                      <h2 className="text-2xl font-bold text-white mb-2">New Password</h2>
+                      <p className="text-white/60">Enter your new password</p>
+                    </div>
 
-                    <div>
-                      <label className="block text-[#888888] text-sm mb-1.5">New Password</label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#888888]" />
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF]"
-                          placeholder="Enter new password (8+ chars)"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888888] hover:text-white"
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="New password (min 8 characters)"
+                        className="w-full pl-11 pr-12 py-3 bg-[#0B0C10] border border-[#2A2B33] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#00FFFF] transition-colors"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
                     </div>
 
                     <button
                       type="submit"
-                      disabled={isLoading || newPassword.length < 8}
-                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#00FFFF]/50 transition disabled:opacity-50"
+                      disabled={isLoading}
+                      className="w-full py-3 bg-[#00FFFF] text-[#0B0C10] rounded-xl font-bold hover:shadow-lg hover:shadow-[#00FFFF]/30 transition-all disabled:opacity-50"
                     >
                       Reset Password
                     </button>
@@ -955,10 +884,10 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
                 {step === "reset-success" && (
                   <div className="text-center py-8">
                     <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle className="w-8 h-8 text-green-400" />
+                      <Check className="w-8 h-8 text-green-500" />
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">Password Reset!</h3>
-                    <p className="text-[#888888] text-sm">Redirecting you to home...</p>
+                    <h2 className="text-2xl font-bold text-white mb-2">Password Reset!</h2>
+                    <p className="text-white/60">Redirecting you now...</p>
                   </div>
                 )}
               </div>
@@ -969,3 +898,5 @@ export default function AuthModal({ isOpen, onClose, trigger, defaultTab = "logi
     </>
   )
 }
+
+export default AuthModal

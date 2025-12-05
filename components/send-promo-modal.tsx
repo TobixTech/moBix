@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Search, Send, Loader2, User, Globe, Check, RefreshCw } from "lucide-react"
+import { X, Search, Send, Loader2, User, Globe, Check, RefreshCw, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
@@ -24,41 +24,51 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
   const { toast } = useToast()
   const [users, setUsers] = useState<UserForTargeting[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [sending, setSending] = useState(false)
-  const [hasLoaded, setHasLoaded] = useState(false)
 
   useEffect(() => {
-    if (isOpen && !hasLoaded) {
+    if (isOpen) {
+      setSelectedUsers([])
+      setSearchQuery("")
       loadUsers()
     }
-  }, [isOpen, hasLoaded])
+  }, [isOpen])
 
   const loadUsers = async () => {
     setLoading(true)
-    try {
-      const res = await fetch("/api/admin/users-for-targeting")
-      const data = await res.json()
+    setError(null)
+    console.log("[v0] SendPromoModal - loading users")
 
-      if (data.users) {
-        setUsers(data.users)
-        setHasLoaded(true)
-      } else {
-        console.error("[v0] Failed to load users:", data.error)
-        toast({
-          title: "Error loading users",
-          description: data.error || "Could not load users",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error fetching users:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load users",
-        variant: "destructive",
+    try {
+      const res = await fetch("/api/admin/users-for-targeting", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        cache: "no-store",
       })
+
+      console.log("[v0] SendPromoModal - response status:", res.status)
+
+      const data = await res.json()
+      console.log("[v0] SendPromoModal - response data:", data)
+
+      if (res.ok && data.success && Array.isArray(data.users)) {
+        setUsers(data.users)
+        console.log("[v0] SendPromoModal - loaded users:", data.users.length)
+      } else {
+        setError(data.error || "Failed to load users")
+        setUsers([])
+        console.error("[v0] SendPromoModal - error:", data.error)
+      }
+    } catch (err) {
+      console.error("[v0] SendPromoModal - fetch error:", err)
+      setError("Network error. Please try again.")
+      setUsers([])
     } finally {
       setLoading(false)
     }
@@ -66,13 +76,21 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
 
   const filteredUsers = users.filter(
     (u) =>
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.lastName?.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const toggleUser = (userId: string) => {
     setSelectedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]))
+  }
+
+  const selectAll = () => {
+    if (selectedUsers.length === filteredUsers.length) {
+      setSelectedUsers([])
+    } else {
+      setSelectedUsers(filteredUsers.map((u) => u.id))
+    }
   }
 
   const handleSend = async () => {
@@ -148,7 +166,12 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
           <div className="flex items-center justify-between p-4 border-b border-white/10">
             <h2 className="text-xl font-bold text-white">Send Promotion to Users</h2>
             <div className="flex items-center gap-2">
-              <button onClick={loadUsers} disabled={loading} className="p-2 rounded-full hover:bg-white/10 transition">
+              <button
+                onClick={loadUsers}
+                disabled={loading}
+                className="p-2 rounded-full hover:bg-white/10 transition"
+                title="Refresh users"
+              >
                 <RefreshCw className={`w-4 h-4 text-white/60 ${loading ? "animate-spin" : ""}`} />
               </button>
               <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition">
@@ -168,24 +191,32 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
                 className="pl-10 bg-white/5 border-white/10 text-white"
               />
             </div>
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-sm text-white/60">{users.length} users loaded</p>
-              {selectedUsers.length > 0 && (
-                <p className="text-sm text-cyan-400">{selectedUsers.length} user(s) selected</p>
-              )}
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-sm text-white/60">{loading ? "Loading..." : `${users.length} users available`}</p>
+              <div className="flex items-center gap-3">
+                {filteredUsers.length > 0 && (
+                  <button onClick={selectAll} className="text-sm text-cyan-400 hover:text-cyan-300 transition">
+                    {selectedUsers.length === filteredUsers.length ? "Deselect All" : "Select All"}
+                  </button>
+                )}
+                {selectedUsers.length > 0 && (
+                  <span className="text-sm text-cyan-400 font-medium">{selectedUsers.length} selected</span>
+                )}
+              </div>
             </div>
           </div>
 
           {/* User List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="w-10 h-10 animate-spin text-cyan-400" />
                 <p className="text-white/60">Loading users...</p>
               </div>
-            ) : users.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-white/60 mb-3">No users found</p>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <AlertCircle className="w-12 h-12 text-red-400" />
+                <p className="text-red-400 text-center">{error}</p>
                 <Button
                   variant="outline"
                   onClick={loadUsers}
@@ -195,8 +226,21 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
                   Retry
                 </Button>
               </div>
+            ) : users.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <User className="w-12 h-12 text-white/30" />
+                <p className="text-white/60">No users found in database</p>
+                <Button
+                  variant="outline"
+                  onClick={loadUsers}
+                  className="border-white/20 text-white hover:bg-white/10 bg-transparent"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-white/60">No users match your search</div>
+              <div className="text-center py-12 text-white/60">No users match "{searchQuery}"</div>
             ) : (
               filteredUsers.map((user) => (
                 <button
@@ -204,12 +248,12 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
                   onClick={() => toggleUser(user.id)}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${
                     selectedUsers.includes(user.id)
-                      ? "bg-cyan-500/20 border border-cyan-500/30"
+                      ? "bg-cyan-500/20 border border-cyan-500/50"
                       : "bg-white/5 border border-white/10 hover:bg-white/10"
                   }`}
                 >
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                       selectedUsers.includes(user.id) ? "bg-cyan-500" : "bg-white/10"
                     }`}
                   >
@@ -219,18 +263,18 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
                       <User className="w-5 h-5 text-white/60" />
                     )}
                   </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-white font-medium">
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-white font-medium truncate">
                       {user.firstName || user.lastName
                         ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
                         : "No name"}
                     </p>
-                    <p className="text-sm text-white/60">{user.email}</p>
+                    <p className="text-sm text-white/60 truncate">{user.email}</p>
                   </div>
                   {user.country && (
-                    <div className="flex items-center gap-1 text-sm text-white/40">
+                    <div className="flex items-center gap-1 text-sm text-white/40 flex-shrink-0">
                       <Globe className="w-4 h-4" />
-                      {user.country}
+                      <span className="hidden sm:inline">{user.country}</span>
                     </div>
                   )}
                 </button>
@@ -250,7 +294,7 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
             <Button
               onClick={handleSend}
               disabled={sending || selectedUsers.length === 0}
-              className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-black font-semibold"
+              className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-black font-semibold disabled:opacity-50"
             >
               {sending ? (
                 <>
@@ -260,7 +304,7 @@ export function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
               ) : (
                 <>
                   <Send className="w-4 h-4 mr-2" />
-                  Send to {selectedUsers.length || 0} User(s)
+                  Send to {selectedUsers.length} User(s)
                 </>
               )}
             </Button>
