@@ -32,10 +32,10 @@ export default function SeriesCard({ series }: SeriesCardProps) {
   return (
     <Link href={seriesUrl} prefetch={false}>
       <motion.div
-        className="flex-shrink-0 w-48 h-72 rounded-lg overflow-hidden cursor-pointer group relative"
+        className="flex-shrink-0 w-[140px] md:w-[180px] aspect-[2/3] rounded-lg overflow-hidden cursor-pointer group relative"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        whileHover={{ y: -10 }}
+        whileHover={{ y: -5 }}
         transition={{ duration: 0.3 }}
       >
         {isLoading && (
@@ -66,7 +66,7 @@ export default function SeriesCard({ series }: SeriesCardProps) {
         {/* Status Badge */}
         {series.status && (
           <div
-            className={`absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs font-bold ${
+            className={`absolute bottom-12 left-2 px-2 py-0.5 rounded text-xs font-bold ${
               series.status === "ongoing"
                 ? "bg-green-500/20 text-green-400 border border-green-500/30"
                 : series.status === "completed"
@@ -81,45 +81,51 @@ export default function SeriesCard({ series }: SeriesCardProps) {
         {/* Overlay */}
         <motion.div
           className="absolute inset-0 bg-gradient-to-t from-[#0B0C10] via-transparent to-transparent"
-          animate={{ opacity: isHovered ? 1 : 0 }}
+          animate={{ opacity: isHovered ? 1 : 0.6 }}
           transition={{ duration: 0.3 }}
         />
 
         {/* Content on Hover */}
-        {isHovered && (
+        <motion.div
+          className="absolute inset-0 flex flex-col justify-end p-3"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isHovered ? 1 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
           <motion.div
-            className="absolute inset-0 flex flex-col justify-end p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
+            className="space-y-1"
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: isHovered ? 0 : 10, opacity: isHovered ? 1 : 0 }}
+            transition={{ delay: 0.1 }}
           >
-            <motion.div
-              className="space-y-2"
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1 }}
+            <h3 className="text-white font-bold text-sm line-clamp-2">{series.title}</h3>
+            <div className="flex items-center gap-2 text-xs text-[#888888]">
+              {series.totalSeasons !== undefined && series.totalSeasons > 0 && (
+                <span>
+                  {series.totalSeasons} Season{series.totalSeasons > 1 ? "s" : ""}
+                </span>
+              )}
+              {series.totalSeasons !== undefined && series.totalSeasons > 0 && series.releaseYear && <span>•</span>}
+              {series.releaseYear && <span>{series.releaseYear}</span>}
+            </div>
+            {series.genre && <div className="text-xs text-cyan-400">{series.genre}</div>}
+            <motion.button
+              className="w-full flex items-center justify-center gap-2 bg-[#00FFFF] text-[#0B0C10] py-2 rounded font-bold text-sm hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              <h3 className="text-white font-bold text-sm line-clamp-2">{series.title}</h3>
-              <div className="flex items-center gap-2 text-xs text-[#888888]">
-                {series.totalSeasons && (
-                  <span>
-                    {series.totalSeasons} Season{series.totalSeasons > 1 ? "s" : ""}
-                  </span>
-                )}
-                {series.totalSeasons && series.releaseYear && <span>•</span>}
-                {series.releaseYear && <span>{series.releaseYear}</span>}
-              </div>
-              {series.genre && <div className="text-xs text-cyan-400">{series.genre}</div>}
-              <motion.button
-                className="w-full flex items-center justify-center gap-2 bg-[#00FFFF] text-[#0B0C10] py-2 rounded font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Play className="w-4 h-4" />
-                Watch
-              </motion.button>
-            </motion.div>
+              <Play className="w-4 h-4" />
+              Watch
+            </motion.button>
           </motion.div>
+        </motion.div>
+
+        {/* Always visible title at bottom */}
+        {!isHovered && (
+          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+            <h3 className="text-white font-bold text-sm line-clamp-1">{series.title}</h3>
+            {series.releaseYear && <span className="text-xs text-white/60">{series.releaseYear}</span>}
+          </div>
         )}
       </motion.div>
     </Link>

@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import SeriesClient from "./series-client"
 import { getAllSeries, getSeriesGenres } from "@/lib/series-actions"
 
@@ -9,7 +10,26 @@ export const metadata = {
 }
 
 export default async function SeriesPage() {
-  const [allSeries, genres] = await Promise.all([getAllSeries(), getSeriesGenres()])
+  let allSeries: any[] = []
+  let genres: string[] = []
 
-  return <SeriesClient allSeries={allSeries} genres={genres} />
+  try {
+    const [seriesData, genresData] = await Promise.all([getAllSeries(), getSeriesGenres()])
+    allSeries = seriesData
+    genres = genresData
+  } catch (error) {
+    console.error("Error fetching series data:", error)
+  }
+
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <SeriesClient allSeries={allSeries} genres={genres} />
+    </Suspense>
+  )
 }

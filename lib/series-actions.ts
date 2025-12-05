@@ -43,6 +43,7 @@ export async function createSeries(data: {
 
     revalidatePath("/admin/dashboard")
     revalidatePath("/series")
+    revalidatePath("/home")
     return { success: true, series: result[0] }
   } catch (error) {
     console.error("Error creating series:", error)
@@ -419,13 +420,15 @@ export async function getEpisodeById(id: string) {
 
 export async function getSeriesWithSeasons(seriesIdOrSlug: string) {
   try {
-    // Try to find by slug first, then by ID
-    let seriesData = await db.select().from(series).where(eq(series.slug, seriesIdOrSlug)).limit(1)
+    let seriesData = await db.select().from(series).where(eq(series.id, seriesIdOrSlug)).limit(1)
+
     if (!seriesData[0]) {
-      seriesData = await db.select().from(series).where(eq(series.id, seriesIdOrSlug)).limit(1)
+      seriesData = await db.select().from(series).where(eq(series.slug, seriesIdOrSlug)).limit(1)
     }
 
-    if (!seriesData[0]) return null
+    if (!seriesData[0]) {
+      return null
+    }
 
     const seasonsData = await db
       .select()
