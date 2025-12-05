@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next"
 import { getPublicMovies } from "@/lib/server-actions"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobix.vercel.app"
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mobixtv.online"
 
   // Static pages with proper priorities
   const staticPages: MetadataRoute.Sitemap = [
