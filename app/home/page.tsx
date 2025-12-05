@@ -1,9 +1,16 @@
 import Navbar from "@/components/navbar"
 import HeroBanner from "@/components/hero-banner"
 import MovieCarousel from "@/components/movie-carousel"
+import ContinueWatchingCarousel from "@/components/continue-watching-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
-import { getTrendingMovies, getPublicMovies, getMoviesByGenre, getAllGenres } from "@/lib/server-actions"
+import {
+  getTrendingMovies,
+  getPublicMovies,
+  getMoviesByGenre,
+  getAllGenres,
+  getContinueWatching,
+} from "@/lib/server-actions"
 import PromotionModalWrapper from "@/components/promotion-modal-wrapper"
 
 export const dynamic = "force-dynamic"
@@ -11,7 +18,12 @@ export const revalidate = 0
 export const fetchCache = "force-no-store"
 
 export default async function AuthenticatedHomePage() {
-  const [trending, recent, allGenres] = await Promise.all([getTrendingMovies(), getPublicMovies(), getAllGenres()])
+  const [trending, recent, allGenres, continueWatching] = await Promise.all([
+    getTrendingMovies(),
+    getPublicMovies(),
+    getAllGenres(),
+    getContinueWatching(),
+  ])
 
   // Fetch movies for each genre in parallel
   const genreMoviesPromises = allGenres.map(async (genre) => ({
@@ -30,6 +42,8 @@ export default async function AuthenticatedHomePage() {
       <HeroBanner movie={trending[0] || recent[0] || null} />
 
       <div className="px-4 md:px-8 py-8 space-y-12">
+        {continueWatching && continueWatching.length > 0 && <ContinueWatchingCarousel movies={continueWatching} />}
+
         <AdBanner type="horizontal" placement="homepage" className="mb-4" />
 
         {/* Trending Section */}

@@ -111,3 +111,5 @@ export function AdBannerClient({
     </div>
   )
 }
+
+export default AdBannerClient

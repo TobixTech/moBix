@@ -19,7 +19,7 @@ import {
   ipBlacklist, // Import ipBlacklist table
   targetedPromotions, // Import targetedPromotions table
 } from "@/lib/db/schema"
-import { eq, desc, and, ilike, sql, count, not, or, inArray, sum } from "drizzle-orm"
+import { eq, desc, and, ilike, sql, count, not, or, inArray, sum, gt, lt } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { Redis } from "@upstash/redis"
@@ -1587,39 +1587,38 @@ export async function saveWatchProgress(movieId: string, progress: number) {
 
 export async function getContinueWatching() {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
       return []
     }
 
-    const dbUser = await ensureUserExists(userId)
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
     if (!dbUser) {
       return []
     }
 
-    // Get all watch progress keys for this user
-    const keys = await redis.keys(`watch:${dbUser.id}:*`)
+    // Get movies with progress between 5% and 95% (started but not finished)
+    const continueWatching = await db
+      .select({
+        id: movies.id,
+        slug: movies.slug,
+        title: movies.title,
+        posterUrl: movies.posterUrl,
+        genre: movies.genre,
+        year: movies.year,
+        averageRating: movies.averageRating,
+        progress: watchHistory.progress,
+        duration: watchHistory.duration,
+        watchedAt: watchHistory.watchedAt,
+      })
+      .from(watchHistory)
+      .innerJoin(movies, eq(watchHistory.movieId, movies.id))
+      .where(and(eq(watchHistory.userId, dbUser.id), gt(watchHistory.progress, 5), lt(watchHistory.progress, 95)))
+      .orderBy(desc(watchHistory.watchedAt))
+      .limit(10)
 
-    const continueWatching = []
-    for (const key of keys) {
-      const movieId = key.split(":")[2]
-      const progress = await redis.get(key)
-
-      if (progress && Number(progress) > 0 && Number(progress) < 95) {
-        const movie = await db.query.movies.findFirst({
-          where: eq(movies.id, movieId),
-        })
-        if (movie) {
-          continueWatching.push({
-            ...movie,
-            progress: Number(progress),
-          })
-        }
-      }
-    }
-
-    return continueWatching.slice(0, 10)
-  } catch (error) {
+    return continueWatching
+  } catch (error: any) {
     console.error("Error fetching continue watching:", error)
     return []
   }
