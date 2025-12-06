@@ -592,7 +592,7 @@ export async function toggleLike(movieId: string) {
   }
 }
 
-export async function addComment(movieId: string, content: string, rating?: number) {
+export async function addComment(movieId: string, text: string, rating?: number) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -606,8 +606,8 @@ export async function addComment(movieId: string, content: string, rating?: numb
       .values({
         userId: user.id,
         movieId,
-        content,
-        rating: rating || null,
+        text, // Changed from 'content' to 'text' to match schema
+        rating: rating || 0,
       })
       .returning()
 

@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import { motion, AnimatePresence } from "framer-motion"
+import { toast } from "sonner"
 import {
   Play,
   Plus,
@@ -31,8 +31,8 @@ import {
   toggleSeriesLike,
   addSeriesComment,
   addSeriesToWatchLater,
+  rateSeriesAction,
 } from "@/lib/series-actions"
-import { toast } from "sonner"
 
 interface Episode {
   id: string
@@ -90,26 +90,26 @@ interface Series {
 
 interface SeriesDetailClientProps {
   series: Series
-  inWatchlist: boolean
-  isLiked?: boolean
-  adSettings: {
-    prerollEnabled: boolean
-    prerollAdCodes: { name: string; code: string }[]
-    midrollEnabled: boolean
-    midrollAdCodes: { name: string; code: string }[]
-    midrollIntervalMinutes: number
-  }
   adBannerHorizontal: React.ReactNode
   adBannerVertical: React.ReactNode
+  initialInWatchlist: boolean
+  initialIsLiked: boolean
+  prerollAdCodes: { name: string; code: string }[]
+  midrollAdCodes: { name: string; code: string }[]
+  midrollEnabled: boolean
+  midrollIntervalMinutes: number
 }
 
 export default function SeriesDetailClient({
   series,
-  inWatchlist: initialInWatchlist,
-  isLiked: initialIsLiked = false,
-  adSettings,
   adBannerHorizontal,
   adBannerVertical,
+  initialInWatchlist,
+  initialIsLiked,
+  prerollAdCodes,
+  midrollAdCodes,
+  midrollEnabled,
+  midrollIntervalMinutes,
 }: SeriesDetailClientProps) {
   const { isSignedIn } = useUser()
   const [inWatchlist, setInWatchlist] = useState(initialInWatchlist)
@@ -123,8 +123,6 @@ export default function SeriesDetailClient({
   const [isLiking, setIsLiking] = useState(false)
   const [isWatchLaterLoading, setIsWatchLaterLoading] = useState(false)
   const [inWatchLater, setInWatchLater] = useState(false)
-
-  // Comment state
   const [commentText, setCommentText] = useState("")
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -251,6 +249,25 @@ export default function SeriesDetailClient({
     cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
   }
 
+  const handleRatingSubmit = async (star: number) => {
+    if (!isSignedIn) {
+      toast.error("Please sign in to rate")
+      return
+    }
+
+    setUserRating(star)
+    try {
+      const result = await rateSeriesAction(series.id, star)
+      if (result.success) {
+        toast.success("Rating submitted!")
+      } else {
+        toast.error(result.error || "Failed to submit rating")
+      }
+    } catch {
+      toast.error("Failed to submit rating")
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0C10]">
       {/* Hero Section */}
@@ -274,11 +291,11 @@ export default function SeriesDetailClient({
                     videoUrl={currentEpisode.videoUrl}
                     posterUrl={currentEpisode.thumbnailUrl || series.posterUrl}
                     title={`${series.title} - ${currentEpisode.title}`}
-                    showPrerollAds={adSettings.prerollEnabled}
-                    prerollAdCodes={adSettings.prerollAdCodes}
-                    midrollEnabled={adSettings.midrollEnabled}
-                    midrollAdCodes={adSettings.midrollAdCodes}
-                    midrollIntervalMinutes={adSettings.midrollIntervalMinutes}
+                    showPrerollAds={prerollAdCodes.length > 0}
+                    prerollAdCodes={prerollAdCodes}
+                    midrollEnabled={midrollEnabled}
+                    midrollAdCodes={midrollAdCodes}
+                    midrollIntervalMinutes={midrollIntervalMinutes}
                   />
                   <div className="bg-[#1A1B23]/80 backdrop-blur-sm rounded-xl p-4 border border-[#2A2B33]">
                     <h3 className="text-xl font-bold text-white">{currentEpisode.title}</h3>
@@ -356,7 +373,7 @@ export default function SeriesDetailClient({
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
-                      onClick={() => setUserRating(star)}
+                      onClick={() => handleRatingSubmit(star)}
                       className="transition-transform hover:scale-110"
                     >
                       <Star
@@ -609,7 +626,7 @@ export default function SeriesDetailClient({
                   <p className="text-[#888888] text-center py-8">No comments yet. Be the first to comment!</p>
                 ) : (
                   comments.map((comment) => (
-                    <div key={comment.id} className="bg-[#0B0C10] rounded-xl p-4 border border-[#2A2B33]">
+                    <div key={comment.id} className="bg-[#1A1B23] rounded-xl p-4 border border-[#2A2B33]">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00FFFF] to-purple-500 flex items-center justify-center text-white font-bold">
