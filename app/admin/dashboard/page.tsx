@@ -65,6 +65,9 @@ import {
   updatePromotionSettings, // Added
   deletePromotionEntry, // Added
   getAdminSeries, // Added getAdminSeries import
+  getAllCommentsAdmin,
+  deleteSeriesComment,
+  getAllContentReports,
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -142,14 +145,16 @@ interface User {
   commentsCount?: number // Added for users tab
 }
 
-interface Comment {
+interface AdminComment {
   id: string
   text: string
   rating: number
-  movieTitle: string
+  contentTitle: string
+  contentId: string
+  contentType: "movie" | "series"
   userEmail: string
+  userName: string
   createdAt: string
-  movieId: string
 }
 
 interface Feedback {
@@ -217,7 +222,7 @@ export default function AdminDashboard() {
   const [recentSignups, setRecentSignups] = useState<Signup[]>([])
   const [movies, setMovies] = useState<Movie[]>([])
   const [users, setUsers] = useState<User[]>([]) // Changed type to User[] to match potential getUsers response structure, assuming it aligns or is compatible with AdminUser. If not, 'any[]' would be a fallback.
-  const [comments, setComments] = useState<Comment[]>([])
+  const [comments, setComments] = useState<AdminComment[]>([])
   const [feedback, setFeedback] = useState<Feedback[]>([]) // Added feedback state
   const [contentReports, setContentReports] = useState<ContentReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -375,18 +380,24 @@ export default function AdminDashboard() {
         adSettingsData,
         feedbackData,
         reportsData, // Added reports fetch
-        // Add seriesData fetch if available
+        promotionEntriesData,
+        promotionSettingsData,
+        ipBlacklistData,
+        seriesData, // Added series fetch
       ] = await Promise.all([
         getAdminMetrics(),
         getTrendingMovies(),
         getRecentSignups(),
         getAdminMovies(),
         getUsers(),
-        getAllComments(),
+        getAllCommentsAdmin(), // Use new function
         getAdSettings(),
         getFeedbackEntries(),
-        getContentReports(),
-        // getAdminSeries(), // Uncomment and adjust if getAdminSeries is available
+        getAllContentReports(), // Use new function
+        getPromotionEntries(),
+        getPromotionSettings(),
+        getIpBlacklist(),
+        getAdminSeries(),
       ])
 
       setMetrics(metricsData)
@@ -399,7 +410,10 @@ export default function AdminDashboard() {
       if (reportsData.success) {
         setContentReports(reportsData.reports as ContentReport[])
       }
-      // setSeries(seriesData); // Uncomment and adjust if getAdminSeries is available
+      setPromotionEntries(promotionEntriesData)
+      setPromotionSettings(promotionSettingsData)
+      setIpBlacklist(ipBlacklistData)
+      setSeries(seriesData)
 
       if (adSettingsData) {
         setAdSettings({
@@ -727,24 +741,25 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const handleDeleteComment = async (commentId: string) => {
-    if (!confirm("Are you sure you want to delete this comment?")) {
-      return
+  const handleDeleteComment = async (commentId: string, contentType: "movie" | "series") => {
+    try {
+      let result
+      if (contentType === "series") {
+        result = await deleteSeriesComment(commentId)
+      } else {
+        result = await deleteComment(commentId)
+      }
+
+      if (result.success) {
+        setComments(comments.filter((c) => c.id !== commentId))
+        toast.success("Comment deleted successfully")
+      } else {
+        toast.error("Failed to delete comment")
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error)
+      toast.error("Failed to delete comment")
     }
-
-    setLoading(true)
-    const result = await deleteComment(commentId)
-
-    if (result.success) {
-      // Re-fetch comments to update the list
-      const commentsData = await getAllComments()
-      setComments(commentsData)
-      alert("Comment deleted successfully!")
-    } else {
-      alert(`Failed to delete comment: ${result.error}`)
-    }
-
-    setLoading(false)
   }
 
   const handleBanUser = async (userId: string) => {
@@ -1942,36 +1957,65 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* Update comments tab UI to show content type */}
           {activeTab === "comments" && (
             <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-white mb-6">Recent Comments</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-white">Comment Moderation</h3>
+                <div className="flex items-center gap-4">
+                  <span className="text-white/50 text-sm">
+                    {comments.filter((c) => c.contentType === "movie").length} movie comments
+                  </span>
+                  <span className="text-white/50 text-sm">
+                    {comments.filter((c) => c.contentType === "series").length} series comments
+                  </span>
+                </div>
+              </div>
               <div className="space-y-4">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                          <Users className="w-5 h-5 text-white/50" />
-                        </div>
-                        <div>
-                          <div className="text-white font-medium">{comment.userEmail}</div>
-                          <div className="text-white/40 text-sm">on {comment.movieTitle}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-yellow-400 font-bold flex items-center gap-1">★ {comment.rating}</span>
-                        <button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          className="p-2 hover:bg-red-500/10 text-white/30 hover:text-red-400 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-white/80 leading-relaxed">{comment.text}</p>
-                    <div className="mt-4 text-white/30 text-xs">{comment.createdAt}</div>
+                {comments.length === 0 ? (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
+                    <MessageSquare className="w-12 h-12 text-white/20 mx-auto mb-4" />
+                    <p className="text-white/50">No comments found.</p>
                   </div>
-                ))}
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="bg-white/5 border border-white/10 p-6 rounded-2xl">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white/50" />
+                          </div>
+                          <div>
+                            <div className="text-white font-medium">{comment.userName}</div>
+                            <div className="flex items-center gap-2 text-white/40 text-sm">
+                              <span>on {comment.contentTitle}</span>
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                  comment.contentType === "series"
+                                    ? "bg-purple-500/20 text-purple-400"
+                                    : "bg-cyan-500/20 text-cyan-400"
+                                }`}
+                              >
+                                {comment.contentType === "series" ? "Series" : "Movie"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-yellow-400 font-bold flex items-center gap-1">★ {comment.rating}</span>
+                          <button
+                            onClick={() => handleDeleteComment(comment.id, comment.contentType)}
+                            className="p-2 hover:bg-red-500/10 text-white/30 hover:text-red-400 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-white/80 leading-relaxed">{comment.text}</p>
+                      <div className="mt-4 text-white/30 text-xs">{comment.createdAt}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

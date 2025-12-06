@@ -21,6 +21,8 @@ import {
   Send,
   TrendingUp,
   Eye,
+  Flag,
+  Download,
 } from "lucide-react"
 import ProductionVideoPlayer from "@/components/production-video-player"
 import AdBannerClient from "@/components/ad-banner-client"
@@ -32,6 +34,7 @@ import {
   addSeriesComment,
   addSeriesToWatchLater,
   rateSeriesAction,
+  reportSeries,
 } from "@/lib/series-actions"
 
 interface Episode {
@@ -43,6 +46,8 @@ interface Episode {
   duration: number | null
   thumbnailUrl: string | null
   videoUrl: string
+  downloadEnabled: boolean
+  downloadUrl: string | null
   createdAt: Date
 }
 
@@ -127,6 +132,11 @@ export default function SeriesDetailClient({
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState<Comment[]>(series.comments || [])
+
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportReason, setReportReason] = useState("")
+  const [reportDescription, setReportDescription] = useState("")
+  const [reportLoading, setReportLoading] = useState(false)
 
   const rating =
     typeof series.averageRating === "string" ? Number.parseFloat(series.averageRating) : series.averageRating || 0
@@ -243,12 +253,6 @@ export default function SeriesDetailClient({
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const statusColors: Record<string, string> = {
-    ongoing: "bg-green-500/20 text-green-400 border-green-500/30",
-    completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
-  }
-
   const handleRatingSubmit = async (star: number) => {
     if (!isSignedIn) {
       toast.error("Please sign in to rate")
@@ -265,6 +269,30 @@ export default function SeriesDetailClient({
       }
     } catch {
       toast.error("Failed to submit rating")
+    }
+  }
+
+  const handleReport = async () => {
+    if (!reportReason) {
+      toast.error("Please select a reason")
+      return
+    }
+
+    setReportLoading(true)
+    try {
+      const result = await reportSeries(series.id, reportReason, reportDescription)
+      if (result.success) {
+        toast.success("Report submitted successfully")
+        setShowReportModal(false)
+        setReportReason("")
+        setReportDescription("")
+      } else {
+        toast.error(result.error || "Failed to submit report")
+      }
+    } catch (error) {
+      toast.error("Failed to submit report")
+    } finally {
+      setReportLoading(false)
     }
   }
 
@@ -307,6 +335,17 @@ export default function SeriesDetailClient({
                       <p className="text-gray-300 mt-2 text-sm">{currentEpisode.description}</p>
                     )}
                   </div>
+                  {currentEpisode.downloadEnabled && currentEpisode.downloadUrl && (
+                    <a
+                      href={currentEpisode.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all"
+                    >
+                      <Download className="w-5 h-5" />
+                      Download
+                    </a>
+                  )}
                 </div>
               ) : (
                 <div className="relative aspect-video rounded-xl overflow-hidden border border-[#2A2B33] shadow-2xl group">
@@ -462,6 +501,14 @@ export default function SeriesDetailClient({
                     <Bookmark className={`w-5 h-5 ${inWatchLater ? "fill-purple-400" : ""}`} />
                   )}
                   <span className="hidden sm:inline">{inWatchLater ? "Saved" : "Watch Later"}</span>
+                </button>
+
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="p-3 bg-white/5 hover:bg-red-500/20 rounded-xl transition-all border border-white/10 hover:border-red-500/30"
+                  title="Report"
+                >
+                  <Flag className="w-5 h-5 text-white/70 hover:text-red-400" />
                 </button>
               </div>
 
@@ -709,6 +756,69 @@ export default function SeriesDetailClient({
           </div>
         </div>
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1A1B23] rounded-2xl border border-[#2A2B33] p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-white mb-4">Report Series</h3>
+            <p className="text-gray-400 text-sm mb-4">Help us understand what's wrong with this content.</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-white/70 text-sm mb-2">Reason</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="">Select a reason</option>
+                  <option value="broken_video">Broken/Not Playing</option>
+                  <option value="wrong_content">Wrong Content</option>
+                  <option value="poor_quality">Poor Quality</option>
+                  <option value="missing_subtitles">Missing Subtitles</option>
+                  <option value="copyright">Copyright Issue</option>
+                  <option value="inappropriate">Inappropriate Content</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white/70 text-sm mb-2">Additional Details (Optional)</label>
+                <textarea
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  placeholder="Describe the issue..."
+                  rows={3}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-cyan-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReport}
+                disabled={reportLoading || !reportReason}
+                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
+              >
+                {reportLoading ? "Submitting..." : "Submit Report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+const statusColors: Record<string, string> = {
+  ongoing: "bg-green-500/20 text-green-400 border-green-500/30",
+  completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
 }

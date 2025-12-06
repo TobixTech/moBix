@@ -11,6 +11,7 @@ import {
   seriesLikes,
   seriesComments,
   users,
+  seriesReports,
 } from "@/lib/db/schema"
 import { eq, desc, and, sql, ilike, or } from "drizzle-orm"
 import { auth } from "@clerk/nextjs/server"
@@ -650,5 +651,89 @@ export async function getRecentSeries(limit = 10) {
   } catch (error) {
     console.error("Error fetching recent series:", error)
     return []
+  }
+}
+
+export async function reportSeries(seriesId: string, reason: string, description?: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    let userId = null
+    let userEmail = null
+
+    if (clerkId) {
+      const user = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+      if (user[0]) {
+        userId = user[0].id
+        userEmail = user[0].email
+      }
+    }
+
+    await db.insert(seriesReports).values({
+      userId,
+      seriesId,
+      reason,
+      description,
+      email: userEmail,
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error reporting series:", error)
+    return { success: false, error: "Failed to submit report" }
+  }
+}
+
+export async function getSeriesReports() {
+  try {
+    const reports = await db.query.seriesReports.findMany({
+      with: {
+        user: true,
+        series: true,
+      },
+      orderBy: [desc(seriesReports.createdAt)],
+    })
+
+    return reports.map((report) => ({
+      id: report.id,
+      reason: report.reason,
+      description: report.description,
+      status: report.status,
+      series: {
+        id: report.series.id,
+        title: report.series.title,
+        posterUrl: report.series.posterUrl,
+      },
+      user: report.user
+        ? {
+            email: report.user.email,
+            firstName: report.user.firstName,
+          }
+        : null,
+      email: report.email,
+      createdAt: report.createdAt.toISOString(),
+    }))
+  } catch (error) {
+    console.error("Error fetching series reports:", error)
+    return []
+  }
+}
+
+export async function updateSeriesReportStatus(reportId: string, status: string) {
+  try {
+    await db.update(seriesReports).set({ status }).where(eq(seriesReports.id, reportId))
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating report status:", error)
+    return { success: false, error: "Failed to update status" }
+  }
+}
+
+export async function deleteSeriesReport(reportId: string) {
+  try {
+    await db.delete(seriesReports).where(eq(seriesReports.id, reportId))
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting report:", error)
+    return { success: false, error: "Failed to delete report" }
   }
 }

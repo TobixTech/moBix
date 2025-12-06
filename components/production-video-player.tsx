@@ -7,7 +7,7 @@ import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
 import MidrollAdPlayer from "./midroll-ad-player"
 import { updateWatchProgress } from "@/lib/server-actions"
-import { Play, RotateCw, X, Maximize2, Minimize2 } from "lucide-react"
+import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw } from "lucide-react"
 
 interface PrerollAdCode {
   code: string
@@ -55,6 +55,8 @@ export default function ProductionVideoPlayer({
   const [lastMidrollTime, setLastMidrollTime] = useState(0)
   const [isRotated, setIsRotated] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [hasError, setHasError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const lastProgressUpdate = useRef(0)
@@ -63,15 +65,23 @@ export default function ProductionVideoPlayer({
 
   const isEmbed = isEmbedUrl(videoUrl)
 
+  function isValidUrl(url: string): boolean {
+    if (!url || url.trim() === "") return false
+    try {
+      new URL(url)
+      return true
+    } catch {
+      // Check if it's a relative URL or embed code
+      return url.startsWith("/") || url.includes("embed") || url.includes("youtube") || url.includes("vimeo")
+    }
+  }
+
   const handleRotate = useCallback(() => {
     setIsRotated((prev) => !prev)
 
-    // Lock screen orientation on mobile if supported
     if (screen.orientation && "lock" in screen.orientation) {
       if (!isRotated) {
-        ;(screen.orientation as any).lock?.("landscape").catch(() => {
-          // Silently fail if not supported
-        })
+        ;(screen.orientation as any).lock?.("landscape").catch(() => {})
       } else {
         ;(screen.orientation as any).unlock?.()
       }
@@ -85,7 +95,6 @@ export default function ProductionVideoPlayer({
       if (!document.fullscreenElement) {
         await containerRef.current.requestFullscreen()
         setIsFullscreen(true)
-        // Auto-rotate when entering fullscreen on mobile
         if (window.innerWidth < 768) {
           setIsRotated(true)
           if (screen.orientation && "lock" in screen.orientation) {
@@ -198,6 +207,11 @@ export default function ProductionVideoPlayer({
 
   const handleIntroComplete = () => {
     setShowIntro(false)
+    if (!isValidUrl(videoUrl)) {
+      setHasError(true)
+      setShowVideo(true)
+      return
+    }
     const hasPrerollAds =
       showPrerollAds && prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
     if (hasPrerollAds) {
@@ -213,6 +227,10 @@ export default function ProductionVideoPlayer({
   const handlePrerollAdComplete = () => {
     setShowPrerollAd(false)
     setShowVideo(true)
+    if (!isValidUrl(videoUrl)) {
+      setHasError(true)
+      return
+    }
     if (!isEmbed) {
       setHasStartedPlaying(true)
     }
@@ -226,7 +244,31 @@ export default function ProductionVideoPlayer({
   }
 
   const handleEmbedPlay = () => {
+    if (!isValidUrl(videoUrl)) {
+      setHasError(true)
+      return
+    }
     setHasStartedPlaying(true)
+    setHasError(false)
+  }
+
+  const handleRetry = () => {
+    setHasError(false)
+    setRetryCount((prev) => prev + 1)
+    setHasStartedPlaying(false)
+    // Re-trigger play
+    setTimeout(() => {
+      if (isEmbed) {
+        setHasStartedPlaying(true)
+      } else if (videoRef.current) {
+        videoRef.current.load()
+        videoRef.current.play().catch(() => setHasError(true))
+      }
+    }, 100)
+  }
+
+  const handleVideoError = () => {
+    setHasError(true)
   }
 
   useEffect(() => {
@@ -252,6 +294,7 @@ export default function ProductionVideoPlayer({
   }, [midrollEnabled, showVideo, midrollAdCodes, midrollIntervalMinutes, lastMidrollTime])
 
   function isEmbedUrl(url: string) {
+    if (!url) return false
     return (
       url.includes("youtube.com/embed") ||
       url.includes("youtube.com/watch") ||
@@ -265,6 +308,7 @@ export default function ProductionVideoPlayer({
   }
 
   const getEmbedUrl = (url: string) => {
+    if (!url) return ""
     if (url.includes("youtube.com/watch")) {
       const videoId = new URL(url).searchParams.get("v")
       return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
@@ -316,9 +360,8 @@ export default function ProductionVideoPlayer({
         }`}
         style={getContainerStyles()}
       >
-        {showVideo && hasStartedPlaying && (
+        {showVideo && hasStartedPlaying && !hasError && (
           <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
-            {/* Rotate button */}
             <button
               onClick={handleRotate}
               className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
@@ -331,7 +374,6 @@ export default function ProductionVideoPlayer({
               {isRotated ? <X className="w-5 h-5" /> : <RotateCw className="w-5 h-5" />}
             </button>
 
-            {/* Fullscreen button */}
             <button
               onClick={handleFullscreen}
               className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
@@ -346,7 +388,7 @@ export default function ProductionVideoPlayer({
           </div>
         )}
 
-        {showVideo && !hasStartedPlaying && !isRotated && (
+        {showVideo && !hasStartedPlaying && !isRotated && !hasError && (
           <div className="absolute top-3 right-3 z-50">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm text-xs text-gray-300">
               <RotateCw className="w-3.5 h-3.5 text-cyan-400" />
@@ -379,7 +421,33 @@ export default function ProductionVideoPlayer({
           />
         )}
 
-        {showVideo && (
+        {showVideo && hasError && (
+          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0C10] to-[#1A1B23]">
+            <div className="text-center p-8">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
+                <X className="w-10 h-10 text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Video Unavailable</h3>
+              <p className="text-gray-400 mb-6 max-w-sm">
+                Sorry, this video cannot be played right now. Please try again or contact support.
+              </p>
+              <button
+                onClick={handleRetry}
+                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-black font-bold rounded-xl hover:from-cyan-400 hover:to-cyan-500 transition-all flex items-center gap-2 mx-auto"
+              >
+                <RefreshCw className="w-5 h-5" />
+                Try Again
+              </button>
+              {retryCount > 2 && (
+                <p className="text-gray-500 text-sm mt-4">
+                  Still having issues? The video URL may be invalid or restricted.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showVideo && !hasError && (
           <>
             {isEmbed ? (
               <div className="w-full h-full relative">
@@ -404,18 +472,21 @@ export default function ProductionVideoPlayer({
                   </div>
                 ) : (
                   <iframe
+                    key={retryCount}
                     src={getEmbedUrl(videoUrl)}
                     title={title}
                     className="absolute inset-0 w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                     allowFullScreen
                     style={{ border: "none", pointerEvents: "auto" }}
+                    onError={handleVideoError}
                   />
                 )}
               </div>
             ) : (
               <video
                 ref={videoRef}
+                key={retryCount}
                 src={videoUrl}
                 poster={posterUrl}
                 controls
@@ -423,6 +494,7 @@ export default function ProductionVideoPlayer({
                 controlsList="nodownload"
                 className="w-full h-full object-contain"
                 style={{ backgroundColor: "#000" }}
+                onError={handleVideoError}
               >
                 Your browser does not support the video tag.
               </video>

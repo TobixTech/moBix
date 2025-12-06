@@ -459,6 +459,7 @@ export const seriesRelations = relations(series, ({ many }) => ({
   seriesRatings: many(seriesRatings),
   seriesLikes: many(seriesLikes),
   seriesComments: many(seriesComments),
+  seriesReports: many(seriesReports),
 }))
 
 // Seasons
@@ -646,6 +647,37 @@ export const seriesCommentsRelations = relations(seriesComments, ({ one }) => ({
   }),
   series: one(series, {
     fields: [seriesComments.seriesId],
+    references: [series.id],
+  }),
+}))
+
+// Series Reports table
+export const seriesReports = pgTable("SeriesReport", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").references(() => users.id, { onDelete: "set null" }),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  description: text("description"),
+  email: text("email"),
+  status: text("status").default("PENDING").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const seriesReportsRelations = relations(seriesReports, ({ one }) => ({
+  user: one(users, {
+    fields: [seriesReports.userId],
+    references: [users.id],
+  }),
+  series: one(series, {
+    fields: [seriesReports.seriesId],
     references: [series.id],
   }),
 }))

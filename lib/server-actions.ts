@@ -18,6 +18,7 @@ import {
   promotionSettings, // Import promotionSettings table
   ipBlacklist, // Import ipBlacklist table
   targetedPromotions, // Import targetedPromotions table
+  seriesComments, // Import seriesComments table
 } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum, gt, lt } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
@@ -2712,5 +2713,148 @@ export async function isInWatchLater(movieId: string) {
     return result.length > 0
   } catch (error) {
     return false
+  }
+}
+
+export async function getAllCommentsAdmin() {
+  try {
+    // Get movie comments
+    const movieCommentsResult = await db.query.comments.findMany({
+      with: {
+        user: true,
+        movie: true,
+      },
+      orderBy: [desc(comments.createdAt)],
+    })
+
+    const movieComments = movieCommentsResult.map((comment) => ({
+      id: comment.id,
+      text: comment.text,
+      rating: comment.rating,
+      contentTitle: comment.movie.title,
+      contentId: comment.movie.id,
+      contentType: "movie" as const,
+      userEmail: comment.user.email,
+      userName: comment.user.firstName || comment.user.username || comment.user.email,
+      createdAt: comment.createdAt.toISOString().split("T")[0],
+    }))
+
+    // Get series comments
+    const seriesCommentsResult = await db.query.seriesComments.findMany({
+      with: {
+        user: true,
+        series: true,
+      },
+      orderBy: [desc(seriesComments.createdAt)],
+    })
+
+    const seriesCommentsFormatted = seriesCommentsResult.map((comment) => ({
+      id: comment.id,
+      text: comment.text,
+      rating: comment.rating,
+      contentTitle: comment.series.title,
+      contentId: comment.series.id,
+      contentType: "series" as const,
+      userEmail: comment.user.email,
+      userName: comment.user.firstName || comment.user.username || comment.user.email,
+      createdAt: comment.createdAt.toISOString().split("T")[0],
+    }))
+
+    // Combine and sort by date
+    return [...movieComments, ...seriesCommentsFormatted].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+  } catch (error) {
+    console.error("Error fetching all comments:", error)
+    return []
+  }
+}
+
+export async function deleteSeriesComment(commentId: string) {
+  try {
+    await db.delete(seriesComments).where(eq(seriesComments.id, commentId))
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting series comment:", error)
+    return { success: false, error: "Failed to delete comment" }
+  }
+}
+
+export async function getAllContentReports() {
+  try {
+    // Get movie reports
+    const movieReports = await db.query.contentReports.findMany({
+      with: {
+        user: true,
+        movie: true,
+      },
+      orderBy: [desc(contentReports.createdAt)],
+    })
+
+    const formattedMovieReports = movieReports.map((report) => ({
+      id: report.id,
+      reason: report.reason,
+      description: report.description,
+      status: report.status,
+      contentType: "movie" as const,
+      content: {
+        id: report.movie.id,
+        title: report.movie.title,
+        posterUrl: report.movie.posterUrl,
+      },
+      user: report.user
+        ? {
+            email: report.user.email,
+            firstName: report.user.firstName,
+          }
+        : null,
+      email: report.email,
+      createdAt: report.createdAt.toISOString(),
+    }))
+
+    // Get series reports if table exists
+    let seriesReports: any[] = []
+    try {
+      const seriesReportsResult = await db.query.seriesReports?.findMany({
+        with: {
+          user: true,
+          series: true,
+        },
+        orderBy: [desc(seriesReports.createdAt)],
+      })
+
+      if (seriesReportsResult) {
+        seriesReports = seriesReportsResult.map((report: any) => ({
+          id: report.id,
+          reason: report.reason,
+          description: report.description,
+          status: report.status,
+          contentType: "series" as const,
+          content: {
+            id: report.series.id,
+            title: report.series.title,
+            posterUrl: report.series.posterUrl,
+          },
+          user: report.user
+            ? {
+                email: report.user.email,
+                firstName: report.user.firstName,
+              }
+            : null,
+          email: report.email,
+          createdAt: report.createdAt.toISOString(),
+        }))
+      }
+    } catch (e) {
+      // Series reports table might not exist yet
+      console.warn("Series reports table might not exist yet:", e)
+    }
+
+    return [...formattedMovieReports, ...seriesReports].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+  } catch (error) {
+    console.error("Error fetching all content reports:", error)
+    return []
   }
 }
