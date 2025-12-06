@@ -4,8 +4,15 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Heart, Star, Send, Loader, Download, Plus, Check, Play, Calendar, Film } from "lucide-react"
-import { toggleLike, addComment, toggleWatchlist, rateMovie, getUserRating } from "@/lib/server-actions"
+import { Heart, Star, Send, Loader, Download, Plus, Check, Play, Calendar, Film, Bookmark } from "lucide-react"
+import {
+  toggleLike,
+  addComment,
+  toggleWatchlist,
+  rateMovie,
+  getUserRating,
+  addToWatchLater,
+} from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
 import ProductionVideoPlayer from "./production-video-player"
@@ -13,6 +20,7 @@ import SocialShare from "./social-share"
 import StarRating from "./star-rating"
 import ReportContentModal from "./report-content-modal"
 import { AdBannerClient } from "./ad-banner-client"
+import { toast } from "sonner"
 
 interface Comment {
   id: string
@@ -95,6 +103,9 @@ export default function MovieDetailClient({
   const [inWatchlist, setInWatchlist] = useState(isInWatchlist)
   const [isWatchlistLoading, setIsWatchlistLoading] = useState(false)
 
+  const [isWatchLaterLoading, setIsWatchLaterLoading] = useState(false)
+  const [inWatchLater, setInWatchLater] = useState(false)
+
   const [commentText, setCommentText] = useState("")
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -118,7 +129,7 @@ export default function MovieDetailClient({
 
   const handleRate = async (rating: number) => {
     if (!isSignedIn) {
-      alert("Please sign in to rate movies")
+      toast.error("Please sign in to rate movies")
       return
     }
 
@@ -130,8 +141,9 @@ export default function MovieDetailClient({
       if (result.averageRating) {
         setAverageRating(result.averageRating)
       }
+      toast.success("Rating saved!")
     } else {
-      alert(result.error || "Failed to rate movie")
+      toast.error(result.error || "Failed to rate movie")
     }
 
     setIsRating(false)
@@ -139,7 +151,7 @@ export default function MovieDetailClient({
 
   const handleLike = async () => {
     if (!isSignedIn || !userId) {
-      alert("Please sign in to like movies")
+      toast.error("Please sign in to like movies")
       return
     }
 
@@ -150,7 +162,7 @@ export default function MovieDetailClient({
       setIsLiked(result.liked || false)
       setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
     } else {
-      alert(result.error || "Failed to like movie")
+      toast.error(result.error || "Failed to like movie")
     }
 
     setIsLiking(false)
@@ -158,7 +170,7 @@ export default function MovieDetailClient({
 
   const handleWatchlistToggle = async () => {
     if (!isSignedIn || !userId) {
-      alert("Please sign in to manage your watchlist")
+      toast.error("Please sign in to manage your watchlist")
       return
     }
 
@@ -167,11 +179,31 @@ export default function MovieDetailClient({
 
     if (result.success) {
       setInWatchlist(result.added || false)
+      toast.success(result.added ? "Added to watchlist" : "Removed from watchlist")
     } else {
-      alert(result.error || "Failed to update watchlist")
+      toast.error(result.error || "Failed to update watchlist")
     }
 
     setIsWatchlistLoading(false)
+  }
+
+  const handleWatchLater = async () => {
+    if (!isSignedIn || !userId) {
+      toast.error("Please sign in to save for later")
+      return
+    }
+
+    setIsWatchLaterLoading(true)
+    const result = await addToWatchLater(movie.id)
+
+    if (result.success) {
+      setInWatchLater(true)
+      toast.success("Added to Continue Watching!")
+    } else {
+      toast.error(result.error || "Failed to save")
+    }
+
+    setIsWatchLaterLoading(false)
   }
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
@@ -195,6 +227,7 @@ export default function MovieDetailClient({
     if (result.success) {
       setCommentText("")
       setCommentRating(5)
+      toast.success("Comment posted!")
       window.location.reload()
     } else {
       setCommentError(result.error || "Failed to post comment")
@@ -278,7 +311,7 @@ export default function MovieDetailClient({
               <button
                 onClick={handleWatchlistToggle}
                 disabled={isWatchlistLoading}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-all ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${
                   inWatchlist
                     ? "bg-green-500/20 border-green-500 text-green-400"
                     : "bg-[#1A1B23] text-white border-[#2A2B33] hover:border-[#00FFFF]"
@@ -291,13 +324,30 @@ export default function MovieDetailClient({
                 ) : (
                   <Plus className="w-5 h-5" />
                 )}
-                <span>{inWatchlist ? "In Watchlist" : "Add to Watchlist"}</span>
+                <span>{inWatchlist ? "In Watchlist" : "Watchlist"}</span>
+              </button>
+
+              <button
+                onClick={handleWatchLater}
+                disabled={isWatchLaterLoading || inWatchLater}
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${
+                  inWatchLater
+                    ? "bg-purple-500/20 border-purple-500 text-purple-400"
+                    : "bg-[#1A1B23] text-white border-[#2A2B33] hover:border-purple-500"
+                }`}
+              >
+                {isWatchLaterLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Bookmark className={`w-5 h-5 ${inWatchLater ? "fill-purple-400" : ""}`} />
+                )}
+                <span>{inWatchLater ? "Saved" : "Watch Later"}</span>
               </button>
 
               <button
                 onClick={handleLike}
                 disabled={isLiking}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-all ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-lg border transition-all ${
                   isLiked
                     ? "bg-[#00FFFF]/20 border-[#00FFFF] text-[#00FFFF]"
                     : "bg-[#1A1B23] text-white border-[#2A2B33] hover:border-[#00FFFF]"

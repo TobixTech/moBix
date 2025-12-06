@@ -1,14 +1,14 @@
 "use client"
 
 import { useRef } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Tv } from "lucide-react"
 import Link from "next/link"
 import SeriesCard from "./series-card"
-import { AdBannerClient } from "./ad-banner-client"
+import AdBannerClient from "./ad-banner-client"
 
 interface Series {
   id: string
-  slug?: string
+  slug?: string | null
   title: string
   posterUrl?: string
   genre?: string
@@ -53,10 +53,17 @@ export default function SeriesCarousel({ title, series, showSeeMore = true, show
   return (
     <div className="relative group">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl md:text-2xl font-bold text-white">{title}</h2>
+        <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
+          <Tv className="w-6 h-6 text-[#00FFFF]" />
+          {title}
+        </h2>
         {showSeeMore && (
-          <Link href="/series" className="text-[#00FFFF] hover:underline text-sm">
+          <Link
+            href="/series"
+            className="text-[#00FFFF] hover:text-white text-sm font-medium transition-colors flex items-center gap-1"
+          >
             See All
+            <ChevronRight className="w-4 h-4" />
           </Link>
         )}
       </div>
@@ -64,26 +71,30 @@ export default function SeriesCarousel({ title, series, showSeeMore = true, show
       <div className="relative">
         <button
           onClick={() => scroll("left")}
-          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity border border-white/10"
+          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/80 hover:bg-[#00FFFF]/20 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 hover:border-[#00FFFF]/50"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
 
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide pb-4"
+          className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1"
           style={{ scrollSnapType: "x mandatory" }}
         >
           {seriesWithAds.map((item, index) => {
             if ("isAd" in item) {
               return (
-                <div key={`ad-${item.index}`} className="flex-shrink-0 w-[200px]" style={{ scrollSnapAlign: "start" }}>
-                  <AdBannerClient type="vertical" placement="seriesCarousel" />
+                <div
+                  key={`ad-${item.index}`}
+                  className="flex-shrink-0 w-[160px] h-[240px] rounded-xl overflow-hidden"
+                  style={{ scrollSnapAlign: "start" }}
+                >
+                  <AdBannerClient className="w-full h-full" />
                 </div>
               )
             }
             return (
-              <div key={item.id} style={{ scrollSnapAlign: "start" }}>
+              <div key={item.id} className="flex-shrink-0" style={{ scrollSnapAlign: "start" }}>
                 <SeriesCard series={item} />
               </div>
             )
@@ -92,7 +103,7 @@ export default function SeriesCarousel({ title, series, showSeeMore = true, show
 
         <button
           onClick={() => scroll("right")}
-          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/70 hover:bg-black/90 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity border border-white/10"
+          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/80 hover:bg-[#00FFFF]/20 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 hover:border-[#00FFFF]/50"
         >
           <ChevronRight className="w-6 h-6" />
         </button>

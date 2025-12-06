@@ -5,6 +5,7 @@ import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
 import MidrollAdPlayer from "./midroll-ad-player"
 import { updateWatchProgress } from "@/lib/server-actions"
+import { Play } from "lucide-react"
 
 interface PrerollAdCode {
   code: string
@@ -48,11 +49,14 @@ export default function ProductionVideoPlayer({
   const [showPrerollAd, setShowPrerollAd] = useState(false)
   const [showMidrollAd, setShowMidrollAd] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(false)
   const [lastMidrollTime, setLastMidrollTime] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const lastProgressUpdate = useRef(0)
   const embeddedStartTime = useRef<number>(0)
   const embeddedIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const isEmbed = isEmbedUrl(videoUrl)
 
   const saveProgress = useCallback(async () => {
     if (!movieId || !videoRef.current) return
@@ -71,7 +75,7 @@ export default function ProductionVideoPlayer({
     if (!movieId) return
 
     const elapsedMinutes = (Date.now() - embeddedStartTime.current) / 1000 / 60
-    const estimatedDuration = movieDuration // Use movie duration from props
+    const estimatedDuration = movieDuration
     const progress = Math.min(Math.floor((elapsedMinutes / estimatedDuration) * 100), 95)
 
     if (progress > lastProgressUpdate.current && progress >= 5) {
@@ -83,15 +87,9 @@ export default function ProductionVideoPlayer({
   useEffect(() => {
     if (!showVideo || !movieId) return
 
-    const isEmbed = isEmbedUrl(videoUrl)
-
     if (isEmbed) {
       embeddedStartTime.current = Date.now()
-
-      // Save progress every 30 seconds for embedded videos
       embeddedIntervalRef.current = setInterval(saveEmbeddedProgress, 30000)
-
-      // Save on page unload
       const handleBeforeUnload = () => saveEmbeddedProgress()
       window.addEventListener("beforeunload", handleBeforeUnload)
 
@@ -103,7 +101,6 @@ export default function ProductionVideoPlayer({
         saveEmbeddedProgress()
       }
     } else {
-      // Native video tracking
       const video = videoRef.current
       if (!video) return
 
@@ -121,7 +118,7 @@ export default function ProductionVideoPlayer({
         saveProgress()
       }
     }
-  }, [showVideo, movieId, saveProgress, saveEmbeddedProgress, videoUrl])
+  }, [showVideo, movieId, saveProgress, saveEmbeddedProgress, isEmbed])
 
   const handleIntroComplete = () => {
     setShowIntro(false)
@@ -131,12 +128,18 @@ export default function ProductionVideoPlayer({
       setShowPrerollAd(true)
     } else {
       setShowVideo(true)
+      if (!isEmbed) {
+        setHasStartedPlaying(true)
+      }
     }
   }
 
   const handlePrerollAdComplete = () => {
     setShowPrerollAd(false)
     setShowVideo(true)
+    if (!isEmbed) {
+      setHasStartedPlaying(true)
+    }
   }
 
   const handleMidrollAdComplete = () => {
@@ -144,6 +147,10 @@ export default function ProductionVideoPlayer({
     if (videoRef.current) {
       videoRef.current.play()
     }
+  }
+
+  const handleEmbedPlay = () => {
+    setHasStartedPlaying(true)
   }
 
   useEffect(() => {
@@ -168,7 +175,7 @@ export default function ProductionVideoPlayer({
     return () => video.removeEventListener("timeupdate", handleTimeUpdate)
   }, [midrollEnabled, showVideo, midrollAdCodes, midrollIntervalMinutes, lastMidrollTime])
 
-  const isEmbedUrl = (url: string) => {
+  function isEmbedUrl(url: string) {
     return (
       url.includes("youtube.com/embed") ||
       url.includes("youtube.com/watch") ||
@@ -185,17 +192,19 @@ export default function ProductionVideoPlayer({
     // YouTube watch URL
     if (url.includes("youtube.com/watch")) {
       const videoId = new URL(url).searchParams.get("v")
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
     }
     // YouTube short URL
     if (url.includes("youtu.be/")) {
       const videoId = url.split("youtu.be/")[1].split("?")[0]
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
     }
-    // YouTube embed URL - ensure autoplay
+    // YouTube embed URL
     if (url.includes("youtube.com/embed")) {
       const hasParams = url.includes("?")
-      return hasParams ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
+      return hasParams
+        ? `${url}&autoplay=1&playsinline=1&enablejsapi=1`
+        : `${url}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
     }
     // Vimeo URL
     if (url.includes("vimeo.com/") && !url.includes("/video/")) {
@@ -206,7 +215,7 @@ export default function ProductionVideoPlayer({
   }
 
   return (
-    <div className="relative w-full aspect-video bg-[#0B0C10] rounded-lg overflow-hidden border border-[#2A2B33]">
+    <div className="relative w-full aspect-video bg-[#0B0C10] rounded-xl overflow-hidden border border-[#2A2B33] shadow-2xl">
       {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
 
       {showPrerollAd && (
@@ -233,16 +242,37 @@ export default function ProductionVideoPlayer({
 
       {showVideo && (
         <>
-          {isEmbedUrl(videoUrl) ? (
-            <div className="w-full h-full">
-              <iframe
-                src={getEmbedUrl(videoUrl)}
-                title={title}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                allowFullScreen
-                style={{ border: "none" }}
-              />
+          {isEmbed ? (
+            <div className="w-full h-full relative">
+              {!hasStartedPlaying ? (
+                <div
+                  className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer group"
+                  onClick={handleEmbedPlay}
+                  style={{
+                    backgroundImage: `url(${posterUrl})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
+                >
+                  <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
+                  <button className="relative z-10 w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#00FFFF] to-cyan-600 flex items-center justify-center shadow-2xl shadow-cyan-500/40 group-hover:scale-110 group-hover:shadow-cyan-500/60 transition-all duration-300">
+                    <Play className="w-10 h-10 md:w-12 md:h-12 text-black fill-black ml-1" />
+                  </button>
+                  <div className="absolute bottom-8 left-0 right-0 text-center">
+                    <p className="text-white text-lg font-semibold drop-shadow-lg">{title}</p>
+                    <p className="text-gray-300 text-sm">Click to play</p>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  src={getEmbedUrl(videoUrl)}
+                  title={title}
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                  allowFullScreen
+                  style={{ border: "none", pointerEvents: "auto" }}
+                />
+              )}
             </div>
           ) : (
             <video

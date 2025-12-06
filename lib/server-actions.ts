@@ -2656,3 +2656,61 @@ export async function getAdminSeries() {
     return []
   }
 }
+
+export async function addToWatchLater(movieId: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Add to watch history with 1% progress to mark as "watch later"
+    await db
+      .insert(watchHistory)
+      .values({
+        userId: dbUser.id,
+        movieId,
+        progress: 1,
+        duration: 0,
+        watchedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [watchHistory.userId, watchHistory.movieId],
+        set: {
+          progress: 1,
+          watchedAt: new Date(),
+        },
+      })
+
+    revalidatePath("/home")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error adding to watch later:", error)
+    return { success: false, error: "Failed to add to watch later" }
+  }
+}
+
+export async function isInWatchLater(movieId: string) {
+  try {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) return false
+
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, clerkId)).limit(1)
+    if (!dbUser) return false
+
+    const result = await db
+      .select()
+      .from(watchHistory)
+      .where(and(eq(watchHistory.userId, dbUser.id), eq(watchHistory.movieId, movieId)))
+      .limit(1)
+
+    return result.length > 0
+  } catch (error) {
+    return false
+  }
+}

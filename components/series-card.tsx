@@ -9,7 +9,7 @@ import StarRating from "./star-rating"
 interface SeriesCardProps {
   series: {
     id: string
-    slug?: string
+    slug?: string | null
     title: string
     posterUrl?: string
     genre?: string
@@ -32,10 +32,10 @@ export default function SeriesCard({ series }: SeriesCardProps) {
   return (
     <Link href={seriesUrl} prefetch={false}>
       <motion.div
-        className="flex-shrink-0 w-[140px] md:w-[180px] aspect-[2/3] rounded-lg overflow-hidden cursor-pointer group relative"
+        className="flex-shrink-0 w-[140px] md:w-[180px] aspect-[2/3] rounded-xl overflow-hidden cursor-pointer group relative shadow-lg"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        whileHover={{ y: -5 }}
+        whileHover={{ y: -8, scale: 1.02 }}
         transition={{ duration: 0.3 }}
       >
         {isLoading && (
@@ -52,9 +52,9 @@ export default function SeriesCard({ series }: SeriesCardProps) {
         />
 
         {/* TV Badge */}
-        <div className="absolute top-2 right-2 bg-cyan-500/90 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1">
+        <div className="absolute top-2 right-2 bg-gradient-to-r from-cyan-500 to-cyan-400 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1 shadow-lg">
           <Tv className="w-3 h-3 text-black" />
-          <span className="text-xs font-bold text-black">Series</span>
+          <span className="text-xs font-bold text-black">TV</span>
         </div>
 
         {rating > 0 && (
@@ -66,26 +66,26 @@ export default function SeriesCard({ series }: SeriesCardProps) {
         {/* Status Badge */}
         {series.status && (
           <div
-            className={`absolute bottom-12 left-2 px-2 py-0.5 rounded text-xs font-bold ${
+            className={`absolute bottom-14 left-2 px-2 py-0.5 rounded text-xs font-bold backdrop-blur-sm ${
               series.status === "ongoing"
-                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                ? "bg-green-500/30 text-green-400 border border-green-500/50"
                 : series.status === "completed"
-                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                  : "bg-red-500/20 text-red-400 border border-red-500/30"
+                  ? "bg-blue-500/30 text-blue-400 border border-blue-500/50"
+                  : "bg-red-500/30 text-red-400 border border-red-500/50"
             }`}
           >
             {series.status.charAt(0).toUpperCase() + series.status.slice(1)}
           </div>
         )}
 
-        {/* Overlay */}
+        {/* Gradient Overlay */}
         <motion.div
-          className="absolute inset-0 bg-gradient-to-t from-[#0B0C10] via-transparent to-transparent"
-          animate={{ opacity: isHovered ? 1 : 0.6 }}
+          className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"
+          animate={{ opacity: isHovered ? 1 : 0.7 }}
           transition={{ duration: 0.3 }}
         />
 
-        {/* Content on Hover */}
+        {/* Hover Content */}
         <motion.div
           className="absolute inset-0 flex flex-col justify-end p-3"
           initial={{ opacity: 0 }}
@@ -93,38 +93,45 @@ export default function SeriesCard({ series }: SeriesCardProps) {
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="space-y-1"
+            className="space-y-2"
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: isHovered ? 0 : 10, opacity: isHovered ? 1 : 0 }}
             transition={{ delay: 0.1 }}
           >
             <h3 className="text-white font-bold text-sm line-clamp-2">{series.title}</h3>
-            <div className="flex items-center gap-2 text-xs text-[#888888]">
+            <div className="flex items-center gap-2 text-xs text-white/70">
               {series.totalSeasons !== undefined && series.totalSeasons > 0 && (
-                <span>
+                <span className="bg-white/10 px-2 py-0.5 rounded">
                   {series.totalSeasons} Season{series.totalSeasons > 1 ? "s" : ""}
                 </span>
               )}
-              {series.totalSeasons !== undefined && series.totalSeasons > 0 && series.releaseYear && <span>•</span>}
               {series.releaseYear && <span>{series.releaseYear}</span>}
             </div>
-            {series.genre && <div className="text-xs text-cyan-400">{series.genre}</div>}
-            <motion.button
-              className="w-full flex items-center justify-center gap-2 bg-[#00FFFF] text-[#0B0C10] py-2 rounded font-bold text-sm hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
+            {series.genre && <div className="text-xs text-cyan-400 line-clamp-1">{series.genre.split(",")[0]}</div>}
+            <motion.div
+              className="w-full flex items-center justify-center gap-2 bg-[#00FFFF] text-[#0B0C10] py-2 rounded-lg font-bold text-sm shadow-lg shadow-cyan-500/30"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Play className="w-4 h-4" />
+              <Play className="w-4 h-4 fill-current" />
               Watch
-            </motion.button>
+            </motion.div>
           </motion.div>
         </motion.div>
 
-        {/* Always visible title at bottom */}
+        {/* Always visible title */}
         {!isHovered && (
-          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black to-transparent">
             <h3 className="text-white font-bold text-sm line-clamp-1">{series.title}</h3>
-            {series.releaseYear && <span className="text-xs text-white/60">{series.releaseYear}</span>}
+            <div className="flex items-center gap-2 text-xs text-white/60">
+              {series.releaseYear && <span>{series.releaseYear}</span>}
+              {series.totalSeasons !== undefined && series.totalSeasons > 0 && (
+                <>
+                  <span>•</span>
+                  <span>S{series.totalSeasons}</span>
+                </>
+              )}
+            </div>
           </div>
         )}
       </motion.div>

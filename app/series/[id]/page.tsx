@@ -1,7 +1,7 @@
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import AdBanner from "@/components/ad-banner"
-import { getSeriesWithSeasons, isSeriesInWatchlist } from "@/lib/series-actions"
+import { getSeriesWithSeasons, isSeriesInWatchlist, hasUserLikedSeries } from "@/lib/series-actions"
 import { getAdSettings } from "@/lib/server-actions"
 import { notFound } from "next/navigation"
 import SeriesDetailClient from "./series-detail-client"
@@ -30,16 +30,19 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
   let series = null
   let adSettings = null
   let inWatchlist = false
+  let isLiked = false
 
   try {
-    const [seriesData, adSettingsData, watchlistData] = await Promise.all([
+    const [seriesData, adSettingsData, watchlistData, likedData] = await Promise.all([
       getSeriesWithSeasons(id),
       getAdSettings(),
       isSeriesInWatchlist(id),
+      hasUserLikedSeries(id),
     ])
     series = seriesData
     adSettings = adSettingsData
     inWatchlist = watchlistData
+    isLiked = likedData
   } catch (error) {
     console.error("Error fetching series:", error)
   }
@@ -71,6 +74,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
       <SeriesDetailClient
         series={series}
         inWatchlist={inWatchlist}
+        isLiked={isLiked}
         adSettings={{
           prerollEnabled: adSettings?.prerollEnabled ?? true,
           prerollAdCodes,

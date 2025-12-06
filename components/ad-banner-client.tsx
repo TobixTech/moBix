@@ -5,14 +5,14 @@ import { useEffect, useState } from "react"
 interface AdBannerClientProps {
   type?: "horizontal" | "vertical"
   className?: string
-  placement: "homepage" | "movieDetail" | "dashboard" | "download"
+  placement?: "homepage" | "movieDetail" | "dashboard" | "download" | "seriesCarousel" | "seriesDetail"
   isPremium?: boolean
 }
 
 export function AdBannerClient({
   type = "horizontal",
   className = "",
-  placement,
+  placement = "homepage",
   isPremium = false,
 }: AdBannerClientProps) {
   const [adSettings, setAdSettings] = useState<{
@@ -54,12 +54,14 @@ export function AdBannerClient({
   let isEnabled = false
   if (placement === "homepage") {
     isEnabled = adSettings.homepageEnabled === true
-  } else if (placement === "movieDetail") {
+  } else if (placement === "movieDetail" || placement === "seriesDetail") {
     isEnabled = adSettings.movieDetailEnabled === true
   } else if (placement === "dashboard") {
     isEnabled = adSettings.dashboardEnabled === true
   } else if (placement === "download") {
     isEnabled = adSettings.showDownloadPageAds === true
+  } else if (placement === "seriesCarousel") {
+    isEnabled = adSettings.homepageEnabled === true
   }
 
   if (!isEnabled) {
@@ -76,7 +78,7 @@ export function AdBannerClient({
 
   return (
     <div
-      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden ${className}`}
+      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-xl overflow-hidden ${className}`}
     >
       <iframe
         srcDoc={`
@@ -103,7 +105,7 @@ export function AdBannerClient({
           </html>
         `}
         className={`w-full ${isHorizontal ? "min-h-[90px]" : "min-h-[250px]"}`}
-        style={{ border: "none" }}
+        style={{ border: "none", pointerEvents: "auto" }}
         scrolling="no"
         title="Advertisement"
         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"

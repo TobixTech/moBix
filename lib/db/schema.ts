@@ -27,6 +27,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   comments: many(comments),
   watchlist: many(watchlist),
   notifications: many(notifications),
+  seriesLikes: many(seriesLikes),
+  seriesComments: many(seriesComments),
 }))
 
 // Movies
@@ -455,6 +457,8 @@ export const seriesRelations = relations(series, ({ many }) => ({
   seriesWatchHistory: many(seriesWatchHistory),
   seriesWatchlist: many(seriesWatchlist),
   seriesRatings: many(seriesRatings),
+  seriesLikes: many(seriesLikes),
+  seriesComments: many(seriesComments),
 }))
 
 // Seasons
@@ -590,6 +594,58 @@ export const seriesRatingsRelations = relations(seriesRatings, ({ one }) => ({
   }),
   series: one(series, {
     fields: [seriesRatings.seriesId],
+    references: [series.id],
+  }),
+}))
+
+// Series Likes
+export const seriesLikes = pgTable("SeriesLike", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const seriesLikesRelations = relations(seriesLikes, ({ one }) => ({
+  user: one(users, {
+    fields: [seriesLikes.userId],
+    references: [users.id],
+  }),
+  series: one(series, {
+    fields: [seriesLikes.seriesId],
+    references: [series.id],
+  }),
+}))
+
+// Series Comments
+export const seriesComments = pgTable("SeriesComment", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  seriesId: text("seriesId")
+    .notNull()
+    .references(() => series.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  rating: integer("rating").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const seriesCommentsRelations = relations(seriesComments, ({ one }) => ({
+  user: one(users, {
+    fields: [seriesComments.userId],
+    references: [users.id],
+  }),
+  series: one(series, {
+    fields: [seriesComments.seriesId],
     references: [series.id],
   }),
 }))
