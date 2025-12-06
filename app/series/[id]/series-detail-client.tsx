@@ -23,9 +23,9 @@ import {
   Eye,
   Flag,
   Download,
+  X,
 } from "lucide-react"
 import ProductionVideoPlayer from "@/components/production-video-player"
-import AdBannerClient from "@/components/ad-banner-client"
 import SocialShare from "@/components/social-share"
 import {
   addToSeriesWatchlist,
@@ -34,7 +34,6 @@ import {
   addSeriesComment,
   addSeriesToWatchLater,
   rateSeriesAction,
-  reportSeries,
 } from "@/lib/series-actions"
 
 interface Episode {
@@ -46,8 +45,8 @@ interface Episode {
   duration: number | null
   thumbnailUrl: string | null
   videoUrl: string
-  downloadEnabled: boolean
-  downloadUrl: string | null
+  downloadEnabled?: boolean
+  downloadUrl?: string | null
   createdAt: Date
 }
 
@@ -175,7 +174,6 @@ export default function SeriesDetailClient({
       const result = await toggleSeriesLike(series.id)
       if (result.success) {
         setIsLiked(result.liked || false)
-        // Use the actual count from server instead of incrementing/decrementing
         if (typeof result.likesCount === "number") {
           setLikesCount(result.likesCount)
         }
@@ -280,16 +278,28 @@ export default function SeriesDetailClient({
 
     setReportLoading(true)
     try {
-      const result = await reportSeries(series.id, reportReason, reportDescription)
-      if (result.success) {
+      const res = await fetch("/api/series/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seriesId: series.id,
+          reason: reportReason,
+          description: reportDescription,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
         toast.success("Report submitted successfully")
         setShowReportModal(false)
         setReportReason("")
         setReportDescription("")
       } else {
-        toast.error(result.error || "Failed to submit report")
+        toast.error(data.error || "Failed to submit report")
       }
     } catch (error) {
+      console.error("[v0] Report error:", error)
       toast.error("Failed to submit report")
     } finally {
       setReportLoading(false)
@@ -343,7 +353,7 @@ export default function SeriesDetailClient({
                       className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all"
                     >
                       <Download className="w-5 h-5" />
-                      Download
+                      Download Episode
                     </a>
                   )}
                 </div>
@@ -556,10 +566,7 @@ export default function SeriesDetailClient({
                           Season {season.seasonNumber}
                           {season.title && `: ${season.title}`}
                         </h3>
-                        <p className="text-[#888888] text-sm">
-                          {season.totalEpisodes || season.episodes.length} Episodes
-                          {season.releaseYear && ` · ${season.releaseYear}`}
-                        </p>
+                        <p className="text-[#888888] text-sm">{season.episodes.length} Episodes</p>
                       </div>
                     </div>
                     {expandedSeasons.has(season.id) ? (
@@ -572,52 +579,41 @@ export default function SeriesDetailClient({
                   <AnimatePresence>
                     {expandedSeasons.has(season.id) && (
                       <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: "auto" }}
-                        exit={{ height: 0 }}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
                         <div className="p-4 pt-0 space-y-3">
-                          {season.episodes.map((episode, index) => (
-                            <div key={episode.id}>
-                              <button
-                                onClick={() => playEpisode(episode)}
-                                className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all ${
-                                  currentEpisode?.id === episode.id
-                                    ? "bg-[#00FFFF]/20 border border-[#00FFFF]/30"
-                                    : "bg-[#0B0C10] hover:bg-white/5 border border-transparent"
-                                }`}
-                              >
-                                <div className="relative w-28 h-16 rounded-lg overflow-hidden flex-shrink-0">
-                                  <img
-                                    src={episode.thumbnailUrl || series.posterUrl}
-                                    alt={episode.title}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                    <Play className="w-6 h-6 text-white" />
-                                  </div>
-                                  <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
-                                    {episode.duration ? `${episode.duration}m` : "N/A"}
-                                  </div>
+                          {season.episodes.map((episode) => (
+                            <div
+                              key={episode.id}
+                              className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all ${
+                                currentEpisode?.id === episode.id
+                                  ? "bg-[#00FFFF]/20 border border-[#00FFFF]/30"
+                                  : "bg-white/5 hover:bg-white/10"
+                              }`}
+                              onClick={() => playEpisode(episode)}
+                            >
+                              <div className="relative w-24 h-14 rounded-lg overflow-hidden flex-shrink-0">
+                                <img
+                                  src={episode.thumbnailUrl || series.posterUrl}
+                                  alt={episode.title}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                  <Play className="w-6 h-6 text-white fill-white" />
                                 </div>
-                                <div className="flex-1 text-left">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[#00FFFF] text-sm font-medium">E{episode.episodeNumber}</span>
-                                    <h4 className="text-white font-medium line-clamp-1">{episode.title}</h4>
-                                  </div>
-                                  {episode.description && (
-                                    <p className="text-[#888888] text-sm mt-1 line-clamp-2">{episode.description}</p>
-                                  )}
-                                </div>
-                              </button>
-
-                              {/* Ad after every 3 episodes */}
-                              {(index + 1) % 3 === 0 && index !== season.episodes.length - 1 && (
-                                <div className="py-3">
-                                  <AdBannerClient className="h-20 rounded-lg" />
-                                </div>
-                              )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-white font-medium truncate">
+                                  {episode.episodeNumber}. {episode.title}
+                                </h4>
+                                <p className="text-[#888888] text-sm">
+                                  {episode.duration ? `${episode.duration} min` : "Unknown duration"}
+                                </p>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -628,18 +624,15 @@ export default function SeriesDetailClient({
               ))}
             </div>
 
-            {/* Ad Banner */}
-            <div className="py-4">{adBannerHorizontal}</div>
-
             {/* Comments Section */}
-            <div className="bg-[#1A1B23] rounded-xl border border-[#2A2B33] p-6">
-              <h3 className="text-xl font-bold text-white mb-6">Comments ({comments.length})</h3>
+            <div className="mt-12 space-y-6">
+              <h2 className="text-2xl font-bold text-white">Comments</h2>
 
-              {/* Add Comment */}
-              <div className="mb-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#888888] text-sm">Your Rating:</span>
-                  <div className="flex items-center gap-1">
+              {/* Add Comment Form */}
+              {isSignedIn && (
+                <div className="bg-[#1A1B23] rounded-xl p-4 border border-[#2A2B33]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-gray-400 text-sm">Your rating:</span>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button key={star} onClick={() => setCommentRating(star)}>
                         <Star
@@ -648,52 +641,51 @@ export default function SeriesDetailClient({
                       </button>
                     ))}
                   </div>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="Write a comment..."
+                      className="flex-1 bg-white/5 rounded-lg px-4 py-3 text-white placeholder-gray-500 border border-white/10 focus:border-[#00FFFF]/50 focus:outline-none"
+                    />
+                    <button
+                      onClick={handleAddComment}
+                      disabled={isSubmitting}
+                      className="px-5 py-3 bg-[#00FFFF] text-black font-bold rounded-lg hover:bg-[#00FFFF]/90 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isSubmitting ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-3">
-                  <textarea
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Share your thoughts about this series..."
-                    className="flex-1 bg-[#0B0C10] border border-[#2A2B33] rounded-xl p-4 text-white placeholder:text-[#888888] focus:outline-none focus:border-[#00FFFF]/50 resize-none"
-                    rows={3}
-                  />
-                  <button
-                    onClick={handleAddComment}
-                    disabled={isSubmitting || !commentText.trim()}
-                    className="px-6 bg-[#00FFFF] text-black font-bold rounded-xl hover:bg-[#00FFFF]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed self-end"
-                  >
-                    {isSubmitting ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* Comments List */}
               <div className="space-y-4">
                 {comments.length === 0 ? (
-                  <p className="text-[#888888] text-center py-8">No comments yet. Be the first to comment!</p>
+                  <p className="text-gray-500 text-center py-8">No comments yet. Be the first to comment!</p>
                 ) : (
                   comments.map((comment) => (
                     <div key={comment.id} className="bg-[#1A1B23] rounded-xl p-4 border border-[#2A2B33]">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00FFFF] to-purple-500 flex items-center justify-center text-white font-bold">
-                            {comment.user.displayName.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-white font-medium">{comment.user.displayName}</p>
-                            <p className="text-[#888888] text-xs">{new Date(comment.createdAt).toLocaleDateString()}</p>
-                          </div>
+                        <span className="text-white font-medium">
+                          {comment.user.displayName || comment.user.firstName || comment.user.email}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {comment.rating && (
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3 h-3 ${star <= comment.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <span className="text-gray-500 text-xs">
+                            {new Date(comment.createdAt).toLocaleDateString()}
+                          </span>
                         </div>
-                        {comment.rating && (
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Star
-                                key={star}
-                                className={`w-4 h-4 ${star <= comment.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
-                              />
-                            ))}
-                          </div>
-                        )}
                       </div>
                       <p className="text-gray-300">{comment.text}</p>
                     </div>
@@ -704,115 +696,81 @@ export default function SeriesDetailClient({
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Ad Banner */}
-            {adBannerVertical}
-
-            {/* Series Info Card */}
-            <div className="bg-[#1A1B23] rounded-xl border border-[#2A2B33] p-6">
-              <h3 className="text-lg font-bold text-white mb-4">Series Info</h3>
-              <dl className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Status</dt>
-                  <dd className="text-white capitalize">{series.status}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Release Year</dt>
-                  <dd className="text-white">{series.releaseYear}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Seasons</dt>
-                  <dd className="text-white">{series.totalSeasons}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Episodes</dt>
-                  <dd className="text-white">{series.totalEpisodes}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Rating</dt>
-                  <dd className="text-white flex items-center gap-1">
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                    {rating.toFixed(1)}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Views</dt>
-                  <dd className="text-white">{series.views.toLocaleString()}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-[#888888]">Likes</dt>
-                  <dd className="text-white flex items-center gap-1">
-                    <Heart className="w-4 h-4 text-red-400 fill-red-400" />
-                    {likesCount}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-
-            {/* Another Ad */}
-            <div className="sticky top-24">
-              <AdBannerClient className="h-[300px] rounded-xl" />
-            </div>
-          </div>
+          <div className="space-y-6">{adBannerVertical}</div>
         </div>
       </div>
 
       {/* Report Modal */}
-      {showReportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1A1B23] rounded-2xl border border-[#2A2B33] p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold text-white mb-4">Report Series</h3>
-            <p className="text-gray-400 text-sm mb-4">Help us understand what's wrong with this content.</p>
+      <AnimatePresence>
+        {showReportModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setShowReportModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#1A1B23] rounded-2xl p-6 max-w-md w-full border border-[#2A2B33]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-white">Report Series</h3>
+                <button onClick={() => setShowReportModal(false)} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-white/70 text-sm mb-2">Reason</label>
-                <select
-                  value={reportReason}
-                  onChange={(e) => setReportReason(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Reason</label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full bg-white/5 rounded-lg px-4 py-3 text-white border border-white/10 focus:border-[#00FFFF]/50 focus:outline-none"
+                  >
+                    <option value="">Select a reason</option>
+                    <option value="copyright">Copyright Violation</option>
+                    <option value="inappropriate">Inappropriate Content</option>
+                    <option value="broken">Broken Video</option>
+                    <option value="wrong_info">Wrong Information</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Description (optional)</label>
+                  <textarea
+                    value={reportDescription}
+                    onChange={(e) => setReportDescription(e.target.value)}
+                    placeholder="Provide more details..."
+                    rows={3}
+                    className="w-full bg-white/5 rounded-lg px-4 py-3 text-white placeholder-gray-500 border border-white/10 focus:border-[#00FFFF]/50 focus:outline-none resize-none"
+                  />
+                </div>
+
+                <button
+                  onClick={handleReport}
+                  disabled={reportLoading || !reportReason}
+                  className="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  <option value="">Select a reason</option>
-                  <option value="broken_video">Broken/Not Playing</option>
-                  <option value="wrong_content">Wrong Content</option>
-                  <option value="poor_quality">Poor Quality</option>
-                  <option value="missing_subtitles">Missing Subtitles</option>
-                  <option value="copyright">Copyright Issue</option>
-                  <option value="inappropriate">Inappropriate Content</option>
-                  <option value="other">Other</option>
-                </select>
+                  {reportLoading ? (
+                    <Loader className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Flag className="w-5 h-5" />
+                      Submit Report
+                    </>
+                  )}
+                </button>
               </div>
-
-              <div>
-                <label className="block text-white/70 text-sm mb-2">Additional Details (Optional)</label>
-                <textarea
-                  value={reportDescription}
-                  onChange={(e) => setReportDescription(e.target.value)}
-                  placeholder="Describe the issue..."
-                  rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-cyan-500 resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowReportModal(false)}
-                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReport}
-                disabled={reportLoading || !reportReason}
-                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
-              >
-                {reportLoading ? "Submitting..." : "Submit Report"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -821,4 +779,5 @@ const statusColors: Record<string, string> = {
   ongoing: "bg-green-500/20 text-green-400 border-green-500/30",
   completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
+  upcoming: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
 }

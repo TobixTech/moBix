@@ -31,6 +31,101 @@ interface ProductionVideoPlayerProps {
   movieDuration?: number
 }
 
+function isEmbedUrl(url: string): boolean {
+  if (!url) return false
+  const embedPatterns = [
+    "youtube.com/embed",
+    "youtube.com/watch",
+    "youtu.be",
+    "vimeo.com",
+    "dailymotion.com",
+    "drive.google.com",
+    "iframe",
+    "embed",
+    // Streamtape domains
+    "streamtape.com",
+    "streamtape.to",
+    "streamtape.net",
+    "strtape.cloud",
+    "strcloud.link",
+    "strtpe.link",
+    "stape.fun",
+    // Other common video hosts
+    "doodstream.com",
+    "filemoon.sx",
+    "filemoon.to",
+    "vidoza.net",
+    "upstream.to",
+    "mixdrop.co",
+    "mp4upload.com",
+    "streamsb.net",
+    "streamwish.to",
+    "vidhide.com",
+    "vtube.to",
+  ]
+  return embedPatterns.some((pattern) => url.toLowerCase().includes(pattern))
+}
+
+function getEmbedUrl(url: string): string {
+  if (!url) return ""
+
+  const lowerUrl = url.toLowerCase()
+
+  // YouTube
+  if (lowerUrl.includes("youtube.com/watch")) {
+    const videoId = new URL(url).searchParams.get("v")
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+  }
+  if (lowerUrl.includes("youtu.be/")) {
+    const videoId = url.split("youtu.be/")[1]?.split("?")[0]
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+  }
+  if (lowerUrl.includes("youtube.com/embed")) {
+    return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
+  }
+
+  // Vimeo
+  if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("/video/")) {
+    const videoId = url.split("vimeo.com/")[1]?.split("?")[0]
+    return `https://player.vimeo.com/video/${videoId}?autoplay=1`
+  }
+
+  // Streamtape - convert to /e/ embed URL
+  if (
+    lowerUrl.includes("streamtape.com") ||
+    lowerUrl.includes("streamtape.to") ||
+    lowerUrl.includes("streamtape.net") ||
+    lowerUrl.includes("strtape.cloud") ||
+    lowerUrl.includes("strcloud.link") ||
+    lowerUrl.includes("strtpe.link") ||
+    lowerUrl.includes("stape.fun")
+  ) {
+    // If already an embed URL with /e/, return as is
+    if (url.includes("/e/")) {
+      return url
+    }
+    // Convert /v/ to /e/ for embed
+    if (url.includes("/v/")) {
+      return url.replace("/v/", "/e/")
+    }
+    // Return as-is if neither pattern matches
+    return url
+  }
+
+  // Return URL as-is for other embed URLs
+  return url
+}
+
+function isValidUrl(url: string): boolean {
+  if (!url || url.trim() === "") return false
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return url.startsWith("/") || isEmbedUrl(url)
+  }
+}
+
 export default function ProductionVideoPlayer({
   videoUrl,
   posterUrl,
@@ -57,28 +152,24 @@ export default function ProductionVideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [hasError, setHasError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [iframeLoaded, setIframeLoaded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const lastProgressUpdate = useRef(0)
   const embeddedStartTime = useRef<number>(0)
   const embeddedIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const isEmbed = isEmbedUrl(videoUrl)
 
-  function isValidUrl(url: string): boolean {
-    if (!url || url.trim() === "") return false
-    try {
-      new URL(url)
-      return true
-    } catch {
-      // Check if it's a relative URL or embed code
-      return url.startsWith("/") || url.includes("embed") || url.includes("youtube") || url.includes("vimeo")
-    }
-  }
+  useEffect(() => {
+    console.log("[v0] Video URL:", videoUrl)
+    console.log("[v0] Is Embed:", isEmbed)
+    console.log("[v0] Embed URL:", getEmbedUrl(videoUrl))
+  }, [videoUrl, isEmbed])
 
   const handleRotate = useCallback(() => {
     setIsRotated((prev) => !prev)
-
     if (screen.orientation && "lock" in screen.orientation) {
       if (!isRotated) {
         ;(screen.orientation as any).lock?.("landscape").catch(() => {})
@@ -90,7 +181,6 @@ export default function ProductionVideoPlayer({
 
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
-
     try {
       if (!document.fullscreenElement) {
         await containerRef.current.requestFullscreen()
@@ -110,7 +200,7 @@ export default function ProductionVideoPlayer({
         }
       }
     } catch (err) {
-      console.error("Fullscreen error:", err)
+      console.error("[v0] Fullscreen error:", err)
     }
   }, [])
 
@@ -124,7 +214,6 @@ export default function ProductionVideoPlayer({
         }
       }
     }
-
     document.addEventListener("fullscreenchange", handleFullscreenChange)
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
   }, [])
@@ -138,18 +227,15 @@ export default function ProductionVideoPlayer({
         }
       }
     }
-
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isRotated, isFullscreen])
 
   const saveProgress = useCallback(async () => {
     if (!movieId || !videoRef.current) return
-
     const video = videoRef.current
     const progress = Math.floor((video.currentTime / video.duration) * 100)
     const duration = Math.floor(video.duration)
-
     if (Math.abs(progress - lastProgressUpdate.current) >= 5) {
       lastProgressUpdate.current = progress
       await updateWatchProgress(movieId, progress, duration)
@@ -158,11 +244,9 @@ export default function ProductionVideoPlayer({
 
   const saveEmbeddedProgress = useCallback(async () => {
     if (!movieId) return
-
     const elapsedMinutes = (Date.now() - embeddedStartTime.current) / 1000 / 60
     const estimatedDuration = movieDuration
     const progress = Math.min(Math.floor((elapsedMinutes / estimatedDuration) * 100), 95)
-
     if (progress > lastProgressUpdate.current && progress >= 5) {
       lastProgressUpdate.current = progress
       await updateWatchProgress(movieId, progress, estimatedDuration * 60)
@@ -171,31 +255,24 @@ export default function ProductionVideoPlayer({
 
   useEffect(() => {
     if (!showVideo || !movieId) return
-
     if (isEmbed) {
       embeddedStartTime.current = Date.now()
       embeddedIntervalRef.current = setInterval(saveEmbeddedProgress, 30000)
       const handleBeforeUnload = () => saveEmbeddedProgress()
       window.addEventListener("beforeunload", handleBeforeUnload)
-
       return () => {
-        if (embeddedIntervalRef.current) {
-          clearInterval(embeddedIntervalRef.current)
-        }
+        if (embeddedIntervalRef.current) clearInterval(embeddedIntervalRef.current)
         window.removeEventListener("beforeunload", handleBeforeUnload)
         saveEmbeddedProgress()
       }
     } else {
       const video = videoRef.current
       if (!video) return
-
       const interval = setInterval(saveProgress, 30000)
       const handlePause = () => saveProgress()
       const handleBeforeUnload = () => saveProgress()
-
       video.addEventListener("pause", handlePause)
       window.addEventListener("beforeunload", handleBeforeUnload)
-
       return () => {
         clearInterval(interval)
         video.removeEventListener("pause", handlePause)
@@ -218,9 +295,7 @@ export default function ProductionVideoPlayer({
       setShowPrerollAd(true)
     } else {
       setShowVideo(true)
-      if (!isEmbed) {
-        setHasStartedPlaying(true)
-      }
+      if (!isEmbed) setHasStartedPlaying(true)
     }
   }
 
@@ -231,32 +306,31 @@ export default function ProductionVideoPlayer({
       setHasError(true)
       return
     }
-    if (!isEmbed) {
-      setHasStartedPlaying(true)
-    }
+    if (!isEmbed) setHasStartedPlaying(true)
   }
 
   const handleMidrollAdComplete = () => {
     setShowMidrollAd(false)
-    if (videoRef.current) {
-      videoRef.current.play()
-    }
+    if (videoRef.current) videoRef.current.play()
   }
 
   const handleEmbedPlay = () => {
+    console.log("[v0] handleEmbedPlay called, URL:", videoUrl)
     if (!isValidUrl(videoUrl)) {
+      console.log("[v0] Invalid URL detected")
       setHasError(true)
       return
     }
     setHasStartedPlaying(true)
     setHasError(false)
+    setIframeLoaded(false)
   }
 
   const handleRetry = () => {
     setHasError(false)
     setRetryCount((prev) => prev + 1)
     setHasStartedPlaying(false)
-    // Re-trigger play
+    setIframeLoaded(false)
     setTimeout(() => {
       if (isEmbed) {
         setHasStartedPlaying(true)
@@ -268,67 +342,32 @@ export default function ProductionVideoPlayer({
   }
 
   const handleVideoError = () => {
+    console.log("[v0] Video error occurred")
     setHasError(true)
+  }
+
+  const handleIframeLoad = () => {
+    console.log("[v0] Iframe loaded successfully")
+    setIframeLoaded(true)
   }
 
   useEffect(() => {
     const hasMidrollAds = midrollAdCodes.length > 0 && midrollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
     if (!midrollEnabled || !showVideo || !hasMidrollAds) return
-
     const video = videoRef.current
     if (!video) return
-
     const handleTimeUpdate = () => {
       const currentMinutes = video.currentTime / 60
       const intervalMinutes = midrollIntervalMinutes
-
       if (currentMinutes - lastMidrollTime >= intervalMinutes && currentMinutes >= intervalMinutes) {
         video.pause()
         setLastMidrollTime(currentMinutes)
         setShowMidrollAd(true)
       }
     }
-
     video.addEventListener("timeupdate", handleTimeUpdate)
     return () => video.removeEventListener("timeupdate", handleTimeUpdate)
   }, [midrollEnabled, showVideo, midrollAdCodes, midrollIntervalMinutes, lastMidrollTime])
-
-  function isEmbedUrl(url: string) {
-    if (!url) return false
-    return (
-      url.includes("youtube.com/embed") ||
-      url.includes("youtube.com/watch") ||
-      url.includes("youtu.be") ||
-      url.includes("vimeo.com") ||
-      url.includes("dailymotion.com") ||
-      url.includes("drive.google.com") ||
-      url.includes("iframe") ||
-      url.includes("embed")
-    )
-  }
-
-  const getEmbedUrl = (url: string) => {
-    if (!url) return ""
-    if (url.includes("youtube.com/watch")) {
-      const videoId = new URL(url).searchParams.get("v")
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
-    }
-    if (url.includes("youtu.be/")) {
-      const videoId = url.split("youtu.be/")[1].split("?")[0]
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
-    }
-    if (url.includes("youtube.com/embed")) {
-      const hasParams = url.includes("?")
-      return hasParams
-        ? `${url}&autoplay=1&playsinline=1&enablejsapi=1`
-        : `${url}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
-    }
-    if (url.includes("vimeo.com/") && !url.includes("/video/")) {
-      const videoId = url.split("vimeo.com/")[1].split("?")[0]
-      return `https://player.vimeo.com/video/${videoId}?autoplay=1`
-    }
-    return url
-  }
 
   const getContainerStyles = (): React.CSSProperties => {
     if (isRotated && !isFullscreen) {
@@ -360,6 +399,7 @@ export default function ProductionVideoPlayer({
         }`}
         style={getContainerStyles()}
       >
+        {/* Rotate/Fullscreen controls */}
         {showVideo && hasStartedPlaying && !hasError && (
           <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
             <button
@@ -373,7 +413,6 @@ export default function ProductionVideoPlayer({
             >
               {isRotated ? <X className="w-5 h-5" /> : <RotateCw className="w-5 h-5" />}
             </button>
-
             <button
               onClick={handleFullscreen}
               className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
@@ -388,6 +427,7 @@ export default function ProductionVideoPlayer({
           </div>
         )}
 
+        {/* Rotation hint */}
         {showVideo && !hasStartedPlaying && !isRotated && !hasError && (
           <div className="absolute top-3 right-3 z-50">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm text-xs text-gray-300">
@@ -421,6 +461,7 @@ export default function ProductionVideoPlayer({
           />
         )}
 
+        {/* Error state */}
         {showVideo && hasError && (
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0C10] to-[#1A1B23]">
             <div className="text-center p-8">
@@ -447,6 +488,7 @@ export default function ProductionVideoPlayer({
           </div>
         )}
 
+        {/* Video content */}
         {showVideo && !hasError && (
           <>
             {isEmbed ? (
@@ -471,16 +513,37 @@ export default function ProductionVideoPlayer({
                     </div>
                   </div>
                 ) : (
-                  <iframe
-                    key={retryCount}
-                    src={getEmbedUrl(videoUrl)}
-                    title={title}
-                    className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                    allowFullScreen
-                    style={{ border: "none", pointerEvents: "auto" }}
-                    onError={handleVideoError}
-                  />
+                  <>
+                    {!iframeLoaded && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                          <p className="text-gray-400 text-sm">Loading video...</p>
+                        </div>
+                      </div>
+                    )}
+                    <iframe
+                      ref={iframeRef}
+                      key={`${retryCount}-${videoUrl}`}
+                      src={getEmbedUrl(videoUrl)}
+                      title={title}
+                      className="absolute inset-0 w-full h-full"
+                      frameBorder="0"
+                      scrolling="no"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                      allowFullScreen
+                      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      loading="eager"
+                      style={{
+                        border: "none",
+                        pointerEvents: "auto",
+                        backgroundColor: "#000",
+                      }}
+                      onLoad={handleIframeLoad}
+                      onError={handleVideoError}
+                    />
+                  </>
                 )}
               </div>
             ) : (
