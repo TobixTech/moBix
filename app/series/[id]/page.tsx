@@ -51,7 +51,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
     notFound()
   }
 
-  // Parse ad codes
+  // Parse ad codes safely
   let prerollAdCodes: { name: string; code: string }[] = []
   let midrollAdCodes: { name: string; code: string }[] = []
 
@@ -73,15 +73,12 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
 
       <SeriesDetailClient
         series={series}
-        inWatchlist={inWatchlist}
-        isLiked={isLiked}
-        adSettings={{
-          prerollEnabled: adSettings?.prerollEnabled ?? true,
-          prerollAdCodes,
-          midrollEnabled: adSettings?.midrollEnabled ?? false,
-          midrollAdCodes,
-          midrollIntervalMinutes: adSettings?.midrollIntervalMinutes ?? 20,
-        }}
+        initialInWatchlist={inWatchlist}
+        initialIsLiked={isLiked}
+        prerollAdCodes={prerollAdCodes}
+        midrollAdCodes={midrollAdCodes}
+        midrollEnabled={adSettings?.midrollEnabled ?? false}
+        midrollIntervalMinutes={adSettings?.midrollIntervalMinutes ?? 20}
         adBannerHorizontal={<AdBanner type="horizontal" placement="movie-detail" />}
         adBannerVertical={<AdBanner type="vertical" placement="movie-detail" />}
       />

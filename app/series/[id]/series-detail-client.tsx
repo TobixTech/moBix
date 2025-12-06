@@ -17,15 +17,14 @@ import {
   Clock,
   Heart,
   Bookmark,
-  Loader,
+  Loader2,
   Send,
-  TrendingUp,
   Eye,
   Flag,
   Download,
   X,
 } from "lucide-react"
-import ProductionVideoPlayer from "@/components/production-video-player"
+import SeriesVideoPlayer from "@/components/series-video-player"
 import SocialShare from "@/components/social-share"
 import {
   addToSeriesWatchlist,
@@ -104,6 +103,13 @@ interface SeriesDetailClientProps {
   midrollIntervalMinutes: number
 }
 
+const statusColors: Record<string, string> = {
+  ongoing: "bg-green-500/20 text-green-400 border-green-500/30",
+  completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
+  upcoming: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+}
+
 export default function SeriesDetailClient({
   series,
   adBannerHorizontal,
@@ -131,7 +137,6 @@ export default function SeriesDetailClient({
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState<Comment[]>(series.comments || [])
-
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportReason, setReportReason] = useState("")
   const [reportDescription, setReportDescription] = useState("")
@@ -145,7 +150,6 @@ export default function SeriesDetailClient({
       toast.error("Please sign in to add to watchlist")
       return
     }
-
     setIsLoading(true)
     try {
       if (inWatchlist) {
@@ -168,7 +172,6 @@ export default function SeriesDetailClient({
       toast.error("Please sign in to like")
       return
     }
-
     setIsLiking(true)
     try {
       const result = await toggleSeriesLike(series.id)
@@ -192,7 +195,6 @@ export default function SeriesDetailClient({
       toast.error("Please sign in to save for later")
       return
     }
-
     setIsWatchLaterLoading(true)
     try {
       const result = await addSeriesToWatchLater(series.id)
@@ -213,12 +215,10 @@ export default function SeriesDetailClient({
       toast.error("Please sign in to comment")
       return
     }
-
     if (!commentText.trim()) {
       toast.error("Please enter a comment")
       return
     }
-
     setIsSubmitting(true)
     try {
       const result = await addSeriesComment(series.id, commentText, commentRating)
@@ -256,7 +256,6 @@ export default function SeriesDetailClient({
       toast.error("Please sign in to rate")
       return
     }
-
     setUserRating(star)
     try {
       const result = await rateSeriesAction(series.id, star)
@@ -275,7 +274,6 @@ export default function SeriesDetailClient({
       toast.error("Please select a reason")
       return
     }
-
     setReportLoading(true)
     try {
       const res = await fetch("/api/series/report", {
@@ -287,9 +285,7 @@ export default function SeriesDetailClient({
           description: reportDescription,
         }),
       })
-
       const data = await res.json()
-
       if (data.success) {
         toast.success("Report submitted successfully")
         setShowReportModal(false)
@@ -298,8 +294,7 @@ export default function SeriesDetailClient({
       } else {
         toast.error(data.error || "Failed to submit report")
       }
-    } catch (error) {
-      console.error("[v0] Report error:", error)
+    } catch {
       toast.error("Failed to submit report")
     } finally {
       setReportLoading(false)
@@ -325,16 +320,13 @@ export default function SeriesDetailClient({
             <div className="lg:w-2/3">
               {currentEpisode ? (
                 <div className="space-y-4">
-                  <ProductionVideoPlayer
+                  <SeriesVideoPlayer
                     videoUrl={currentEpisode.videoUrl}
                     posterUrl={currentEpisode.thumbnailUrl || series.posterUrl}
-                    title={`${series.title} - ${currentEpisode.title}`}
-                    showPrerollAds={prerollAdCodes.length > 0}
-                    prerollAdCodes={prerollAdCodes}
-                    midrollEnabled={midrollEnabled}
-                    midrollAdCodes={midrollAdCodes}
-                    midrollIntervalMinutes={midrollIntervalMinutes}
+                    title={series.title}
+                    episodeTitle={`S${selectedSeason?.seasonNumber} E${currentEpisode.episodeNumber}: ${currentEpisode.title}`}
                   />
+
                   <div className="bg-[#1A1B23]/80 backdrop-blur-sm rounded-xl p-4 border border-[#2A2B33]">
                     <h3 className="text-xl font-bold text-white">{currentEpisode.title}</h3>
                     <p className="text-[#888888] text-sm mt-1">
@@ -345,12 +337,13 @@ export default function SeriesDetailClient({
                       <p className="text-gray-300 mt-2 text-sm">{currentEpisode.description}</p>
                     )}
                   </div>
+
                   {currentEpisode.downloadEnabled && currentEpisode.downloadUrl && (
                     <a
                       href={currentEpisode.downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all"
+                      className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all w-fit"
                     >
                       <Download className="w-5 h-5" />
                       Download Episode
@@ -403,7 +396,7 @@ export default function SeriesDetailClient({
                   </span>
                   <span className="flex items-center gap-1">
                     <Film className="w-4 h-4" />
-                    {series.totalSeasons} Seasons
+                    {series.totalSeasons} Season{series.totalSeasons > 1 ? "s" : ""}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
@@ -413,12 +406,108 @@ export default function SeriesDetailClient({
               </div>
 
               {/* Rating */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 bg-[#1A1B23]/80 px-4 py-2 rounded-lg border border-[#2A2B33]">
-                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                  <span className="text-white font-bold">{rating.toFixed(1)}</span>
-                </div>
+              <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-5 h-5 ${star <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-white font-semibold">{rating.toFixed(1)}</span>
+              </div>
+
+              {/* Description */}
+              <p className="text-gray-300 leading-relaxed">{series.description}</p>
+
+              {/* Genre */}
+              <div className="flex flex-wrap gap-2">
+                {series.genre.split(",").map((g) => (
+                  <span
+                    key={g}
+                    className="px-3 py-1 bg-[#1A1B23] text-[#00FFFF] rounded-full text-sm border border-[#00FFFF]/20"
+                  >
+                    {g.trim()}
+                  </span>
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleWatchlistToggle}
+                  disabled={isLoading}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all ${
+                    inWatchlist
+                      ? "bg-[#00FFFF] text-black"
+                      : "bg-[#1A1B23] text-white border border-[#2A2B33] hover:border-[#00FFFF]"
+                  }`}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : inWatchlist ? (
+                    <Check className="w-5 h-5" />
+                  ) : (
+                    <Plus className="w-5 h-5" />
+                  )}
+                  {inWatchlist ? "In Watchlist" : "Add to Watchlist"}
+                </button>
+
+                <button
+                  onClick={handleLike}
+                  disabled={isLiking}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all ${
+                    isLiked
+                      ? "bg-red-500 text-white"
+                      : "bg-[#1A1B23] text-white border border-[#2A2B33] hover:border-red-500"
+                  }`}
+                >
+                  {isLiking ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Heart className={`w-5 h-5 ${isLiked ? "fill-white" : ""}`} />
+                  )}
+                  {likesCount}
+                </button>
+
+                <button
+                  onClick={handleWatchLater}
+                  disabled={isWatchLaterLoading || inWatchLater}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all ${
+                    inWatchLater
+                      ? "bg-purple-500 text-white"
+                      : "bg-[#1A1B23] text-white border border-[#2A2B33] hover:border-purple-500"
+                  }`}
+                >
+                  {isWatchLaterLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Bookmark className={`w-5 h-5 ${inWatchLater ? "fill-white" : ""}`} />
+                  )}
+                  {inWatchLater ? "Saved" : "Watch Later"}
+                </button>
+
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-[#1A1B23] text-white border border-[#2A2B33] hover:border-orange-500 transition-all"
+                >
+                  <Flag className="w-5 h-5" />
+                  Report
+                </button>
+              </div>
+
+              {/* Social Share */}
+              <SocialShare
+                url={typeof window !== "undefined" ? window.location.href : ""}
+                title={series.title}
+                description={series.description}
+              />
+
+              {/* Rate This Series */}
+              <div className="bg-[#1A1B23]/80 backdrop-blur-sm rounded-xl p-4 border border-[#2A2B33]">
+                <h4 className="text-white font-semibold mb-3">Rate This Series</h4>
+                <div className="flex items-center gap-2">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
@@ -426,277 +515,178 @@ export default function SeriesDetailClient({
                       className="transition-transform hover:scale-110"
                     >
                       <Star
-                        className={`w-6 h-6 ${star <= userRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
+                        className={`w-8 h-8 ${
+                          star <= userRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600 hover:text-yellow-400"
+                        }`}
                       />
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Genres */}
-              <div className="flex flex-wrap gap-2">
-                {series.genre.split(",").map((g) => (
-                  <span
-                    key={g}
-                    className="px-3 py-1 rounded-full text-xs font-medium bg-[#00FFFF]/10 text-[#00FFFF] border border-[#00FFFF]/20"
-                  >
-                    {g.trim()}
-                  </span>
-                ))}
-              </div>
-
-              {/* Description */}
-              <p className="text-gray-300 leading-relaxed">{series.description}</p>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3">
-                {series.seasons[0]?.episodes[0] && (
-                  <button
-                    onClick={() => playEpisode(series.seasons[0].episodes[0])}
-                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#00FFFF] text-black font-bold hover:bg-[#00FFFF]/90 transition-all"
-                  >
-                    <Play className="w-5 h-5 fill-black" />
-                    Watch Now
-                  </button>
-                )}
-
-                <button
-                  onClick={handleWatchlistToggle}
-                  disabled={isLoading}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition ${
-                    inWatchlist
-                      ? "bg-[#00FFFF]/20 text-[#00FFFF] border border-[#00FFFF]/30"
-                      : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-                  }`}
-                >
-                  {isLoading ? (
-                    <Loader className="w-5 h-5 animate-spin" />
-                  ) : inWatchlist ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    <Plus className="w-5 h-5" />
-                  )}
-                  <span className="hidden sm:inline">{inWatchlist ? "In Watchlist" : "Watchlist"}</span>
-                </button>
-
-                <button
-                  onClick={handleLike}
-                  disabled={isLiking}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition ${
-                    isLiked
-                      ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                      : "bg-white/10 text-white border border-white/20 hover:bg-red-500/20"
-                  }`}
-                >
-                  {isLiking ? (
-                    <Loader className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Heart className={`w-5 h-5 ${isLiked ? "fill-red-400" : ""}`} />
-                  )}
-                  <span>{likesCount}</span>
-                </button>
-
-                <button
-                  onClick={handleWatchLater}
-                  disabled={isWatchLaterLoading || inWatchLater}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition ${
-                    inWatchLater
-                      ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                      : "bg-white/10 text-white border border-white/20 hover:bg-purple-500/20"
-                  }`}
-                >
-                  {isWatchLaterLoading ? (
-                    <Loader className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Bookmark className={`w-5 h-5 ${inWatchLater ? "fill-purple-400" : ""}`} />
-                  )}
-                  <span className="hidden sm:inline">{inWatchLater ? "Saved" : "Watch Later"}</span>
-                </button>
-
-                <button
-                  onClick={() => setShowReportModal(true)}
-                  className="p-3 bg-white/5 hover:bg-red-500/20 rounded-xl transition-all border border-white/10 hover:border-red-500/30"
-                  title="Report"
-                >
-                  <Flag className="w-5 h-5 text-white/70 hover:text-red-400" />
-                </button>
-              </div>
-
-              {/* Social Share */}
-              <div className="pt-2">
-                <SocialShare
-                  title={series.title}
-                  url={`/series/${series.slug || series.id}`}
-                  description={series.description}
-                  posterUrl={series.posterUrl}
-                />
-              </div>
-
-              {/* Side Ad Banner */}
+              {/* Vertical Ad */}
               <div className="hidden lg:block">{adBannerVertical}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content Section */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Episodes List */}
-          <div className="lg:col-span-2 space-y-6">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <TrendingUp className="w-6 h-6 text-[#00FFFF]" />
-              Episodes
-            </h2>
-
-            {/* Seasons Accordion */}
-            <div className="space-y-4">
-              {series.seasons.map((season) => (
-                <div key={season.id} className="bg-[#1A1B23] rounded-xl border border-[#2A2B33] overflow-hidden">
-                  <button
-                    onClick={() => toggleSeasonExpand(season.id)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-lg bg-[#00FFFF]/20 flex items-center justify-center text-[#00FFFF] font-bold">
-                        {season.seasonNumber}
-                      </span>
-                      <div className="text-left">
-                        <h3 className="text-white font-semibold">
-                          Season {season.seasonNumber}
-                          {season.title && `: ${season.title}`}
-                        </h3>
-                        <p className="text-[#888888] text-sm">{season.episodes.length} Episodes</p>
-                      </div>
-                    </div>
-                    {expandedSeasons.has(season.id) ? (
-                      <ChevronUp className="w-5 h-5 text-[#888888]" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-[#888888]" />
-                    )}
-                  </button>
-
-                  <AnimatePresence>
-                    {expandedSeasons.has(season.id) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="p-4 pt-0 space-y-3">
-                          {season.episodes.map((episode) => (
-                            <div
-                              key={episode.id}
-                              className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all ${
-                                currentEpisode?.id === episode.id
-                                  ? "bg-[#00FFFF]/20 border border-[#00FFFF]/30"
-                                  : "bg-white/5 hover:bg-white/10"
-                              }`}
-                              onClick={() => playEpisode(episode)}
-                            >
-                              <div className="relative w-24 h-14 rounded-lg overflow-hidden flex-shrink-0">
-                                <img
-                                  src={episode.thumbnailUrl || series.posterUrl}
-                                  alt={episode.title}
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                                  <Play className="w-6 h-6 text-white fill-white" />
-                                </div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-medium truncate">
-                                  {episode.episodeNumber}. {episode.title}
-                                </h4>
-                                <p className="text-[#888888] text-sm">
-                                  {episode.duration ? `${episode.duration} min` : "Unknown duration"}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+      {/* Seasons & Episodes */}
+      <div className="container mx-auto px-4 py-12">
+        <h2 className="text-2xl font-bold text-white mb-6">Seasons & Episodes</h2>
+        <div className="space-y-4">
+          {series.seasons.map((season) => (
+            <div key={season.id} className="bg-[#1A1B23] rounded-xl border border-[#2A2B33] overflow-hidden">
+              <button
+                onClick={() => toggleSeasonExpand(season.id)}
+                className="w-full flex items-center justify-between p-4 hover:bg-[#2A2B33]/50 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-[#00FFFF] font-bold">Season {season.seasonNumber}</span>
+                  {season.title && <span className="text-gray-400">· {season.title}</span>}
+                  <span className="text-gray-500 text-sm">{season.episodes.length} Episodes</span>
                 </div>
-              ))}
-            </div>
-
-            {/* Comments Section */}
-            <div className="mt-12 space-y-6">
-              <h2 className="text-2xl font-bold text-white">Comments</h2>
-
-              {/* Add Comment Form */}
-              {isSignedIn && (
-                <div className="bg-[#1A1B23] rounded-xl p-4 border border-[#2A2B33]">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-gray-400 text-sm">Your rating:</span>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button key={star} onClick={() => setCommentRating(star)}>
-                        <Star
-                          className={`w-5 h-5 ${star <= commentRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      placeholder="Write a comment..."
-                      className="flex-1 bg-white/5 rounded-lg px-4 py-3 text-white placeholder-gray-500 border border-white/10 focus:border-[#00FFFF]/50 focus:outline-none"
-                    />
-                    <button
-                      onClick={handleAddComment}
-                      disabled={isSubmitting}
-                      className="px-5 py-3 bg-[#00FFFF] text-black font-bold rounded-lg hover:bg-[#00FFFF]/90 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {isSubmitting ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Comments List */}
-              <div className="space-y-4">
-                {comments.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No comments yet. Be the first to comment!</p>
+                {expandedSeasons.has(season.id) ? (
+                  <ChevronUp className="w-5 h-5 text-gray-400" />
                 ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="bg-[#1A1B23] rounded-xl p-4 border border-[#2A2B33]">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white font-medium">
-                          {comment.user.displayName || comment.user.firstName || comment.user.email}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {comment.rating && (
-                            <div className="flex items-center gap-1">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                  key={star}
-                                  className={`w-3 h-3 ${star <= comment.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          <span className="text-gray-500 text-xs">
-                            {new Date(comment.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-gray-300">{comment.text}</p>
-                    </div>
-                  ))
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
                 )}
+              </button>
+
+              <AnimatePresence>
+                {expandedSeasons.has(season.id) && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-[#2A2B33]">
+                      {season.episodes.map((episode) => (
+                        <div
+                          key={episode.id}
+                          onClick={() => playEpisode(episode)}
+                          className={`flex items-center gap-4 p-4 hover:bg-[#2A2B33]/50 cursor-pointer transition-colors border-b border-[#2A2B33] last:border-b-0 ${
+                            currentEpisode?.id === episode.id ? "bg-[#00FFFF]/10 border-l-4 border-l-[#00FFFF]" : ""
+                          }`}
+                        >
+                          <div className="relative w-32 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-[#2A2B33]">
+                            {episode.thumbnailUrl ? (
+                              <img
+                                src={episode.thumbnailUrl || "/placeholder.svg"}
+                                alt={episode.title}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Film className="w-8 h-8 text-gray-600" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                              <Play className="w-8 h-8 text-white fill-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-medium truncate">
+                              E{episode.episodeNumber}: {episode.title}
+                            </p>
+                            {episode.description && (
+                              <p className="text-gray-400 text-sm mt-1 line-clamp-2">{episode.description}</p>
+                            )}
+                            {episode.duration && (
+                              <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {episode.duration} min
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Comments Section */}
+      <div className="container mx-auto px-4 py-12">
+        <h2 className="text-2xl font-bold text-white mb-6">Comments</h2>
+
+        {/* Add Comment */}
+        {isSignedIn && (
+          <div className="bg-[#1A1B23] rounded-xl p-6 border border-[#2A2B33] mb-8">
+            <textarea
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Write your comment..."
+              className="w-full bg-[#0B0C10] text-white rounded-lg p-4 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none resize-none"
+              rows={3}
+            />
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-sm">Rating:</span>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button key={star} onClick={() => setCommentRating(star)}>
+                    <Star
+                      className={`w-5 h-5 ${
+                        star <= commentRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
+                      }`}
+                    />
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={handleAddComment}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#00FFFF] text-black font-semibold rounded-lg hover:bg-[#00FFFF]/90 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                Post Comment
+              </button>
             </div>
           </div>
+        )}
 
-          {/* Sidebar */}
-          <div className="space-y-6">{adBannerVertical}</div>
+        {/* Comments List */}
+        <div className="space-y-4">
+          {comments.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <p>No comments yet. Be the first to share your thoughts!</p>
+            </div>
+          ) : (
+            comments.map((comment) => (
+              <div key={comment.id} className="bg-[#1A1B23] rounded-xl p-6 border border-[#2A2B33]">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00FFFF] to-cyan-600 flex items-center justify-center text-black font-bold">
+                      {comment.user.displayName?.[0]?.toUpperCase() || "U"}
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{comment.user.displayName}</p>
+                      <p className="text-gray-500 text-xs">{new Date(comment.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  {comment.rating && (
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-4 h-4 ${
+                            star <= comment.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-gray-300">{comment.text}</p>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -707,64 +697,61 @@ export default function SeriesDetailClient({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             onClick={() => setShowReportModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#1A1B23] rounded-2xl p-6 max-w-md w-full border border-[#2A2B33]"
+              className="bg-[#1A1B23] rounded-2xl p-6 w-full max-w-md border border-[#2A2B33]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-white">Report Series</h3>
-                <button onClick={() => setShowReportModal(false)} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
+                <h3 className="text-xl font-bold text-white">Report Issue</h3>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-2 hover:bg-[#2A2B33] rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Reason</label>
+                  <label className="block text-gray-400 text-sm mb-2">Reason</label>
                   <select
                     value={reportReason}
                     onChange={(e) => setReportReason(e.target.value)}
-                    className="w-full bg-white/5 rounded-lg px-4 py-3 text-white border border-white/10 focus:border-[#00FFFF]/50 focus:outline-none"
+                    className="w-full bg-[#0B0C10] text-white rounded-lg p-3 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none"
                   >
                     <option value="">Select a reason</option>
-                    <option value="copyright">Copyright Violation</option>
-                    <option value="inappropriate">Inappropriate Content</option>
-                    <option value="broken">Broken Video</option>
-                    <option value="wrong_info">Wrong Information</option>
+                    <option value="broken_video">Broken Video</option>
+                    <option value="wrong_content">Wrong Content</option>
+                    <option value="poor_quality">Poor Quality</option>
+                    <option value="copyright">Copyright Issue</option>
                     <option value="other">Other</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Description (optional)</label>
+                  <label className="block text-gray-400 text-sm mb-2">Description (Optional)</label>
                   <textarea
                     value={reportDescription}
                     onChange={(e) => setReportDescription(e.target.value)}
                     placeholder="Provide more details..."
+                    className="w-full bg-[#0B0C10] text-white rounded-lg p-3 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none resize-none"
                     rows={3}
-                    className="w-full bg-white/5 rounded-lg px-4 py-3 text-white placeholder-gray-500 border border-white/10 focus:border-[#00FFFF]/50 focus:outline-none resize-none"
                   />
                 </div>
 
                 <button
                   onClick={handleReport}
-                  disabled={reportLoading || !reportReason}
-                  className="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={reportLoading}
+                  className="w-full py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {reportLoading ? (
-                    <Loader className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Flag className="w-5 h-5" />
-                      Submit Report
-                    </>
-                  )}
+                  {reportLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Flag className="w-5 h-5" />}
+                  Submit Report
                 </button>
               </div>
             </motion.div>
@@ -773,11 +760,4 @@ export default function SeriesDetailClient({
       </AnimatePresence>
     </div>
   )
-}
-
-const statusColors: Record<string, string> = {
-  ongoing: "bg-green-500/20 text-green-400 border-green-500/30",
-  completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
-  upcoming: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
 }
