@@ -161,9 +161,17 @@ export async function getTrendingMovies() {
 
 export async function getMovieById(idOrSlug: string) {
   try {
-    // Try to find by slug first, then by id
+    if (!idOrSlug) {
+      console.error("[v0] getMovieById: No ID or slug provided")
+      return null
+    }
+
+    // Decode URL-encoded slugs (e.g., "a-bride-for-the-season" from URL)
+    const decodedSlug = decodeURIComponent(idOrSlug)
+
+    // Try to find by slug first
     let movie = await db.query.movies.findFirst({
-      where: eq(movies.slug, idOrSlug),
+      where: eq(movies.slug, decodedSlug),
       with: {
         comments: {
           with: {
@@ -171,10 +179,11 @@ export async function getMovieById(idOrSlug: string) {
           },
           orderBy: [desc(comments.createdAt)],
         },
-        likes: true, // We need the count
+        likes: true,
       },
     })
 
+    // If not found by slug, try by id
     if (!movie) {
       movie = await db.query.movies.findFirst({
         where: eq(movies.id, idOrSlug),
@@ -185,12 +194,39 @@ export async function getMovieById(idOrSlug: string) {
             },
             orderBy: [desc(comments.createdAt)],
           },
-          likes: true, // We need the count
+          likes: true,
         },
       })
     }
 
+    // If still not found, try case-insensitive slug match
     if (!movie) {
+      const allMovies = await db.query.movies.findMany({
+        with: {
+          comments: {
+            with: {
+              user: true,
+            },
+            orderBy: [desc(comments.createdAt)],
+          },
+          likes: true,
+        },
+      })
+
+      movie =
+        allMovies.find(
+          (m) =>
+            m.slug?.toLowerCase() === decodedSlug.toLowerCase() ||
+            m.title
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/-+/g, "-")
+              .replace(/^-|-$/g, "") === decodedSlug.toLowerCase(),
+        ) || null
+    }
+
+    if (!movie) {
+      console.warn(`[v0] Movie not found for ID/Slug: ${idOrSlug}`)
       return null
     }
 
