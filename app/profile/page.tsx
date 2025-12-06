@@ -21,26 +21,10 @@ import {
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import { getUserProfile, updateUserProfile, getUserStats, getCurrentUserDetails } from "@/lib/server-actions"
+import LoadingSpinner from "@/components/loading-spinner"
 import ErrorMessage from "@/components/error-message"
 import { COUNTRIES } from "@/lib/countries"
 import { useToast } from "@/hooks/use-toast"
-
-function PremiumLoader() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-6">
-        {/* Animated Logo */}
-        <div className="relative">
-          <div className="w-20 h-20 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-bold text-cyan-400">m</span>
-          </div>
-        </div>
-        <p className="text-white/60 animate-pulse">Loading profile...</p>
-      </div>
-    </div>
-  )
-}
 
 export default function ProfilePage() {
   const { user: clerkUser, isLoaded } = useUser()
@@ -66,25 +50,15 @@ export default function ProfilePage() {
   })
 
   useEffect(() => {
-    if (isLoaded) {
-      if (clerkUser) {
-        loadProfile()
-      } else {
-        setIsLoading(false)
-      }
+    if (isLoaded && clerkUser) {
+      loadProfile()
     }
   }, [isLoaded, clerkUser])
 
   const loadProfile = async () => {
     try {
       setIsLoading(true)
-      setError("")
-
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Request timeout")), 10000))
-
-      const dataPromise = Promise.all([getUserProfile(), getCurrentUserDetails()])
-
-      const [result, userDetails] = (await Promise.race([dataPromise, timeoutPromise])) as [any, any]
+      const [result, userDetails] = await Promise.all([getUserProfile(), getCurrentUserDetails()])
 
       if (result.success && result.user) {
         setProfile(result.user)
@@ -105,9 +79,8 @@ export default function ProfilePage() {
         setCanChangeCountry(!userDetails.countryChangedAt)
         setSelectedCountry(userDetails.country || "")
       }
-    } catch (err: any) {
-      console.error("[v0] Profile load error:", err)
-      setError(err.message === "Request timeout" ? "Loading took too long. Please refresh." : "Failed to load profile")
+    } catch (err) {
+      setError("Failed to load profile")
     } finally {
       setIsLoading(false)
     }
@@ -202,43 +175,17 @@ export default function ProfilePage() {
   const countryInfo = userCountry ? COUNTRIES.find((c) => c.name === userCountry || c.code === userCountry) : null
 
   if (!isLoaded || isLoading) {
-    return <PremiumLoader />
-  }
-
-  if (!clerkUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10]">
-        <Navbar showAuthButtons={true} />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <User className="w-16 h-16 text-cyan-500/50 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-2">Sign In Required</h2>
-            <p className="text-white/60">Please sign in to view your profile</p>
-          </div>
-        </div>
-        <Footer />
+      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }
 
-  if (error && !profile) {
+  if (!clerkUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10]">
-        <Navbar showAuthButtons={false} />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-red-500/50 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-2">Error Loading Profile</h2>
-            <p className="text-white/60 mb-4">{error}</p>
-            <button
-              onClick={loadProfile}
-              className="px-6 py-3 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 transition"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-        <Footer />
+      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center">
+        <ErrorMessage message="Please sign in to view your profile" />
       </div>
     )
   }
@@ -279,9 +226,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-2 text-[#888888] mt-1">
                     <Calendar className="w-4 h-4" />
-                    <span>
-                      Joined {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "Recently"}
-                    </span>
+                    <span>Joined {new Date(profile?.createdAt).toLocaleDateString()}</span>
                   </div>
                   {countryInfo && (
                     <div className="flex items-center gap-2 text-[#888888] mt-1">
