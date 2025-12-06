@@ -407,9 +407,10 @@ export default function AdminDashboard() {
       setUsers(usersData)
       setComments(commentsData)
       setFeedback(feedbackData)
-      if (reportsData.success) {
-        setContentReports(reportsData.reports as ContentReport[])
-      }
+      // Around line 393-395, change:
+      // const reportsData = await getAllContentReports()
+      // to handle as array, not object
+      setContentReports(reportsData as unknown as ContentReport[])
       setPromotionEntries(promotionEntriesData)
       setPromotionSettings(promotionSettingsData)
       setIpBlacklist(ipBlacklistData)
@@ -478,9 +479,12 @@ export default function AdminDashboard() {
         setUsers(usersData)
         setFeedback(feedbackData)
         setComments(commentsData) // Setting comments here
-        if (reportsData.success) {
-          setContentReports(reportsData.reports as ContentReport[])
-        }
+        // Change from:
+        // if (reportsData.success) {
+        //   setContentReports(reportsData.reports as ContentReport[])
+        // }
+        // to:
+        setContentReports(reportsData as unknown as ContentReport[])
         setSeries(seriesData) // Set series data
 
         if (adSettingsData) {
@@ -886,9 +890,10 @@ export default function AdminDashboard() {
         )
       }
       const reportsData = await getContentReports()
-      if (reportsData.success) {
-        setContentReports(reportsData.reports as ContentReport[])
-      }
+      // Around line 393-395, change:
+      // const reportsData = await getAllContentReports()
+      // to handle as array, not object
+      setContentReports(reportsData as unknown as ContentReport[])
     } else {
       alert("Failed to update report status")
     }
@@ -901,9 +906,10 @@ export default function AdminDashboard() {
     const result = await deleteContentReport(reportId)
     if (result.success) {
       const reportsData = await getContentReports()
-      if (reportsData.success) {
-        setContentReports(reportsData.reports as ContentReport[])
-      }
+      // Around line 393-395, change:
+      // const reportsData = await getAllContentReports()
+      // to handle as array, not object
+      setContentReports(reportsData as unknown as ContentReport[])
     } else {
       alert("Failed to delete report")
     }

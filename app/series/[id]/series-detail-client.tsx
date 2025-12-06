@@ -5,6 +5,7 @@ import { useState } from "react"
 import { useUser } from "@clerk/nextjs"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
+import ReportContentModal from "@/components/report-content-modal"
 import {
   Play,
   Plus,
@@ -17,12 +18,8 @@ import {
   Clock,
   Heart,
   Bookmark,
-  Loader2,
   Send,
   Eye,
-  Flag,
-  Download,
-  X,
 } from "lucide-react"
 import SeriesVideoPlayer from "@/components/series-video-player"
 import SocialShare from "@/components/social-share"
@@ -137,10 +134,6 @@ export default function SeriesDetailClient({
   const [commentRating, setCommentRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState<Comment[]>(series.comments || [])
-  const [showReportModal, setShowReportModal] = useState(false)
-  const [reportReason, setReportReason] = useState("")
-  const [reportDescription, setReportDescription] = useState("")
-  const [reportLoading, setReportLoading] = useState(false)
 
   const rating =
     typeof series.averageRating === "string" ? Number.parseFloat(series.averageRating) : series.averageRating || 0
@@ -269,38 +262,6 @@ export default function SeriesDetailClient({
     }
   }
 
-  const handleReport = async () => {
-    if (!reportReason) {
-      toast.error("Please select a reason")
-      return
-    }
-    setReportLoading(true)
-    try {
-      const res = await fetch("/api/series/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seriesId: series.id,
-          reason: reportReason,
-          description: reportDescription,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        toast.success("Report submitted successfully")
-        setShowReportModal(false)
-        setReportReason("")
-        setReportDescription("")
-      } else {
-        toast.error(data.error || "Failed to submit report")
-      }
-    } catch {
-      toast.error("Failed to submit report")
-    } finally {
-      setReportLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-[#0B0C10]">
       {/* Hero Section */}
@@ -345,7 +306,7 @@ export default function SeriesDetailClient({
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all w-fit"
                     >
-                      <Download className="w-5 h-5" />
+                      <Film className="w-5 h-5" />
                       Download Episode
                     </a>
                   )}
@@ -445,7 +406,7 @@ export default function SeriesDetailClient({
                   }`}
                 >
                   {isLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Film className="w-5 h-5 animate-spin" />
                   ) : inWatchlist ? (
                     <Check className="w-5 h-5" />
                   ) : (
@@ -464,7 +425,7 @@ export default function SeriesDetailClient({
                   }`}
                 >
                   {isLiking ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Film className="w-5 h-5 animate-spin" />
                   ) : (
                     <Heart className={`w-5 h-5 ${isLiked ? "fill-white" : ""}`} />
                   )}
@@ -481,20 +442,14 @@ export default function SeriesDetailClient({
                   }`}
                 >
                   {isWatchLaterLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Film className="w-5 h-5 animate-spin" />
                   ) : (
                     <Bookmark className={`w-5 h-5 ${inWatchLater ? "fill-white" : ""}`} />
                   )}
                   {inWatchLater ? "Saved" : "Watch Later"}
                 </button>
 
-                <button
-                  onClick={() => setShowReportModal(true)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-[#1A1B23] text-white border border-[#2A2B33] hover:border-orange-500 transition-all"
-                >
-                  <Flag className="w-5 h-5" />
-                  Report
-                </button>
+                <ReportContentModal seriesId={series.id} contentTitle={series.title} contentType="series" />
               </div>
 
               {/* Social Share */}
@@ -644,7 +599,7 @@ export default function SeriesDetailClient({
                 disabled={isSubmitting}
                 className="flex items-center gap-2 px-5 py-2.5 bg-[#00FFFF] text-black font-semibold rounded-lg hover:bg-[#00FFFF]/90 transition-colors disabled:opacity-50"
               >
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {isSubmitting ? <Film className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                 Post Comment
               </button>
             </div>
@@ -689,75 +644,6 @@ export default function SeriesDetailClient({
           )}
         </div>
       </div>
-
-      {/* Report Modal */}
-      <AnimatePresence>
-        {showReportModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={() => setShowReportModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#1A1B23] rounded-2xl p-6 w-full max-w-md border border-[#2A2B33]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-white">Report Issue</h3>
-                <button
-                  onClick={() => setShowReportModal(false)}
-                  className="p-2 hover:bg-[#2A2B33] rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-2">Reason</label>
-                  <select
-                    value={reportReason}
-                    onChange={(e) => setReportReason(e.target.value)}
-                    className="w-full bg-[#0B0C10] text-white rounded-lg p-3 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none"
-                  >
-                    <option value="">Select a reason</option>
-                    <option value="broken_video">Broken Video</option>
-                    <option value="wrong_content">Wrong Content</option>
-                    <option value="poor_quality">Poor Quality</option>
-                    <option value="copyright">Copyright Issue</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-gray-400 text-sm mb-2">Description (Optional)</label>
-                  <textarea
-                    value={reportDescription}
-                    onChange={(e) => setReportDescription(e.target.value)}
-                    placeholder="Provide more details..."
-                    className="w-full bg-[#0B0C10] text-white rounded-lg p-3 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none resize-none"
-                    rows={3}
-                  />
-                </div>
-
-                <button
-                  onClick={handleReport}
-                  disabled={reportLoading}
-                  className="w-full py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {reportLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Flag className="w-5 h-5" />}
-                  Submit Report
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

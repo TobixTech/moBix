@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw, Loader2 } from "lucide-react"
 
@@ -81,7 +80,7 @@ function getEmbedUrl(url: string): string {
     if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`
   }
 
-  // Streamtape - ensure /e/ format
+  // Streamtape - ensure /e/ format and return as-is (no modifications to preserve their embed)
   const streamtapeDomains = [
     "streamtape.com",
     "streamtape.to",
@@ -92,9 +91,12 @@ function getEmbedUrl(url: string): string {
     "stape.fun",
   ]
   if (streamtapeDomains.some((d) => lowerUrl.includes(d))) {
+    // Convert /v/ to /e/ for embed format
     if (url.includes("/v/")) {
       return url.replace("/v/", "/e/")
     }
+    // Already in /e/ format or other format, return as-is
+    return url
   }
 
   return url
@@ -202,20 +204,18 @@ export default function SeriesVideoPlayer({
           position: "fixed",
           top: 0,
           left: 0,
-          width: "100vh",
-          height: "100vw",
-          transform: "rotate(90deg) translateY(-100%)",
-          transformOrigin: "top left",
-          zIndex: 9999,
+          width: "100vw",
+          height: "100vh",
+          transform: "none",
+          zIndex: 99999,
           backgroundColor: "#000",
         }
       : {}
 
   return (
     <>
-      {/* Backdrop for rotation */}
       {isRotated && !isFullscreen && (
-        <div className="fixed inset-0 bg-black/95 z-[9998]" onClick={() => setIsRotated(false)} />
+        <div className="fixed inset-0 bg-black z-[99998]" onClick={() => setIsRotated(false)} />
       )}
 
       <div
@@ -225,9 +225,8 @@ export default function SeriesVideoPlayer({
         }`}
         style={containerStyles}
       >
-        {/* Controls overlay */}
         {isPlaying && !hasError && (
-          <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
+          <div className={`absolute top-3 right-3 flex items-center gap-2 ${isRotated ? "z-[99999]" : "z-50"}`}>
             <button
               onClick={handleRotate}
               className={`p-2.5 rounded-full backdrop-blur-md transition-all ${
@@ -314,9 +313,10 @@ export default function SeriesVideoPlayer({
                 className="absolute inset-0 w-full h-full"
                 frameBorder="0"
                 scrolling="no"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowFullScreen
-                referrerPolicy="no-referrer-when-downgrade"
+                allowTransparency
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                referrerPolicy="no-referrer"
                 loading="eager"
                 style={{ border: "none", backgroundColor: "#000" }}
                 onLoad={handleIframeLoad}

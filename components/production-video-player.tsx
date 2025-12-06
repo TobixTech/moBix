@@ -532,8 +532,7 @@ export default function ProductionVideoPlayer({
                       scrolling="no"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                       allowFullScreen
-                      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
-                      referrerPolicy="no-referrer-when-downgrade"
+                      referrerPolicy="no-referrer"
                       loading="eager"
                       style={{
                         border: "none",

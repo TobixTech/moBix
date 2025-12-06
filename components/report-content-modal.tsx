@@ -9,8 +9,10 @@ import { reportContent } from "@/lib/server-actions"
 import { useUser } from "@clerk/nextjs"
 
 interface ReportContentModalProps {
-  movieId: string
-  movieTitle: string
+  movieId?: string
+  seriesId?: string
+  contentTitle: string
+  contentType?: "movie" | "series"
   trigger?: React.ReactNode
 }
 
@@ -23,7 +25,13 @@ const REPORT_REASONS = [
   { value: "other", label: "Other" },
 ]
 
-export default function ReportContentModal({ movieId, movieTitle, trigger }: ReportContentModalProps) {
+export default function ReportContentModal({
+  movieId,
+  seriesId,
+  contentTitle,
+  contentType = "movie",
+  trigger,
+}: ReportContentModalProps) {
   const { user, isSignedIn } = useUser()
   const [isOpen, setIsOpen] = useState(false)
   const [reason, setReason] = useState("")
@@ -50,19 +58,53 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
     setError("")
 
     try {
-      const result = await reportContent(movieId, reason, description, email)
+      const contentId = movieId || seriesId
+      if (!contentId) {
+        setError("Missing content ID")
+        setIsSubmitting(false)
+        return
+      }
 
-      if (result.success) {
-        setSubmitted(true)
-        setTimeout(() => {
-          setIsOpen(false)
-          setSubmitted(false)
-          setReason("")
-          setDescription("")
-          if (!isSignedIn) setEmail("")
-        }, 2000)
+      // Use API route for series, server action for movies
+      if (contentType === "series" && seriesId) {
+        const res = await fetch("/api/series/report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seriesId,
+            reason,
+            description,
+            email,
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          setSubmitted(true)
+          setTimeout(() => {
+            setIsOpen(false)
+            setSubmitted(false)
+            setReason("")
+            setDescription("")
+            if (!isSignedIn) setEmail("")
+          }, 2000)
+        } else {
+          setError(data.error || "Unable to submit report. Please try again.")
+        }
       } else {
-        setError("Unable to submit report. Please try again.")
+        // Movie report using server action
+        const result = await reportContent(contentId, reason, description, email)
+        if (result.success) {
+          setSubmitted(true)
+          setTimeout(() => {
+            setIsOpen(false)
+            setSubmitted(false)
+            setReason("")
+            setDescription("")
+            if (!isSignedIn) setEmail("")
+          }, 2000)
+        } else {
+          setError("Unable to submit report. Please try again.")
+        }
       }
     } catch {
       setError("Unable to submit report. Please try again.")
@@ -114,8 +156,8 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
                     <AlertTriangle className="w-5 h-5 text-red-400" />
                   </div>
                   <div>
-                    <h3 className="text-white font-bold">Report Issue</h3>
-                    <p className="text-white/50 text-sm truncate max-w-[180px]">{movieTitle}</p>
+                    <h3 className="text-white font-bold">Report {contentType === "series" ? "Series" : "Movie"}</h3>
+                    <p className="text-white/50 text-sm truncate max-w-[180px]">{contentTitle}</p>
                   </div>
                 </div>
                 <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition">
@@ -139,7 +181,7 @@ export default function ReportContentModal({ movieId, movieTitle, trigger }: Rep
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                    {/* Reason Selection - Compact for mobile */}
+                    {/* Reason Selection */}
                     <div>
                       <label className="block text-white font-medium mb-2 text-sm">
                         What's the issue? <span className="text-red-400">*</span>
