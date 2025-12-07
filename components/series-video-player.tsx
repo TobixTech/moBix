@@ -2,7 +2,8 @@
 
 import type React from "react"
 import { useState, useRef, useCallback, useEffect } from "react"
-import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw, Loader2 } from "lucide-react"
+import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw } from "lucide-react"
+import MobixVideoLoader from "./mobix-video-loader"
 
 interface SeriesVideoPlayerProps {
   videoUrl: string
@@ -80,7 +81,7 @@ function getEmbedUrl(url: string): string {
     if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`
   }
 
-  // Streamtape - ensure /e/ format and return as-is (no modifications to preserve their embed)
+  // Streamtape - ensure /e/ format
   const streamtapeDomains = [
     "streamtape.com",
     "streamtape.to",
@@ -91,11 +92,9 @@ function getEmbedUrl(url: string): string {
     "stape.fun",
   ]
   if (streamtapeDomains.some((d) => lowerUrl.includes(d))) {
-    // Convert /v/ to /e/ for embed format
     if (url.includes("/v/")) {
       return url.replace("/v/", "/e/")
     }
-    // Already in /e/ format or other format, return as-is
     return url
   }
 
@@ -204,9 +203,10 @@ export default function SeriesVideoPlayer({
           position: "fixed",
           top: 0,
           left: 0,
-          width: "100vw",
-          height: "100vh",
-          transform: "none",
+          width: "100vh",
+          height: "100vw",
+          transform: "rotate(90deg) translateY(-100%)",
+          transformOrigin: "top left",
           zIndex: 99999,
           backgroundColor: "#000",
         }
@@ -226,7 +226,7 @@ export default function SeriesVideoPlayer({
         style={containerStyles}
       >
         {isPlaying && !hasError && (
-          <div className={`absolute top-3 right-3 flex items-center gap-2 ${isRotated ? "z-[99999]" : "z-50"}`}>
+          <div className={`absolute top-3 right-3 flex items-center gap-2 ${isRotated ? "z-[100000]" : "z-50"}`}>
             <button
               onClick={handleRotate}
               className={`p-2.5 rounded-full backdrop-blur-md transition-all ${
@@ -270,15 +270,7 @@ export default function SeriesVideoPlayer({
           </div>
         )}
 
-        {/* Loading State */}
-        {isLoading && !hasError && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="w-12 h-12 text-cyan-500 animate-spin" />
-              <p className="text-gray-400 text-sm">Loading video...</p>
-            </div>
-          </div>
-        )}
+        {isLoading && !hasError && <MobixVideoLoader />}
 
         {/* Play Button Overlay (before playing) */}
         {!isPlaying && !hasError && (
@@ -314,7 +306,6 @@ export default function SeriesVideoPlayer({
                 frameBorder="0"
                 scrolling="no"
                 allowFullScreen
-                allowTransparency
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                 referrerPolicy="no-referrer"
                 loading="eager"

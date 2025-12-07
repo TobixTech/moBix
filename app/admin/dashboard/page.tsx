@@ -31,6 +31,8 @@ import {
   Download,
   Shuffle,
   Tv,
+  BarChart3,
+  Cog,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -68,6 +70,10 @@ import {
   getAllCommentsAdmin,
   deleteSeriesComment,
   getAllContentReports,
+  // Add server actions for analytics and settings if they exist
+  // getAnalyticsData,
+  // getSiteSettings,
+  // updateSiteSettings,
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -96,6 +102,8 @@ type AdminTab =
   | "reports"
   | "promotions"
   | "series" // Added "promotions" and "series" to AdminTab type
+  | "analytics" // Added
+  | "settings" // Added
 
 interface Metric {
   label: string
@@ -1256,13 +1264,15 @@ export default function AdminDashboard() {
             { id: "overview", label: "Dashboard Overview", icon: LayoutDashboard },
             { id: "movies", label: "Manage Movies", icon: Film },
             { id: "upload", label: "Upload Movie", icon: Upload },
+            { id: "series", label: "TV Series", icon: Tv }, // ADDED SERIES TAB
             { id: "users", label: "Manage Users", icon: Users },
             { id: "comments", label: "Comment Moderation", icon: MessageSquare },
-            { id: "ads", label: "Ad Management", icon: Settings },
-            { id: "feedback", label: "Feedback & Requests", icon: Inbox },
             { id: "reports", label: "Content Reports", icon: Flag }, // Added reports tab
+            { id: "ads", label: "Ad Management", icon: Settings },
             { id: "promotions", label: "Promotions", icon: Gift }, // Added promotions tab
-            { id: "series", label: "TV Series", icon: Tv }, // ADDED SERIES TAB
+            { id: "feedback", label: "Feedback & Requests", icon: Inbox },
+            { id: "analytics", label: "Analytics", icon: BarChart3 }, // Added
+            { id: "settings", label: "Site Settings", icon: Cog }, // Added
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -2858,6 +2868,36 @@ export default function AdminDashboard() {
             <div className="space-y-6">
               <h3 className="text-2xl font-bold text-white mb-6">TV Series Management</h3>
               <AdminSeriesManager /> {/* Find the series tab content and replace it with AdminSeriesManager */}
+            </div>
+          )}
+
+          {/* Analytics Tab Content */}
+          {activeTab === "analytics" && (
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold text-white mb-6">Analytics Overview</h3>
+              {/* Replace with actual analytics components and data fetching */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+                <BarChart3 className="w-12 h-12 text-white/20 mx-auto mb-4" />
+                <p className="text-white/50">Analytics data will be displayed here.</p>
+                <p className="text-white/30 text-sm mt-2">
+                  (This section requires further implementation with data fetching and charting libraries.)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Site Settings Tab Content */}
+          {activeTab === "settings" && (
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold text-white mb-6">Site Settings</h3>
+              {/* Replace with actual site settings components and data fetching */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+                <Cog className="w-12 h-12 text-white/20 mx-auto mb-4" />
+                <p className="text-white/50">Site configuration options will be managed here.</p>
+                <p className="text-white/30 text-sm mt-2">
+                  (This section requires further implementation to fetch and save settings.)
+                </p>
+              </div>
             </div>
           )}
         </div>

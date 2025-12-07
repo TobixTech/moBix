@@ -5,7 +5,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Flag, X, Loader, AlertTriangle, CheckCircle } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { reportContent } from "@/lib/server-actions"
 import { useUser } from "@clerk/nextjs"
 
 interface ReportContentModalProps {
@@ -65,46 +64,31 @@ export default function ReportContentModal({
         return
       }
 
-      // Use API route for series, server action for movies
-      if (contentType === "series" && seriesId) {
-        const res = await fetch("/api/series/report", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            seriesId,
-            reason,
-            description,
-            email,
-          }),
-        })
-        const data = await res.json()
-        if (data.success) {
-          setSubmitted(true)
-          setTimeout(() => {
-            setIsOpen(false)
-            setSubmitted(false)
-            setReason("")
-            setDescription("")
-            if (!isSignedIn) setEmail("")
-          }, 2000)
-        } else {
-          setError(data.error || "Unable to submit report. Please try again.")
-        }
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentId,
+          contentType,
+          reason,
+          description,
+          email,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setSubmitted(true)
+        setTimeout(() => {
+          setIsOpen(false)
+          setSubmitted(false)
+          setReason("")
+          setDescription("")
+          if (!isSignedIn) setEmail("")
+        }, 2000)
       } else {
-        // Movie report using server action
-        const result = await reportContent(contentId, reason, description, email)
-        if (result.success) {
-          setSubmitted(true)
-          setTimeout(() => {
-            setIsOpen(false)
-            setSubmitted(false)
-            setReason("")
-            setDescription("")
-            if (!isSignedIn) setEmail("")
-          }, 2000)
-        } else {
-          setError("Unable to submit report. Please try again.")
-        }
+        setError(data.error || "Unable to submit report. Please try again.")
       }
     } catch {
       setError("Unable to submit report. Please try again.")

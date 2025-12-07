@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect, useCallback } from "react"
 import MobixIntro from "./mobix-intro"
 import PrerollAdPlayer from "./preroll-ad-player"
 import MidrollAdPlayer from "./midroll-ad-player"
+import MobixVideoLoader from "./mobix-video-loader"
 import { updateWatchProgress } from "@/lib/server-actions"
 import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw } from "lucide-react"
 
@@ -100,19 +100,15 @@ function getEmbedUrl(url: string): string {
     lowerUrl.includes("strtpe.link") ||
     lowerUrl.includes("stape.fun")
   ) {
-    // If already an embed URL with /e/, return as is
     if (url.includes("/e/")) {
       return url
     }
-    // Convert /v/ to /e/ for embed
     if (url.includes("/v/")) {
       return url.replace("/v/", "/e/")
     }
-    // Return as-is if neither pattern matches
     return url
   }
 
-  // Return URL as-is for other embed URLs
   return url
 }
 
@@ -514,14 +510,7 @@ export default function ProductionVideoPlayer({
                   </div>
                 ) : (
                   <>
-                    {!iframeLoaded && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-                          <p className="text-gray-400 text-sm">Loading video...</p>
-                        </div>
-                      </div>
-                    )}
+                    {!iframeLoaded && <MobixVideoLoader />}
                     <iframe
                       ref={iframeRef}
                       key={`${retryCount}-${videoUrl}`}
