@@ -2,723 +2,403 @@
 
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
-import MobixIntro from "./mobix-intro"
-import PrerollAdPlayer from "./preroll-ad-player"
-import MidrollAdPlayer from "./midroll-ad-player"
-import MobixVideoLoader from "./mobix-video-loader"
-import { updateWatchProgress } from "@/lib/server-actions"
-import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw, AlertTriangle } from "lucide-react"
-
-interface PrerollAdCode {
-  code: string
-  name?: string
-}
+import { Play, Maximize, Minimize, RotateCcw, RefreshCw, AlertCircle } from "lucide-react"
+import { MobixVideoLoader } from "./mobix-video-loader"
 
 interface ProductionVideoPlayerProps {
   videoUrl: string
-  posterUrl: string
   title: string
-  skipIntro?: boolean
-  showPrerollAds?: boolean
-  midrollEnabled?: boolean
-  prerollAdCodes?: PrerollAdCode[]
-  midrollAdCodes?: PrerollAdCode[]
-  midrollIntervalMinutes?: number
-  adTimeout?: number
-  skipDelay?: number
-  rotationInterval?: number
+  posterUrl?: string
+  onProgress?: (progress: number, duration: number) => void
+  initialProgress?: number
   movieId?: string
-  movieDuration?: number
+  prerollAdCodes?: string[]
+  midrollAdCodes?: string[]
+  midrollEnabled?: boolean
+  midrollIntervalMinutes?: number
 }
 
-function isEmbedUrl(url: string): boolean {
-  if (!url) return false
-  const embedPatterns = [
-    // YouTube
-    "youtube.com/embed",
-    "youtube.com/watch",
-    "youtube.com/v/",
-    "youtu.be",
-    // Vimeo
-    "vimeo.com",
-    "player.vimeo.com",
-    // Dailymotion
-    "dailymotion.com",
-    "dai.ly",
-    // Google Drive
-    "drive.google.com",
-    // Streamtape and variants
-    "streamtape.com",
-    "streamtape.to",
-    "streamtape.net",
-    "strtape.cloud",
-    "strcloud.link",
-    "strtpe.link",
-    "stape.fun",
-    "tape.com",
-    // Doodstream and variants
-    "doodstream.com",
-    "dood.watch",
-    "dood.to",
-    "dood.so",
-    "dood.pm",
-    "dood.wf",
-    "dood.re",
-    "dood.cx",
-    "dood.sh",
-    "dood.la",
-    "dood.ws",
-    "dood.yt",
-    // Filemoon
-    "filemoon.sx",
-    "filemoon.to",
-    "filemoon.in",
-    // Vidoza
-    "vidoza.net",
-    "vidoza.co",
-    // Upstream
-    "upstream.to",
-    "upstreamcdn.co",
-    // Mixdrop
-    "mixdrop.co",
-    "mixdrop.to",
-    "mixdrop.ch",
-    "mixdrop.bz",
-    "mixdrop.sx",
-    // MP4Upload
-    "mp4upload.com",
-    // StreamSB and variants
-    "streamsb.net",
-    "streamsb.com",
-    "sbembed.com",
-    "sbembed1.com",
-    "sbembed2.com",
-    "sbvideo.net",
-    "sbplay.org",
-    "sbplay1.com",
-    "sbplay2.com",
-    "sbplay2.xyz",
-    "embedsb.com",
-    "pelistop.co",
-    "streamsss.net",
-    "sblanh.com",
-    "sbbrisk.com",
-    "sbface.com",
-    "sblongvu.com",
-    // Streamwish
-    "streamwish.to",
-    "streamwish.com",
-    "wishfast.top",
-    "sfastwish.com",
-    "swdyu.com",
-    // VidHide
-    "vidhide.com",
-    "vidhidepro.com",
-    // VTube
-    "vtube.to",
-    "vtbe.to",
-    // Other video hosts
-    "vidcloud.co",
-    "vidcloud9.com",
-    "vidstream.pro",
-    "vidmoly.to",
-    "vidmoly.me",
-    "voe.sx",
-    "voeunblock.com",
-    "fembed.com",
-    "fembed-hd.com",
-    "feurl.com",
-    "embedsito.com",
-    "fcdn.stream",
-    "ok.ru",
-    "odnoklassniki.ru",
-    "rutube.ru",
-    "twitch.tv",
-    "facebook.com/video",
-    "fb.watch",
-    // Generic embed indicators
-    "embed",
-    "iframe",
-    "/e/",
-    "/v/",
-    "player",
-  ]
-  const lowerUrl = url.toLowerCase()
-  return embedPatterns.some((pattern) => lowerUrl.includes(pattern))
-}
-
-function getEmbedUrl(url: string): string {
-  if (!url) return ""
-
-  const lowerUrl = url.toLowerCase()
-
-  // YouTube - multiple formats
-  if (lowerUrl.includes("youtube.com/watch")) {
-    try {
-      const videoId = new URL(url).searchParams.get("v")
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
-    } catch {
-      return url
-    }
-  }
-  if (lowerUrl.includes("youtu.be/")) {
-    const videoId = url.split("youtu.be/")[1]?.split("?")[0]
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
-  }
-  if (lowerUrl.includes("youtube.com/embed")) {
-    return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
-  }
-  if (lowerUrl.includes("youtube.com/v/")) {
-    const videoId = url.split("/v/")[1]?.split("?")[0]
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`
-  }
-
-  // Vimeo
-  if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("player.vimeo.com")) {
-    const videoId = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0]
-    return `https://player.vimeo.com/video/${videoId}?autoplay=1`
-  }
-
-  // Dailymotion
-  if (lowerUrl.includes("dailymotion.com/video/")) {
-    const videoId = url.split("/video/")[1]?.split("?")[0]?.split("_")[0]
-    return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`
-  }
-  if (lowerUrl.includes("dai.ly/")) {
-    const videoId = url.split("dai.ly/")[1]?.split("?")[0]
-    return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`
-  }
-
-  // Streamtape - convert /v/ to /e/
-  const streamtapeDomains = [
-    "streamtape.com",
-    "streamtape.to",
-    "streamtape.net",
-    "strtape.cloud",
-    "strcloud.link",
-    "strtpe.link",
-    "stape.fun",
-  ]
-  if (streamtapeDomains.some((d) => lowerUrl.includes(d))) {
-    if (url.includes("/v/")) {
-      return url.replace("/v/", "/e/")
-    }
-    return url
-  }
-
-  // Doodstream - convert to embed
-  const doodDomains = [
-    "doodstream",
-    "dood.watch",
-    "dood.to",
-    "dood.so",
-    "dood.pm",
-    "dood.wf",
-    "dood.re",
-    "dood.cx",
-    "dood.sh",
-    "dood.la",
-    "dood.ws",
-    "dood.yt",
-  ]
-  if (doodDomains.some((d) => lowerUrl.includes(d))) {
-    if (url.includes("/d/")) {
-      return url.replace("/d/", "/e/")
-    }
-    return url
-  }
-
-  // Mixdrop - convert to embed
-  if (lowerUrl.includes("mixdrop")) {
-    if (url.includes("/f/")) {
-      return url.replace("/f/", "/e/")
-    }
-    return url
-  }
-
-  // VidHide - convert to embed
-  if (lowerUrl.includes("vidhide")) {
-    if (url.includes("/v/")) {
-      return url.replace("/v/", "/embed-")
-    }
-    return url
-  }
-
-  // Google Drive
-  if (lowerUrl.includes("drive.google.com/file/d/")) {
-    const fileId = url.split("/file/d/")[1]?.split("/")[0]
-    return `https://drive.google.com/file/d/${fileId}/preview`
-  }
-
-  // OK.ru
-  if (lowerUrl.includes("ok.ru/video/")) {
-    const videoId = url.split("/video/")[1]?.split("?")[0]
-    return `https://ok.ru/videoembed/${videoId}`
-  }
-
-  return url
-}
-
-function isValidUrl(url: string): boolean {
-  if (!url || url.trim() === "") return false
-  try {
-    new URL(url)
-    return true
-  } catch {
-    return url.startsWith("/") || isEmbedUrl(url)
-  }
-}
-
-export default function ProductionVideoPlayer({
+export function ProductionVideoPlayer({
   videoUrl,
-  posterUrl,
   title,
-  skipIntro = false,
-  showPrerollAds = true,
-  midrollEnabled = false,
+  posterUrl,
+  onProgress,
+  initialProgress = 0,
+  movieId,
   prerollAdCodes = [],
   midrollAdCodes = [],
+  midrollEnabled = false,
   midrollIntervalMinutes = 20,
-  adTimeout = 20,
-  skipDelay = 10,
-  rotationInterval = 5,
-  movieId,
-  movieDuration = 120,
 }: ProductionVideoPlayerProps) {
-  const [showIntro, setShowIntro] = useState(!skipIntro)
-  const [showPrerollAd, setShowPrerollAd] = useState(false)
-  const [showMidrollAd, setShowMidrollAd] = useState(false)
-  const [showVideo, setShowVideo] = useState(false)
-  const [hasStartedPlaying, setHasStartedPlaying] = useState(false)
-  const [lastMidrollTime, setLastMidrollTime] = useState(0)
-  const [isRotated, setIsRotated] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isRotated, setIsRotated] = useState(false)
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [retryCount, setRetryCount] = useState(0)
+  const [showPlayOverlay, setShowPlayOverlay] = useState(true)
   const [iframeLoaded, setIframeLoaded] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const lastProgressUpdate = useRef(0)
-  const embeddedStartTime = useRef<number>(0)
-  const embeddedIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const isEmbed = isEmbedUrl(videoUrl)
+  const isYouTubeUrl = (url: string): boolean => {
+    const lowerUrl = url.toLowerCase()
+    return (
+      lowerUrl.includes("youtube.com") || lowerUrl.includes("youtu.be") || lowerUrl.includes("youtube-nocookie.com")
+    )
+  }
 
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+  // Check if URL is an embedded video (YouTube, Vimeo, Streamtape, etc.)
+  const isEmbedUrl = (url: string): boolean => {
+    const lowerUrl = url.toLowerCase()
+    const embedDomains = [
+      "youtube.com",
+      "youtu.be",
+      "youtube-nocookie.com",
+      "vimeo.com",
+      "dailymotion.com",
+      "streamtape.com",
+      "streamtape.to",
+      "strtape.cloud",
+      "strcloud.link",
+      "doodstream.com",
+      "dood.to",
+      "dood.watch",
+      "dood.so",
+      "dood.pm",
+      "dood.wf",
+      "dood.re",
+      "mixdrop.co",
+      "mixdrop.to",
+      "mixdrop.sx",
+      "mixdrop.bz",
+      "mixdrop.ch",
+      "vidhide.com",
+      "vidhidepro.com",
+      "streamwish.com",
+      "streamwish.to",
+      "wishembed.pro",
+      "strwish.xyz",
+      "filemoon.sx",
+      "filemoon.to",
+      "filemoon.in",
+      "voe.sx",
+      "voeunblock.com",
+      "voe-unblock.com",
+      "vidmoly.to",
+      "vidmoly.me",
+      "upstream.to",
+      "mp4upload.com",
+      "uqload.com",
+      "uqload.to",
+      "wolfstream.tv",
+      "embedsito.com",
+      "closeload.com",
+      "vidguard.to",
+      "vembed.net",
+      "player.vimeo.com",
+      "embed",
+      "/e/",
+      "/v/",
+    ]
+    return embedDomains.some((domain) => lowerUrl.includes(domain))
+  }
+
+  // Convert URL to proper embed format
+  const getEmbedUrl = (url: string): string => {
+    const lowerUrl = url.toLowerCase()
+
+    // YouTube - multiple formats
+    if (lowerUrl.includes("youtube.com/watch")) {
       try {
-        if (typeof event.data === "string" && event.data.includes("youtube")) {
-          const data = JSON.parse(event.data)
-          if (data.event === "onError" || data.info?.errorCode) {
-            const errorCode = data.info?.errorCode || data.errorCode
-            if (errorCode === 150 || errorCode === 101 || errorCode === 153) {
-              setHasError(true)
-              setErrorMessage("This video cannot be embedded. The owner has restricted playback on external websites.")
-            }
-          }
-        }
+        const videoId = new URL(url).searchParams.get("v")
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
       } catch {
-        // Not a JSON message, ignore
+        return url
       }
     }
+    if (lowerUrl.includes("youtu.be/")) {
+      const videoId = url.split("youtu.be/")[1]?.split("?")[0]
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
+    }
+    if (lowerUrl.includes("youtube.com/embed")) {
+      return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
+    }
+    if (lowerUrl.includes("youtube.com/v/")) {
+      const videoId = url.split("/v/")[1]?.split("?")[0]
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
+    }
 
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
+    // Vimeo
+    if (lowerUrl.includes("vimeo.com") && !lowerUrl.includes("player.vimeo.com")) {
+      const videoId = url.split("vimeo.com/")[1]?.split("?")[0]
+      return `https://player.vimeo.com/video/${videoId}?autoplay=1`
+    }
+
+    // Streamtape - convert /v/ to /e/
+    if (
+      lowerUrl.includes("streamtape.com") ||
+      lowerUrl.includes("streamtape.to") ||
+      lowerUrl.includes("strtape.cloud") ||
+      lowerUrl.includes("strcloud.link")
+    ) {
+      if (lowerUrl.includes("/v/")) {
+        return url.replace("/v/", "/e/")
+      }
+      return url
+    }
+
+    // Doodstream - convert to embed
+    if (
+      lowerUrl.includes("doodstream.com") ||
+      lowerUrl.includes("dood.to") ||
+      lowerUrl.includes("dood.watch") ||
+      lowerUrl.includes("dood.so") ||
+      lowerUrl.includes("dood.pm") ||
+      lowerUrl.includes("dood.wf") ||
+      lowerUrl.includes("dood.re")
+    ) {
+      if (lowerUrl.includes("/d/")) {
+        return url.replace("/d/", "/e/")
+      }
+      return url
+    }
+
+    // Mixdrop - convert to embed
+    if (
+      lowerUrl.includes("mixdrop.co") ||
+      lowerUrl.includes("mixdrop.to") ||
+      lowerUrl.includes("mixdrop.sx") ||
+      lowerUrl.includes("mixdrop.bz") ||
+      lowerUrl.includes("mixdrop.ch")
+    ) {
+      if (lowerUrl.includes("/f/")) {
+        return url.replace("/f/", "/e/")
+      }
+      return url
+    }
+
+    // Voe - convert to embed
+    if (lowerUrl.includes("voe.sx") || lowerUrl.includes("voeunblock") || lowerUrl.includes("voe-unblock")) {
+      if (!lowerUrl.includes("/e/")) {
+        const parts = url.split("/")
+        const videoId = parts[parts.length - 1]
+        return `https://voe.sx/e/${videoId}`
+      }
+      return url
+    }
+
+    // Filemoon
+    if (lowerUrl.includes("filemoon.sx") || lowerUrl.includes("filemoon.to") || lowerUrl.includes("filemoon.in")) {
+      if (!lowerUrl.includes("/e/")) {
+        return url.replace("/d/", "/e/")
+      }
+      return url
+    }
+
+    return url
+  }
+
+  const handleVideoError = useCallback(() => {
+    console.error("[v0] Video error occurred for URL:", videoUrl)
+    setHasError(true)
+    setErrorMessage("Failed to load video. Please try again.")
+  }, [videoUrl])
+
+  const handleRetry = useCallback(() => {
+    setHasError(false)
+    setErrorMessage("")
+    setRetryCount((prev) => prev + 1)
+    setIframeLoaded(false)
   }, [])
 
-  const handleRotate = useCallback(() => {
-    setIsRotated((prev) => !prev)
-    if (screen.orientation && "lock" in screen.orientation) {
-      if (!isRotated) {
-        ;(screen.orientation as any).lock?.("landscape").catch(() => {})
-      } else {
-        ;(screen.orientation as any).unlock?.()
-      }
-    }
-  }, [isRotated])
+  const handleIframeLoad = useCallback(() => {
+    console.log("[v0] Iframe loaded successfully")
+    setIframeLoaded(true)
+  }, [])
 
-  const handleFullscreen = useCallback(async () => {
+  const handlePlayClick = useCallback(() => {
+    setShowPlayOverlay(false)
+    setIsPlaying(true)
+  }, [])
+
+  const toggleRotation = useCallback(() => {
+    setIsRotated((prev) => !prev)
+  }, [])
+
+  const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
+
     try {
       if (!document.fullscreenElement) {
         await containerRef.current.requestFullscreen()
         setIsFullscreen(true)
-        if (window.innerWidth < 768) {
-          setIsRotated(true)
-          if (screen.orientation && "lock" in screen.orientation) {
-            ;(screen.orientation as any).lock?.("landscape").catch(() => {})
-          }
-        }
       } else {
         await document.exitFullscreen()
         setIsFullscreen(false)
-        setIsRotated(false)
-        if (screen.orientation && "unlock" in screen.orientation) {
-          ;(screen.orientation as any).unlock?.()
-        }
       }
-    } catch (err) {
-      console.error("Fullscreen error:", err)
+    } catch (error) {
+      console.error("[v0] Fullscreen error:", error)
     }
   }, [])
 
+  // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
-      if (!document.fullscreenElement) {
-        setIsRotated(false)
-        if (screen.orientation && "unlock" in screen.orientation) {
-          ;(screen.orientation as any).unlock?.()
-        }
-      }
     }
     document.addEventListener("fullscreenchange", handleFullscreenChange)
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
   }, [])
 
+  // Escape key to exit rotation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isRotated && !isFullscreen) {
+      if (e.key === "Escape" && isRotated) {
         setIsRotated(false)
-        if (screen.orientation && "unlock" in screen.orientation) {
-          ;(screen.orientation as any).unlock?.()
-        }
       }
     }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isRotated, isFullscreen])
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [isRotated])
 
-  const saveProgress = useCallback(async () => {
-    if (!movieId || !videoRef.current) return
-    const video = videoRef.current
-    const progress = Math.floor((video.currentTime / video.duration) * 100)
-    const duration = Math.floor(video.duration)
-    if (Math.abs(progress - lastProgressUpdate.current) >= 5) {
-      lastProgressUpdate.current = progress
-      await updateWatchProgress(movieId, progress, duration)
+  const getReferrerPolicy = (): React.HTMLAttributeReferrerPolicy => {
+    if (isYouTubeUrl(videoUrl)) {
+      return "origin-when-cross-origin"
     }
-  }, [movieId])
-
-  const saveEmbeddedProgress = useCallback(async () => {
-    if (!movieId) return
-    const elapsedMinutes = (Date.now() - embeddedStartTime.current) / 1000 / 60
-    const estimatedDuration = movieDuration
-    const progress = Math.min(Math.floor((elapsedMinutes / estimatedDuration) * 100), 95)
-    if (progress > lastProgressUpdate.current && progress >= 5) {
-      lastProgressUpdate.current = progress
-      await updateWatchProgress(movieId, progress, estimatedDuration * 60)
-    }
-  }, [movieId, movieDuration])
-
-  useEffect(() => {
-    if (!showVideo || !movieId) return
-    if (isEmbed) {
-      embeddedStartTime.current = Date.now()
-      embeddedIntervalRef.current = setInterval(saveEmbeddedProgress, 30000)
-      const handleBeforeUnload = () => saveEmbeddedProgress()
-      window.addEventListener("beforeunload", handleBeforeUnload)
-      return () => {
-        if (embeddedIntervalRef.current) clearInterval(embeddedIntervalRef.current)
-        window.removeEventListener("beforeunload", handleBeforeUnload)
-        saveEmbeddedProgress()
-      }
-    } else {
-      const video = videoRef.current
-      if (!video) return
-      const interval = setInterval(saveProgress, 30000)
-      const handlePause = () => saveProgress()
-      const handleBeforeUnload = () => saveProgress()
-      video.addEventListener("pause", handlePause)
-      window.addEventListener("beforeunload", handleBeforeUnload)
-      return () => {
-        clearInterval(interval)
-        video.removeEventListener("pause", handlePause)
-        window.removeEventListener("beforeunload", handleBeforeUnload)
-        saveProgress()
-      }
-    }
-  }, [showVideo, movieId, saveProgress, saveEmbeddedProgress, isEmbed])
-
-  const handleIntroComplete = () => {
-    setShowIntro(false)
-    if (!isValidUrl(videoUrl)) {
-      setHasError(true)
-      setErrorMessage("Invalid video URL provided.")
-      setShowVideo(true)
-      return
-    }
-    const hasPrerollAds =
-      showPrerollAds && prerollAdCodes.length > 0 && prerollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
-    if (hasPrerollAds) {
-      setShowPrerollAd(true)
-    } else {
-      setShowVideo(true)
-      if (!isEmbed) setHasStartedPlaying(true)
-    }
+    // For other embeds like Streamtape, use no-referrer
+    return "no-referrer"
   }
 
-  const handlePrerollAdComplete = () => {
-    setShowPrerollAd(false)
-    setShowVideo(true)
-    if (!isValidUrl(videoUrl)) {
-      setHasError(true)
-      setErrorMessage("Invalid video URL provided.")
-      return
-    }
-    if (!isEmbed) setHasStartedPlaying(true)
-  }
-
-  const handleMidrollAdComplete = () => {
-    setShowMidrollAd(false)
-    if (videoRef.current) videoRef.current.play()
-  }
-
-  const handleEmbedPlay = () => {
-    if (!isValidUrl(videoUrl)) {
-      setHasError(true)
-      setErrorMessage("Invalid video URL provided.")
-      return
-    }
-    setHasStartedPlaying(true)
-    setHasError(false)
-    setErrorMessage("")
-    setIframeLoaded(false)
-  }
-
-  const handleRetry = () => {
-    setHasError(false)
-    setErrorMessage("")
-    setRetryCount((prev) => prev + 1)
-    setHasStartedPlaying(false)
-    setIframeLoaded(false)
-    setTimeout(() => {
-      if (isEmbed) {
-        setHasStartedPlaying(true)
-      } else if (videoRef.current) {
-        videoRef.current.load()
-        videoRef.current.play().catch(() => setHasError(true))
-      }
-    }, 100)
-  }
-
-  const handleVideoError = () => {
-    setHasError(true)
-    setErrorMessage("Failed to load video. The source may be unavailable.")
-  }
-
-  const handleIframeLoad = () => {
-    setIframeLoaded(true)
-  }
-
-  useEffect(() => {
-    const hasMidrollAds = midrollAdCodes.length > 0 && midrollAdCodes.some((ad) => ad.code && ad.code.trim() !== "")
-    if (!midrollEnabled || !showVideo || !hasMidrollAds) return
-    const video = videoRef.current
-    if (!video) return
-    const handleTimeUpdate = () => {
-      const currentMinutes = video.currentTime / 60
-      const intervalMinutes = midrollIntervalMinutes
-      if (currentMinutes - lastMidrollTime >= intervalMinutes && currentMinutes >= intervalMinutes) {
-        video.pause()
-        setLastMidrollTime(currentMinutes)
-        setShowMidrollAd(true)
-      }
-    }
-    video.addEventListener("timeupdate", handleTimeUpdate)
-    return () => video.removeEventListener("timeupdate", handleTimeUpdate)
-  }, [midrollEnabled, showVideo, midrollAdCodes, midrollIntervalMinutes, lastMidrollTime])
-
-  const getContainerStyles = (): React.CSSProperties => {
-    if (isRotated && !isFullscreen) {
-      return {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vh",
-        height: "100vw",
-        transform: "rotate(90deg) translateY(-100%)",
-        transformOrigin: "top left",
-        zIndex: 99999,
-        backgroundColor: "#000",
-      }
-    }
-    return {}
-  }
+  const isEmbed = isEmbedUrl(videoUrl)
 
   return (
-    <>
-      {isRotated && !isFullscreen && (
-        <div className="fixed inset-0 bg-black/95 z-[99998]" onClick={() => setIsRotated(false)} />
-      )}
+    <div
+      ref={containerRef}
+      className={`relative bg-black overflow-hidden ${
+        isRotated
+          ? "fixed inset-0 z-[99999] flex items-center justify-center bg-black"
+          : "w-full aspect-video rounded-xl"
+      }`}
+    >
+      {hasError ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-4">
+          <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+          <h3 className="text-xl font-bold mb-2">Video Playback Error</h3>
+          <p className="text-gray-400 text-center mb-4 max-w-md">{errorMessage}</p>
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-2 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-full transition-colors"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Try Again
+          </button>
+        </div>
+      ) : (
+        <>
+          {isEmbed ? (
+            <div className={`relative ${isRotated ? "w-screen h-screen" : "w-full h-full"}`}>
+              {/* Play overlay for embeds */}
+              {showPlayOverlay ? (
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-cover bg-center cursor-pointer z-10"
+                  style={{
+                    backgroundImage: posterUrl ? `url(${posterUrl})` : undefined,
+                    backgroundColor: posterUrl ? undefined : "#1a1a2e",
+                  }}
+                  onClick={handlePlayClick}
+                >
+                  <div className="absolute inset-0 bg-black/50" />
+                  <button className="relative z-10 w-20 h-20 md:w-24 md:h-24 bg-white/90 hover:bg-white rounded-full flex items-center justify-center transition-all transform hover:scale-110 shadow-2xl">
+                    <Play className="w-10 h-10 md:w-12 md:h-12 text-black fill-black ml-1" />
+                  </button>
+                  <div className="absolute bottom-8 left-0 right-0 text-center">
+                    <p className="text-white text-lg font-semibold drop-shadow-lg">{title}</p>
+                    <p className="text-gray-300 text-sm">Click to play</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {!iframeLoaded && <MobixVideoLoader />}
+                  <iframe
+                    ref={iframeRef}
+                    key={`${retryCount}-${videoUrl}`}
+                    src={getEmbedUrl(videoUrl)}
+                    title={title}
+                    className="absolute inset-0 w-full h-full"
+                    frameBorder="0"
+                    scrolling="no"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                    allowFullScreen
+                    referrerPolicy={getReferrerPolicy()}
+                    loading="eager"
+                    style={{
+                      border: "none",
+                      pointerEvents: "auto",
+                      backgroundColor: "#000",
+                    }}
+                    onLoad={handleIframeLoad}
+                    onError={handleVideoError}
+                  />
+                </>
+              )}
 
-      <div
-        ref={containerRef}
-        className={`relative w-full aspect-video bg-[#0B0C10] rounded-xl overflow-hidden border border-[#2A2B33] shadow-2xl transition-all duration-500 ease-in-out ${
-          isRotated && !isFullscreen ? "rounded-none border-0" : ""
-        }`}
-        style={getContainerStyles()}
-      >
-        {/* Rotate/Fullscreen controls */}
-        {showVideo && hasStartedPlaying && !hasError && (
-          <div className="absolute top-3 right-3 z-[100000] flex items-center gap-2">
-            <button
-              onClick={handleRotate}
-              className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
-                isRotated
-                  ? "bg-cyan-500/90 text-black shadow-lg shadow-cyan-500/50"
-                  : "bg-black/60 text-white hover:bg-black/80 hover:scale-105"
-              }`}
-              title={isRotated ? "Exit rotation" : "Rotate to landscape"}
-            >
-              {isRotated ? <X className="w-5 h-5" /> : <RotateCw className="w-5 h-5" />}
-            </button>
-            <button
-              onClick={handleFullscreen}
-              className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
-                isFullscreen
-                  ? "bg-cyan-500/90 text-black shadow-lg shadow-cyan-500/50"
-                  : "bg-black/60 text-white hover:bg-black/80 hover:scale-105"
-              }`}
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
-              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-            </button>
-          </div>
-        )}
+              {/* Controls overlay for embeds */}
+              {!showPlayOverlay && (
+                <div className="absolute top-4 right-4 flex gap-2 z-20">
+                  <button
+                    onClick={toggleRotation}
+                    className={`p-2 rounded-full transition-all ${
+                      isRotated ? "bg-cyan-500 text-white" : "bg-black/50 text-white hover:bg-black/70"
+                    }`}
+                    title={isRotated ? "Exit rotation" : "Rotate to landscape"}
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={toggleFullscreen}
+                    className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-all"
+                    title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  >
+                    {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                  </button>
+                </div>
+              )}
 
-        {/* Rotation hint */}
-        {showVideo && !hasStartedPlaying && !isRotated && !hasError && (
-          <div className="absolute top-3 right-3 z-50">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm text-xs text-gray-300">
-              <RotateCw className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Rotation available</span>
-            </div>
-          </div>
-        )}
-
-        {showIntro && <MobixIntro onComplete={handleIntroComplete} />}
-
-        {showPrerollAd && (
-          <PrerollAdPlayer
-            adCodes={prerollAdCodes}
-            onComplete={handlePrerollAdComplete}
-            onSkip={handlePrerollAdComplete}
-            maxDuration={adTimeout}
-            skipDelay={skipDelay}
-            rotationInterval={rotationInterval}
-          />
-        )}
-
-        {showMidrollAd && (
-          <MidrollAdPlayer
-            adCodes={midrollAdCodes}
-            onComplete={handleMidrollAdComplete}
-            onSkip={handleMidrollAdComplete}
-            maxDuration={15}
-            skipDelay={5}
-            rotationInterval={rotationInterval}
-          />
-        )}
-
-        {/* Error state */}
-        {showVideo && hasError && (
-          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0C10] to-[#1A1B23]">
-            <div className="text-center p-8">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
-                <AlertTriangle className="w-10 h-10 text-red-500" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Video Unavailable</h3>
-              <p className="text-gray-400 mb-6 max-w-sm">
-                {errorMessage || "Sorry, this video cannot be played right now. Please try again or contact support."}
-              </p>
-              <button
-                onClick={handleRetry}
-                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-black font-bold rounded-xl hover:from-cyan-400 hover:to-cyan-500 transition-all flex items-center gap-2 mx-auto"
-              >
-                <RefreshCw className="w-5 h-5" />
-                Try Again
-              </button>
-              {retryCount > 2 && (
-                <p className="text-gray-500 text-sm mt-4">
-                  Still having issues? The video may be restricted or unavailable.
-                </p>
+              {/* Exit rotation button */}
+              {isRotated && (
+                <button
+                  onClick={() => setIsRotated(false)}
+                  className="absolute top-4 left-4 z-[100000] p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all"
+                >
+                  <span className="sr-only">Exit rotation</span>✕
+                </button>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Video content */}
-        {showVideo && !hasError && (
-          <>
-            {isEmbed ? (
-              <div className="w-full h-full relative">
-                {!hasStartedPlaying ? (
-                  <div
-                    className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer group"
-                    onClick={handleEmbedPlay}
-                    style={{
-                      backgroundImage: `url(${posterUrl})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-                    <button className="relative z-10 w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#00FFFF] to-cyan-600 flex items-center justify-center shadow-2xl shadow-cyan-500/40 group-hover:scale-110 group-hover:shadow-cyan-500/60 transition-all duration-300">
-                      <Play className="w-10 h-10 md:w-12 md:h-12 text-black fill-black ml-1" />
-                    </button>
-                    <div className="absolute bottom-8 left-0 right-0 text-center">
-                      <p className="text-white text-lg font-semibold drop-shadow-lg">{title}</p>
-                      <p className="text-gray-300 text-sm">Click to play</p>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {!iframeLoaded && <MobixVideoLoader />}
-                    <iframe
-                      ref={iframeRef}
-                      key={`${retryCount}-${videoUrl}`}
-                      src={getEmbedUrl(videoUrl)}
-                      title={title}
-                      className="absolute inset-0 w-full h-full"
-                      frameBorder="0"
-                      scrolling="no"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                      allowFullScreen
-                      referrerPolicy="no-referrer"
-                      loading="eager"
-                      style={{
-                        border: "none",
-                        pointerEvents: "auto",
-                        backgroundColor: "#000",
-                      }}
-                      onLoad={handleIframeLoad}
-                      onError={handleVideoError}
-                    />
-                  </>
-                )}
-              </div>
-            ) : (
-              <video
-                ref={videoRef}
-                key={retryCount}
-                src={videoUrl}
-                poster={posterUrl}
-                controls
-                autoPlay
-                controlsList="nodownload"
-                className="w-full h-full object-contain"
-                style={{ backgroundColor: "#000" }}
-                onError={handleVideoError}
-              >
-                Your browser does not support the video tag.
-              </video>
-            )}
-          </>
-        )}
-      </div>
-    </>
+          ) : (
+            <video
+              ref={videoRef}
+              key={retryCount}
+              src={videoUrl}
+              poster={posterUrl}
+              controls
+              autoPlay
+              controlsList="nodownload"
+              className="w-full h-full object-contain"
+              style={{ backgroundColor: "#000" }}
+              onError={handleVideoError}
+            >
+              Your browser does not support the video tag.
+            </video>
+          )}
+        </>
+      )}
+    </div>
   )
 }
+
+export default ProductionVideoPlayer

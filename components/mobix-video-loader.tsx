@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 
-export default function MobixVideoLoader() {
+export function MobixVideoLoader() {
   const letters = ["m", "o", "B", "i", "x"]
 
   return (
@@ -77,3 +77,5 @@ export default function MobixVideoLoader() {
     </div>
   )
 }
+
+export default MobixVideoLoader

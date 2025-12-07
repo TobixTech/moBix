@@ -73,9 +73,9 @@ import {
   getAdminSeries, // Added getAdminSeries import
   deleteSeriesComment,
   // Add server actions for analytics and settings if they exist
-  // getAnalyticsData,
-  // getSiteSettings,
-  // updateSiteSettings,
+  getAnalyticsData, // Added for analytics
+  getSiteSettings, // Added for settings
+  updateSiteSettings, // Added for settings
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -140,6 +140,8 @@ interface Signup {
   id: number
   email: string
   date: string
+  firstName?: string // Added for signups
+  createdAt?: string // Added for signups
 }
 
 interface User {
@@ -424,6 +426,10 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  // Add siteSettings and analyticsData states
+  const [siteSettings, setSiteSettings] = useState<Record<string, any>>({})
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+
   useEffect(() => {
     async function loadData() {
       setLoading(true)
@@ -496,6 +502,26 @@ export default function AdminDashboard() {
 
     if (pinVerified) {
       loadData()
+    }
+  }, [pinVerified])
+
+  // Fetch analytics and site settings data
+  useEffect(() => {
+    async function loadSettingsAndAnalytics() {
+      setLoading(true)
+      try {
+        const [settingsData, analyticsDataResult] = await Promise.all([getSiteSettings(), getAnalyticsData()])
+
+        setSiteSettings(settingsData || {})
+        setAnalyticsData(analyticsDataResult || null)
+      } catch (error) {
+        console.error("Error loading settings or analytics data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    if (pinVerified) {
+      loadSettingsAndAnalytics()
     }
   }, [pinVerified])
 
@@ -886,7 +912,7 @@ export default function AdminDashboard() {
       const reportsData = await getContentReports()
       // Around line 393-395, change:
       // const reportsData = await getAllContentReports()
-      // to handle as array, not object
+      // to:
       setContentReports(reportsData as unknown as ContentReport[])
     } else {
       alert("Failed to update report status")
@@ -902,7 +928,7 @@ export default function AdminDashboard() {
       const reportsData = await getContentReports()
       // Around line 393-395, change:
       // const reportsData = await getAllContentReports()
-      // to handle as array, not object
+      // to:
       setContentReports(reportsData as unknown as ContentReport[])
     } else {
       alert("Failed to delete report")
@@ -2894,7 +2920,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Add Analytics tab content with real data */}
+          {/* Analytics Tab Content */}
           {activeTab === "analytics" && (
             <div className="space-y-6">
               <h3 className="text-2xl font-bold text-white">Analytics Dashboard</h3>
@@ -2906,30 +2932,28 @@ export default function AdminDashboard() {
                     <Eye className="w-5 h-5 text-cyan-400" />
                     <span className="text-white/70 text-sm">Total Views</span>
                   </div>
-                  <p className="text-3xl font-bold text-white">
-                    {metrics.find((m) => m.label === "Total Views")?.value || "0"}
-                  </p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.views?.toLocaleString() || "0"}</p>
                 </div>
                 <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Users className="w-5 h-5 text-purple-400" />
                     <span className="text-white/70 text-sm">Total Users</span>
                   </div>
-                  <p className="text-3xl font-bold text-white">{users.length}</p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.users?.toLocaleString() || "0"}</p>
                 </div>
                 <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Film className="w-5 h-5 text-green-400" />
                     <span className="text-white/70 text-sm">Total Movies</span>
                   </div>
-                  <p className="text-3xl font-bold text-white">{movies.length}</p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.movies?.toLocaleString() || "0"}</p>
                 </div>
                 <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <Tv className="w-5 h-5 text-orange-400" />
                     <span className="text-white/70 text-sm">Total Series</span>
                   </div>
-                  <p className="text-3xl font-bold text-white">{series.length}</p>
+                  <p className="text-3xl font-bold text-white">{analyticsData?.series?.toLocaleString() || "0"}</p>
                 </div>
               </div>
 
@@ -2940,7 +2964,7 @@ export default function AdminDashboard() {
                   Trending Movies
                 </h4>
                 <div className="space-y-3">
-                  {trendingMovies.slice(0, 5).map((movie, index) => (
+                  {analyticsData?.trendingMovies?.slice(0, 5).map((movie: any, index: number) => (
                     <div key={movie.id} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
                       <span className="text-2xl font-bold text-white/30 w-8">#{index + 1}</span>
                       <Image
@@ -2966,7 +2990,7 @@ export default function AdminDashboard() {
                   Recent Signups
                 </h4>
                 <div className="space-y-2">
-                  {recentSignups.slice(0, 10).map((signup) => (
+                  {analyticsData?.recentSignups?.slice(0, 10).map((signup: any) => (
                     <div key={signup.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center text-white font-bold">
@@ -2985,7 +3009,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Add Settings tab content */}
+          {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="space-y-6">
               <h3 className="text-2xl font-bold text-white">Site Settings</h3>
@@ -3003,7 +3027,12 @@ export default function AdminDashboard() {
                       <p className="text-white/50 text-sm">Temporarily disable the site for maintenance</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" />
+                      <input
+                        type="checkbox"
+                        checked={siteSettings.maintenanceMode || false}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, maintenanceMode: e.target.checked })}
+                        className="sr-only peer"
+                      />
                       <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                     </label>
                   </div>
@@ -3013,7 +3042,12 @@ export default function AdminDashboard() {
                       <p className="text-white/50 text-sm">Enable or disable new user signups</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <input
+                        type="checkbox"
+                        checked={siteSettings.allowRegistrations ?? true}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, allowRegistrations: e.target.checked })}
+                        className="sr-only peer"
+                      />
                       <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                     </label>
                   </div>
@@ -3023,7 +3057,12 @@ export default function AdminDashboard() {
                       <p className="text-white/50 text-sm">Allow users to comment on content</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <input
+                        type="checkbox"
+                        checked={siteSettings.enableComments ?? true}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, enableComments: e.target.checked })}
+                        className="sr-only peer"
+                      />
                       <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                     </label>
                   </div>
@@ -3066,6 +3105,16 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end pt-6">
+                <button
+                  onClick={() => updateSiteSettings(siteSettings)}
+                  className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2"
+                >
+                  <Save className="w-5 h-5" />
+                  Save Settings
+                </button>
               </div>
             </div>
           )}

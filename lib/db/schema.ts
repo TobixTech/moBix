@@ -681,3 +681,14 @@ export const seriesReportsRelations = relations(seriesReports, ({ one }) => ({
     references: [series.id],
   }),
 }))
+
+// Site Settings table
+export const siteSettings = pgTable("SiteSettings", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  key: text("key").unique().notNull(),
+  value: text("value").notNull(),
+  type: text("type").default("string"),
+  description: text("description"),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+  createdAt: timestamp("createdAt").defaultNow(),
+})
