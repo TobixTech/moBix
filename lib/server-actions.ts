@@ -1502,13 +1502,17 @@ export async function reportContent(movieId: string, reason: string, description
 
 export async function getContentReports(status?: string) {
   try {
-    let query = db
+    // Get movie reports
+    const movieReports = await db
       .select({
         id: contentReports.id,
         reason: contentReports.reason,
         description: contentReports.description,
         status: contentReports.status,
         createdAt: contentReports.createdAt,
+        email: contentReports.email,
+        movieId: contentReports.movieId,
+        userId: contentReports.userId,
         movie: {
           id: movies.id,
           title: movies.title,
@@ -1525,16 +1529,37 @@ export async function getContentReports(status?: string) {
       .leftJoin(users, eq(contentReports.userId, users.id))
       .orderBy(desc(contentReports.createdAt))
 
+    const formattedReports = movieReports.map((report) => ({
+      id: report.id,
+      reason: report.reason,
+      description: report.description,
+      status: report.status,
+      createdAt: report.createdAt,
+      email: report.email,
+      contentType: "movie" as const,
+      content: {
+        id: report.movie.id,
+        title: report.movie.title,
+        posterUrl: report.movie.posterUrl,
+      },
+      user: report.user?.id
+        ? {
+            id: report.user.id,
+            email: report.user.email,
+            firstName: report.user.firstName,
+          }
+        : null,
+    }))
+
+    // Filter by status if provided
     if (status) {
-      query = query.where(eq(contentReports.status, status)) as typeof query
+      return formattedReports.filter((r) => r.status === status)
     }
 
-    const reports = await query
-
-    return { success: true, reports }
+    return formattedReports
   } catch (error: any) {
     console.error("Error fetching content reports:", error)
-    return { success: false, error: error.message, reports: [] }
+    return []
   }
 }
 

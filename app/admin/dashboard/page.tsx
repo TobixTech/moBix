@@ -33,6 +33,10 @@ import {
   Tv,
   BarChart3,
   Cog,
+  Eye,
+  Clock,
+  TrendingUp,
+  AlertTriangle,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -67,9 +71,7 @@ import {
   updatePromotionSettings, // Added
   deletePromotionEntry, // Added
   getAdminSeries, // Added getAdminSeries import
-  getAllCommentsAdmin,
   deleteSeriesComment,
-  getAllContentReports,
   // Add server actions for analytics and settings if they exist
   // getAnalyticsData,
   // getSiteSettings,
@@ -89,6 +91,9 @@ import { COUNTRIES, getCountryByName } from "@/lib/countries" // Added
 // Import SendPromoModal
 import { SendPromoModal } from "@/components/send-promo-modal" // Added SendPromoModal import
 import { AdminSeriesManager } from "@/components/admin-series-manager" // First add the import at the top with other imports
+
+// Import AdminDashboardLoader
+import { AdminDashboardLoader } from "@/components/admin-dashboard-loader"
 
 // Update AdminTab type
 type AdminTab =
@@ -175,21 +180,23 @@ interface Feedback {
   createdAt: Date
 }
 
-interface ContentReport {
+type ContentReport = {
   id: string
   reason: string
-  description: string | null
+  description?: string | null
   status: string
-  createdAt: Date
-  movie: {
+  createdAt: Date | string
+  email?: string | null
+  contentType: "movie" | "series"
+  content: {
     id: string
     title: string
-    posterUrl: string
+    posterUrl?: string | null
   }
-  user: {
-    id: string
-    email: string
-    firstName: string | null
+  user?: {
+    id?: string
+    email?: string | null
+    firstName?: string | null
   } | null
 }
 
@@ -281,25 +288,6 @@ export default function AdminDashboard() {
     code: "",
     name: "",
   })
-  // ... existing state ...
-  // FIND THE adSettings STATE AROUND LINE 143-165 AND UPDATE IT
-  // const [adSettings, setAdSettings] = useState({
-  //   horizontalAdCode: "",
-  //   verticalAdCode: "",
-  //   prerollAdCodes: [] as { code: string; name: string }[],
-  //   smartLinkUrl: "",
-  //   adTimeout: 20,
-  //   skipDelay: 10, // Added skipDelay
-  //   rotationInterval: 5, // Added rotationInterval
-  //   showPrerollAds: true,
-  //   showHomepageAds: true,
-  //   showMovieDetailAds: true,
-  // })
-
-  // const [newAdCode, setNewAdCode] = useState({
-  //   code: "",
-  //   name: "",
-  // })
 
   const [formData, setFormData] = useState({
     title: "",
@@ -375,7 +363,6 @@ export default function AdminDashboard() {
     fetchSeriesData()
   }, [pinVerified])
 
-  // Refactor fetch to a named function
   const fetchDashboardData = async () => {
     try {
       const [
@@ -384,72 +371,57 @@ export default function AdminDashboard() {
         signupsData,
         moviesData,
         usersData,
-        commentsData,
         adSettingsData,
         feedbackData,
-        reportsData, // Added reports fetch
-        promotionEntriesData,
-        promotionSettingsData,
-        ipBlacklistData,
-        seriesData, // Added series fetch
+        commentsData,
+        reportsData,
+        seriesData,
       ] = await Promise.all([
         getAdminMetrics(),
         getTrendingMovies(),
         getRecentSignups(),
         getAdminMovies(),
         getUsers(),
-        getAllCommentsAdmin(), // Use new function
         getAdSettings(),
         getFeedbackEntries(),
-        getAllContentReports(), // Use new function
-        getPromotionEntries(),
-        getPromotionSettings(),
-        getIpBlacklist(),
+        getAllComments(),
+        getContentReports(),
         getAdminSeries(),
       ])
 
       setMetrics(metricsData)
-      setTrendingMovies(trendingData)
+      setTrendingMovies(trendingData as Movie[])
       setRecentSignups(signupsData)
       setMovies(moviesData)
       setUsers(usersData)
-      setComments(commentsData)
       setFeedback(feedbackData)
-      // Around line 393-395, change:
-      // const reportsData = await getAllContentReports()
-      // to handle as array, not object
-      setContentReports(reportsData as unknown as ContentReport[])
-      setPromotionEntries(promotionEntriesData)
-      setPromotionSettings(promotionSettingsData)
-      setIpBlacklist(ipBlacklistData)
+      setComments(commentsData)
+      setContentReports(reportsData as ContentReport[])
       setSeries(seriesData)
 
       if (adSettingsData) {
         setAdSettings({
           horizontalAdCode: adSettingsData.horizontalAdCode || "",
           verticalAdCode: adSettingsData.verticalAdCode || "",
-          // Parse prerollAdCodes from string to array
           prerollAdCodes: adSettingsData.prerollAdCodes ? JSON.parse(adSettingsData.prerollAdCodes) : [],
-          // Parse midrollAdCodes from string to array
           midrollAdCodes: adSettingsData.midrollAdCodes ? JSON.parse(adSettingsData.midrollAdCodes) : [],
           smartLinkUrl: adSettingsData.smartLinkUrl || "",
           adTimeout: adSettingsData.adTimeoutSeconds || 20,
-          skipDelay: adSettingsData.skipDelaySeconds || 10, // Added skipDelay
-          rotationInterval: adSettingsData.rotationIntervalSeconds || 5, // Added rotationInterval
-          midrollIntervalMinutes: adSettingsData.midrollIntervalMinutes || 20, // Added midrollIntervalMinutes
+          skipDelay: adSettingsData.skipDelaySeconds || 10,
+          rotationInterval: adSettingsData.rotationIntervalSeconds || 5,
+          midrollIntervalMinutes: adSettingsData.midrollIntervalMinutes || 20,
           showPrerollAds: adSettingsData.showPrerollAds ?? true,
-          showMidrollAds: adSettingsData.showMidrollAds ?? false, // Added showMidrollAds
+          showMidrollAds: adSettingsData.showMidrollAds ?? false,
           showHomepageAds: adSettingsData.homepageEnabled ?? true,
           showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
-          showDashboardAds: adSettingsData.dashboardEnabled ?? true, // Added showDashboardAds
+          showDashboardAds: adSettingsData.dashboardEnabled ?? true,
         })
       }
       setLastRefresh(new Date())
     } catch (error) {
-      console.error("Error fetching dashboard data:", error)
-    } finally {
-      setLoading(false)
+      console.error("Error loading admin data:", error)
     }
+    setLoading(false)
   }
 
   useEffect(() => {
@@ -546,6 +518,20 @@ export default function AdminDashboard() {
     }
     fetchPromotionData()
   }, [pinVerified]) // Re-fetch if pinVerified changes
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null
+
+    if (autoRefresh && pinVerified) {
+      interval = setInterval(() => {
+        fetchDashboardData()
+      }, 30000) // Refresh every 30 seconds
+    }
+
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [autoRefresh, pinVerified])
 
   // ... existing handlers (handleFormChange, handleUpload, handleEdit, handleSaveEdit, handleSaveAdSettings, handleDelete, handleDeleteComment, handleBanUser, handleDeleteUser) ...
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -1061,14 +1047,7 @@ export default function AdminDashboard() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/60">Loading dashboard...</p>
-        </div>
-      </div>
-    )
+    return <AdminDashboardLoader />
   }
 
   return (
@@ -1259,7 +1238,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-white/50 mt-1">Admin Panel</p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-200px)] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {[
             { id: "overview", label: "Dashboard Overview", icon: LayoutDashboard },
             { id: "movies", label: "Manage Movies", icon: Film },
@@ -1304,6 +1283,32 @@ export default function AdminDashboard() {
           </button>
         </div>
       </aside>
+
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B0C10]/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
+        <div className="flex items-center justify-around py-2 px-2 overflow-x-auto">
+          {[
+            { id: "overview", icon: LayoutDashboard },
+            { id: "movies", icon: Film },
+            { id: "series", icon: Tv },
+            { id: "users", icon: Users },
+            { id: "comments", icon: MessageSquare },
+            { id: "reports", icon: Flag },
+            { id: "ads", icon: Settings },
+            { id: "analytics", icon: BarChart3 },
+          ].map(({ id, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id as AdminTab)}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+                activeTab === id ? "text-cyan-400 bg-cyan-500/10" : "text-white/50"
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] capitalize">{id}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <main className="flex-1 overflow-auto w-full lg:w-auto">
         {/* Header */}
@@ -2401,6 +2406,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* Update reports tab to handle contentType and content structure */}
           {activeTab === "reports" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -2426,11 +2432,11 @@ export default function AdminDashboard() {
                       className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-colors"
                     >
                       <div className="flex gap-4">
-                        {/* Movie Poster */}
+                        {/* Content Poster */}
                         <div className="flex-shrink-0">
                           <Image
-                            src={report.movie.posterUrl || "/placeholder.svg?height=120&width=80"}
-                            alt={report.movie.title}
+                            src={report.content?.posterUrl || "/placeholder.svg?height=120&width=80"}
+                            alt={report.content?.title || "Content"}
                             width={80}
                             height={120}
                             className="rounded-lg object-cover"
@@ -2442,6 +2448,16 @@ export default function AdminDashboard() {
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <div className="flex items-center gap-2 mb-2">
+                                {/* Content type badge */}
+                                <span
+                                  className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                    report.contentType === "series"
+                                      ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                                      : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                  }`}
+                                >
+                                  {report.contentType === "series" ? "Series" : "Movie"}
+                                </span>
                                 <span
                                   className={`px-2 py-1 rounded text-xs font-bold border ${
                                     report.status === "PENDING"
@@ -2459,10 +2475,14 @@ export default function AdminDashboard() {
                               </div>
                               <h4 className="text-lg font-bold text-white mb-1">
                                 <Link
-                                  href={`/movie/${report.movie.id}`}
+                                  href={
+                                    report.contentType === "series"
+                                      ? `/series/${report.content?.id}`
+                                      : `/movie/${report.content?.id}`
+                                  }
                                   className="hover:text-cyan-400 transition-colors"
                                 >
-                                  {report.movie.title}
+                                  {report.content?.title || "Unknown Content"}
                                 </Link>
                               </h4>
                               <p className="text-red-400 font-medium text-sm mb-2">
@@ -2471,7 +2491,8 @@ export default function AdminDashboard() {
                               {report.description && <p className="text-white/70 text-sm mb-2">{report.description}</p>}
                               {report.user && (
                                 <p className="text-cyan-400 text-sm">
-                                  Reported by: {report.user.firstName || report.user.email}
+                                  Reported by:{" "}
+                                  {report.user.firstName || report.user.email || report.email || "Anonymous"}
                                 </p>
                               )}
                             </div>
@@ -2480,7 +2501,9 @@ export default function AdminDashboard() {
                             <div className="flex gap-2 flex-shrink-0">
                               {report.status === "PENDING" && (
                                 <button
-                                  onClick={() => handleUpdateReportStatus(report.id, "RESOLVED", report.user?.email)}
+                                  onClick={() =>
+                                    handleUpdateReportStatus(report.id, "RESOLVED", report.user?.email || report.email)
+                                  }
                                   className="p-2 hover:bg-green-500/10 text-white/50 hover:text-green-400 rounded-lg transition-colors"
                                   title="Mark as Resolved"
                                 >
@@ -2871,32 +2894,178 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Analytics Tab Content */}
+          {/* Add Analytics tab content with real data */}
           {activeTab === "analytics" && (
             <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-white mb-6">Analytics Overview</h3>
-              {/* Replace with actual analytics components and data fetching */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
-                <BarChart3 className="w-12 h-12 text-white/20 mx-auto mb-4" />
-                <p className="text-white/50">Analytics data will be displayed here.</p>
-                <p className="text-white/30 text-sm mt-2">
-                  (This section requires further implementation with data fetching and charting libraries.)
-                </p>
+              <h3 className="text-2xl font-bold text-white">Analytics Dashboard</h3>
+
+              {/* Stats Overview */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Eye className="w-5 h-5 text-cyan-400" />
+                    <span className="text-white/70 text-sm">Total Views</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">
+                    {metrics.find((m) => m.label === "Total Views")?.value || "0"}
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Users className="w-5 h-5 text-purple-400" />
+                    <span className="text-white/70 text-sm">Total Users</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{users.length}</p>
+                </div>
+                <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Film className="w-5 h-5 text-green-400" />
+                    <span className="text-white/70 text-sm">Total Movies</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{movies.length}</p>
+                </div>
+                <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Tv className="w-5 h-5 text-orange-400" />
+                    <span className="text-white/70 text-sm">Total Series</span>
+                  </div>
+                  <p className="text-3xl font-bold text-white">{series.length}</p>
+                </div>
+              </div>
+
+              {/* Trending Content */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-cyan-400" />
+                  Trending Movies
+                </h4>
+                <div className="space-y-3">
+                  {trendingMovies.slice(0, 5).map((movie, index) => (
+                    <div key={movie.id} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
+                      <span className="text-2xl font-bold text-white/30 w-8">#{index + 1}</span>
+                      <Image
+                        src={movie.posterUrl || "/placeholder.svg?height=60&width=40"}
+                        alt={movie.title}
+                        width={40}
+                        height={60}
+                        className="rounded object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{movie.title}</p>
+                        <p className="text-white/50 text-sm">{movie.views?.toLocaleString() || 0} views</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent Activity */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-cyan-400" />
+                  Recent Signups
+                </h4>
+                <div className="space-y-2">
+                  {recentSignups.slice(0, 10).map((signup) => (
+                    <div key={signup.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                          {signup.firstName?.[0] || signup.email?.[0]?.toUpperCase() || "?"}
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{signup.firstName || "User"}</p>
+                          <p className="text-white/50 text-xs">{signup.email}</p>
+                        </div>
+                      </div>
+                      <span className="text-white/40 text-xs">{new Date(signup.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Site Settings Tab Content */}
+          {/* Add Settings tab content */}
           {activeTab === "settings" && (
             <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-white mb-6">Site Settings</h3>
-              {/* Replace with actual site settings components and data fetching */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
-                <Cog className="w-12 h-12 text-white/20 mx-auto mb-4" />
-                <p className="text-white/50">Site configuration options will be managed here.</p>
-                <p className="text-white/30 text-sm mt-2">
-                  (This section requires further implementation to fetch and save settings.)
-                </p>
+              <h3 className="text-2xl font-bold text-white">Site Settings</h3>
+
+              {/* General Settings */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Cog className="w-5 h-5 text-cyan-400" />
+                  General Settings
+                </h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">Maintenance Mode</p>
+                      <p className="text-white/50 text-sm">Temporarily disable the site for maintenance</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" />
+                      <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">Allow New Registrations</p>
+                      <p className="text-white/50 text-sm">Enable or disable new user signups</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">Enable Comments</p>
+                      <p className="text-white/50 text-sm">Allow users to comment on content</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cache Management */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <RefreshCw className="w-5 h-5 text-cyan-400" />
+                  Cache Management
+                </h4>
+                <div className="flex gap-4">
+                  <button className="px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30">
+                    Clear Page Cache
+                  </button>
+                  <button className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30">
+                    Clear Image Cache
+                  </button>
+                  <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30">
+                    Clear All Cache
+                  </button>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+                <h4 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Danger Zone
+                </h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-red-500/10 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">Reset All Statistics</p>
+                      <p className="text-red-400/70 text-sm">This will reset all view counts and analytics data</p>
+                    </div>
+                    <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30">
+                      Reset
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
