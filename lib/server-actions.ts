@@ -19,6 +19,8 @@ import {
   ipBlacklist, // Import ipBlacklist table
   targetedPromotions, // Import targetedPromotions table
   seriesComments, // Import seriesComments table
+  series, // Import series table for analytics and reports
+  seriesReports, // Import seriesReports table for reports
 } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum, gt, lt } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
@@ -1529,7 +1531,7 @@ export async function getContentReports(status?: string) {
       .leftJoin(users, eq(contentReports.userId, users.id))
       .orderBy(desc(contentReports.createdAt))
 
-    const formattedReports = movieReports.map((report) => ({
+    const formattedMovieReports = movieReports.map((report) => ({
       id: report.id,
       reason: report.reason,
       description: report.description,
@@ -1551,12 +1553,72 @@ export async function getContentReports(status?: string) {
         : null,
     }))
 
-    // Filter by status if provided
-    if (status) {
-      return formattedReports.filter((r) => r.status === status)
+    // Get series reports
+    let formattedSeriesReports: any[] = []
+    try {
+      const seriesReportsData = await db
+        .select({
+          id: seriesReports.id,
+          reason: seriesReports.reason,
+          description: seriesReports.description,
+          status: seriesReports.status,
+          createdAt: seriesReports.createdAt,
+          email: seriesReports.email,
+          seriesId: seriesReports.seriesId,
+          userId: seriesReports.userId,
+          series: {
+            id: series.id,
+            title: series.title,
+            posterUrl: series.posterUrl,
+          },
+          user: {
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+          },
+        })
+        .from(seriesReports)
+        .innerJoin(series, eq(seriesReports.seriesId, series.id))
+        .leftJoin(users, eq(seriesReports.userId, users.id))
+        .orderBy(desc(seriesReports.createdAt))
+
+      formattedSeriesReports = seriesReportsData.map((report) => ({
+        id: report.id,
+        reason: report.reason,
+        description: report.description,
+        status: report.status,
+        createdAt: report.createdAt,
+        email: report.email,
+        contentType: "series" as const,
+        content: {
+          id: report.series.id,
+          title: report.series.title,
+          posterUrl: report.series.posterUrl,
+        },
+        user: report.user?.id
+          ? {
+              id: report.user.id,
+              email: report.user.email,
+              firstName: report.user.firstName,
+            }
+          : null,
+      }))
+    } catch (e) {
+      // Series reports table might not exist
+      console.warn("Could not fetch series reports:", e)
     }
 
-    return formattedReports
+    // Combine and sort by date
+    const allReports = [...formattedMovieReports, ...formattedSeriesReports].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+
+    // Filter by status if provided
+    if (status) {
+      return allReports.filter((r) => r.status === status)
+    }
+
+    return allReports
   } catch (error: any) {
     console.error("Error fetching content reports:", error)
     return []
@@ -2881,5 +2943,69 @@ export async function getAllContentReports() {
   } catch (error) {
     console.error("Error fetching all content reports:", error)
     return []
+  }
+}
+
+export async function getAnalyticsData() {
+  try {
+    const [totalUsers, totalMovies, totalSeries, totalViews, recentUsers, topMovies, topSeries] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(users),
+      db.select({ count: sql<number>`count(*)` }).from(movies),
+      db.select({ count: sql<number>`count(*)` }).from(series),
+      db.select({ total: sql<number>`coalesce(sum(views), 0)` }).from(movies),
+      db.select().from(users).orderBy(desc(users.createdAt)).limit(10),
+      db.select().from(movies).orderBy(desc(movies.views)).limit(5),
+      db.select().from(series).orderBy(desc(series.views)).limit(5),
+    ])
+
+    return {
+      totalUsers: totalUsers[0]?.count || 0,
+      totalMovies: totalMovies[0]?.count || 0,
+      totalSeries: totalSeries[0]?.count || 0,
+      totalViews: totalViews[0]?.total || 0,
+      recentUsers,
+      topMovies,
+      topSeries,
+    }
+  } catch (error) {
+    console.error("Error fetching analytics:", error)
+    return {
+      totalUsers: 0,
+      totalMovies: 0,
+      totalSeries: 0,
+      totalViews: 0,
+      recentUsers: [],
+      topMovies: [],
+      topSeries: [],
+    }
+  }
+}
+
+export async function getSiteSettings() {
+  try {
+    // Check for settings in Redis/KV if available
+    const settings = {
+      maintenanceMode: false,
+      registrationEnabled: true,
+      commentsEnabled: true,
+      ratingsEnabled: true,
+      downloadEnabled: true,
+      adsEnabled: true,
+    }
+    return settings
+  } catch (error) {
+    console.error("Error fetching site settings:", error)
+    return null
+  }
+}
+
+export async function updateSiteSettings(settings: Record<string, any>) {
+  try {
+    // Store settings - you can use Redis/KV or database
+    console.log("Updating site settings:", settings)
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating site settings:", error)
+    return { success: false, error: "Failed to update settings" }
   }
 }

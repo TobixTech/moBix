@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Loader, Key, AlertCircle } from "lucide-react"
+import { Lock, Loader, Key, AlertCircle, Shield } from "lucide-react"
 import { motion } from "framer-motion"
 
 export default function AdminAccessKeyPage() {
@@ -22,7 +22,7 @@ export default function AdminAccessKeyPage() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-      const response = await fetch("/api/admin/verify-access", {
+      const response = await fetch("/api/admin/verify-access-key", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -64,15 +64,20 @@ export default function AdminAccessKeyPage() {
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <div className="p-4 bg-[#00FFFF]/10 rounded-full">
-                {success ? <Lock className="w-12 h-12 text-green-400" /> : <Key className="w-12 h-12 text-[#00FFFF]" />}
+                {success ? (
+                  <Lock className="w-12 h-12 text-green-400" />
+                ) : (
+                  <Shield className="w-12 h-12 text-[#00FFFF]" />
+                )}
               </div>
             </div>
             <h1 className="text-4xl font-black bg-gradient-to-r from-[#00FFFF] via-[#00CCCC] to-[#00FFFF] bg-clip-text text-transparent mb-2">
               Admin Access
             </h1>
             <p className="text-[#888888] text-sm">
-              {success ? "Access granted! Redirecting..." : "Enter your secret access key or PIN"}
+              {success ? "Access granted! Redirecting..." : "Enter your secret access key to continue"}
             </p>
+            <p className="text-[#666666] text-xs mt-2">Note: PIN is only used in the admin dashboard, not here.</p>
           </div>
 
           {error && (
@@ -98,11 +103,12 @@ export default function AdminAccessKeyPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">Access Key</label>
               <input
                 type="password"
                 value={accessKey}
                 onChange={(e) => setAccessKey(e.target.value)}
-                placeholder="Enter access key or PIN"
+                placeholder="Enter your access key"
                 disabled={loading || success}
                 className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all disabled:opacity-50"
                 required

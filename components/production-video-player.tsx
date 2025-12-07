@@ -7,7 +7,7 @@ import PrerollAdPlayer from "./preroll-ad-player"
 import MidrollAdPlayer from "./midroll-ad-player"
 import MobixVideoLoader from "./mobix-video-loader"
 import { updateWatchProgress } from "@/lib/server-actions"
-import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw } from "lucide-react"
+import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw, AlertTriangle } from "lucide-react"
 
 interface PrerollAdCode {
   code: string
@@ -34,15 +34,20 @@ interface ProductionVideoPlayerProps {
 function isEmbedUrl(url: string): boolean {
   if (!url) return false
   const embedPatterns = [
+    // YouTube
     "youtube.com/embed",
     "youtube.com/watch",
+    "youtube.com/v/",
     "youtu.be",
+    // Vimeo
     "vimeo.com",
+    "player.vimeo.com",
+    // Dailymotion
     "dailymotion.com",
+    "dai.ly",
+    // Google Drive
     "drive.google.com",
-    "iframe",
-    "embed",
-    // Streamtape domains
+    // Streamtape and variants
     "streamtape.com",
     "streamtape.to",
     "streamtape.net",
@@ -50,20 +55,96 @@ function isEmbedUrl(url: string): boolean {
     "strcloud.link",
     "strtpe.link",
     "stape.fun",
-    // Other common video hosts
+    "tape.com",
+    // Doodstream and variants
     "doodstream.com",
+    "dood.watch",
+    "dood.to",
+    "dood.so",
+    "dood.pm",
+    "dood.wf",
+    "dood.re",
+    "dood.cx",
+    "dood.sh",
+    "dood.la",
+    "dood.ws",
+    "dood.yt",
+    // Filemoon
     "filemoon.sx",
     "filemoon.to",
+    "filemoon.in",
+    // Vidoza
     "vidoza.net",
+    "vidoza.co",
+    // Upstream
     "upstream.to",
+    "upstreamcdn.co",
+    // Mixdrop
     "mixdrop.co",
+    "mixdrop.to",
+    "mixdrop.ch",
+    "mixdrop.bz",
+    "mixdrop.sx",
+    // MP4Upload
     "mp4upload.com",
+    // StreamSB and variants
     "streamsb.net",
+    "streamsb.com",
+    "sbembed.com",
+    "sbembed1.com",
+    "sbembed2.com",
+    "sbvideo.net",
+    "sbplay.org",
+    "sbplay1.com",
+    "sbplay2.com",
+    "sbplay2.xyz",
+    "embedsb.com",
+    "pelistop.co",
+    "streamsss.net",
+    "sblanh.com",
+    "sbbrisk.com",
+    "sbface.com",
+    "sblongvu.com",
+    // Streamwish
     "streamwish.to",
+    "streamwish.com",
+    "wishfast.top",
+    "sfastwish.com",
+    "swdyu.com",
+    // VidHide
     "vidhide.com",
+    "vidhidepro.com",
+    // VTube
     "vtube.to",
+    "vtbe.to",
+    // Other video hosts
+    "vidcloud.co",
+    "vidcloud9.com",
+    "vidstream.pro",
+    "vidmoly.to",
+    "vidmoly.me",
+    "voe.sx",
+    "voeunblock.com",
+    "fembed.com",
+    "fembed-hd.com",
+    "feurl.com",
+    "embedsito.com",
+    "fcdn.stream",
+    "ok.ru",
+    "odnoklassniki.ru",
+    "rutube.ru",
+    "twitch.tv",
+    "facebook.com/video",
+    "fb.watch",
+    // Generic embed indicators
+    "embed",
+    "iframe",
+    "/e/",
+    "/v/",
+    "player",
   ]
-  return embedPatterns.some((pattern) => url.toLowerCase().includes(pattern))
+  const lowerUrl = url.toLowerCase()
+  return embedPatterns.some((pattern) => lowerUrl.includes(pattern))
 }
 
 function getEmbedUrl(url: string): string {
@@ -71,42 +152,108 @@ function getEmbedUrl(url: string): string {
 
   const lowerUrl = url.toLowerCase()
 
-  // YouTube
+  // YouTube - multiple formats
   if (lowerUrl.includes("youtube.com/watch")) {
-    const videoId = new URL(url).searchParams.get("v")
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+    try {
+      const videoId = new URL(url).searchParams.get("v")
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
+    } catch {
+      return url
+    }
   }
   if (lowerUrl.includes("youtu.be/")) {
     const videoId = url.split("youtu.be/")[1]?.split("?")[0]
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
   }
   if (lowerUrl.includes("youtube.com/embed")) {
     return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
   }
+  if (lowerUrl.includes("youtube.com/v/")) {
+    const videoId = url.split("/v/")[1]?.split("?")[0]
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`
+  }
 
   // Vimeo
-  if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("/video/")) {
-    const videoId = url.split("vimeo.com/")[1]?.split("?")[0]
+  if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("player.vimeo.com")) {
+    const videoId = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0]
     return `https://player.vimeo.com/video/${videoId}?autoplay=1`
   }
 
-  // Streamtape - convert to /e/ embed URL
-  if (
-    lowerUrl.includes("streamtape.com") ||
-    lowerUrl.includes("streamtape.to") ||
-    lowerUrl.includes("streamtape.net") ||
-    lowerUrl.includes("strtape.cloud") ||
-    lowerUrl.includes("strcloud.link") ||
-    lowerUrl.includes("strtpe.link") ||
-    lowerUrl.includes("stape.fun")
-  ) {
-    if (url.includes("/e/")) {
-      return url
-    }
+  // Dailymotion
+  if (lowerUrl.includes("dailymotion.com/video/")) {
+    const videoId = url.split("/video/")[1]?.split("?")[0]?.split("_")[0]
+    return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`
+  }
+  if (lowerUrl.includes("dai.ly/")) {
+    const videoId = url.split("dai.ly/")[1]?.split("?")[0]
+    return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`
+  }
+
+  // Streamtape - convert /v/ to /e/
+  const streamtapeDomains = [
+    "streamtape.com",
+    "streamtape.to",
+    "streamtape.net",
+    "strtape.cloud",
+    "strcloud.link",
+    "strtpe.link",
+    "stape.fun",
+  ]
+  if (streamtapeDomains.some((d) => lowerUrl.includes(d))) {
     if (url.includes("/v/")) {
       return url.replace("/v/", "/e/")
     }
     return url
+  }
+
+  // Doodstream - convert to embed
+  const doodDomains = [
+    "doodstream",
+    "dood.watch",
+    "dood.to",
+    "dood.so",
+    "dood.pm",
+    "dood.wf",
+    "dood.re",
+    "dood.cx",
+    "dood.sh",
+    "dood.la",
+    "dood.ws",
+    "dood.yt",
+  ]
+  if (doodDomains.some((d) => lowerUrl.includes(d))) {
+    if (url.includes("/d/")) {
+      return url.replace("/d/", "/e/")
+    }
+    return url
+  }
+
+  // Mixdrop - convert to embed
+  if (lowerUrl.includes("mixdrop")) {
+    if (url.includes("/f/")) {
+      return url.replace("/f/", "/e/")
+    }
+    return url
+  }
+
+  // VidHide - convert to embed
+  if (lowerUrl.includes("vidhide")) {
+    if (url.includes("/v/")) {
+      return url.replace("/v/", "/embed-")
+    }
+    return url
+  }
+
+  // Google Drive
+  if (lowerUrl.includes("drive.google.com/file/d/")) {
+    const fileId = url.split("/file/d/")[1]?.split("/")[0]
+    return `https://drive.google.com/file/d/${fileId}/preview`
+  }
+
+  // OK.ru
+  if (lowerUrl.includes("ok.ru/video/")) {
+    const videoId = url.split("/video/")[1]?.split("?")[0]
+    return `https://ok.ru/videoembed/${videoId}`
   }
 
   return url
@@ -147,6 +294,7 @@ export default function ProductionVideoPlayer({
   const [isRotated, setIsRotated] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [hasError, setHasError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
   const [retryCount, setRetryCount] = useState(0)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -159,10 +307,26 @@ export default function ProductionVideoPlayer({
   const isEmbed = isEmbedUrl(videoUrl)
 
   useEffect(() => {
-    console.log("[v0] Video URL:", videoUrl)
-    console.log("[v0] Is Embed:", isEmbed)
-    console.log("[v0] Embed URL:", getEmbedUrl(videoUrl))
-  }, [videoUrl, isEmbed])
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        if (typeof event.data === "string" && event.data.includes("youtube")) {
+          const data = JSON.parse(event.data)
+          if (data.event === "onError" || data.info?.errorCode) {
+            const errorCode = data.info?.errorCode || data.errorCode
+            if (errorCode === 150 || errorCode === 101 || errorCode === 153) {
+              setHasError(true)
+              setErrorMessage("This video cannot be embedded. The owner has restricted playback on external websites.")
+            }
+          }
+        }
+      } catch {
+        // Not a JSON message, ignore
+      }
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
 
   const handleRotate = useCallback(() => {
     setIsRotated((prev) => !prev)
@@ -196,7 +360,7 @@ export default function ProductionVideoPlayer({
         }
       }
     } catch (err) {
-      console.error("[v0] Fullscreen error:", err)
+      console.error("Fullscreen error:", err)
     }
   }, [])
 
@@ -282,6 +446,7 @@ export default function ProductionVideoPlayer({
     setShowIntro(false)
     if (!isValidUrl(videoUrl)) {
       setHasError(true)
+      setErrorMessage("Invalid video URL provided.")
       setShowVideo(true)
       return
     }
@@ -300,6 +465,7 @@ export default function ProductionVideoPlayer({
     setShowVideo(true)
     if (!isValidUrl(videoUrl)) {
       setHasError(true)
+      setErrorMessage("Invalid video URL provided.")
       return
     }
     if (!isEmbed) setHasStartedPlaying(true)
@@ -311,19 +477,20 @@ export default function ProductionVideoPlayer({
   }
 
   const handleEmbedPlay = () => {
-    console.log("[v0] handleEmbedPlay called, URL:", videoUrl)
     if (!isValidUrl(videoUrl)) {
-      console.log("[v0] Invalid URL detected")
       setHasError(true)
+      setErrorMessage("Invalid video URL provided.")
       return
     }
     setHasStartedPlaying(true)
     setHasError(false)
+    setErrorMessage("")
     setIframeLoaded(false)
   }
 
   const handleRetry = () => {
     setHasError(false)
+    setErrorMessage("")
     setRetryCount((prev) => prev + 1)
     setHasStartedPlaying(false)
     setIframeLoaded(false)
@@ -338,12 +505,11 @@ export default function ProductionVideoPlayer({
   }
 
   const handleVideoError = () => {
-    console.log("[v0] Video error occurred")
     setHasError(true)
+    setErrorMessage("Failed to load video. The source may be unavailable.")
   }
 
   const handleIframeLoad = () => {
-    console.log("[v0] Iframe loaded successfully")
     setIframeLoaded(true)
   }
 
@@ -375,7 +541,7 @@ export default function ProductionVideoPlayer({
         height: "100vw",
         transform: "rotate(90deg) translateY(-100%)",
         transformOrigin: "top left",
-        zIndex: 9999,
+        zIndex: 99999,
         backgroundColor: "#000",
       }
     }
@@ -385,7 +551,7 @@ export default function ProductionVideoPlayer({
   return (
     <>
       {isRotated && !isFullscreen && (
-        <div className="fixed inset-0 bg-black/95 z-[9998]" onClick={() => setIsRotated(false)} />
+        <div className="fixed inset-0 bg-black/95 z-[99998]" onClick={() => setIsRotated(false)} />
       )}
 
       <div
@@ -397,7 +563,7 @@ export default function ProductionVideoPlayer({
       >
         {/* Rotate/Fullscreen controls */}
         {showVideo && hasStartedPlaying && !hasError && (
-          <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
+          <div className="absolute top-3 right-3 z-[100000] flex items-center gap-2">
             <button
               onClick={handleRotate}
               className={`p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
@@ -462,11 +628,11 @@ export default function ProductionVideoPlayer({
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0C10] to-[#1A1B23]">
             <div className="text-center p-8">
               <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
-                <X className="w-10 h-10 text-red-500" />
+                <AlertTriangle className="w-10 h-10 text-red-500" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Video Unavailable</h3>
               <p className="text-gray-400 mb-6 max-w-sm">
-                Sorry, this video cannot be played right now. Please try again or contact support.
+                {errorMessage || "Sorry, this video cannot be played right now. Please try again or contact support."}
               </p>
               <button
                 onClick={handleRetry}
@@ -477,7 +643,7 @@ export default function ProductionVideoPlayer({
               </button>
               {retryCount > 2 && (
                 <p className="text-gray-500 text-sm mt-4">
-                  Still having issues? The video URL may be invalid or restricted.
+                  Still having issues? The video may be restricted or unavailable.
                 </p>
               )}
             </div>

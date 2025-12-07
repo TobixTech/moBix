@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useCallback, useEffect } from "react"
-import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw } from "lucide-react"
+import { Play, RotateCw, X, Maximize2, Minimize2, RefreshCw, AlertTriangle } from "lucide-react"
 import MobixVideoLoader from "./mobix-video-loader"
 
 interface SeriesVideoPlayerProps {
@@ -13,75 +13,94 @@ interface SeriesVideoPlayerProps {
   onError?: () => void
 }
 
-// Helper to detect embed URLs
 function isEmbedUrl(url: string): boolean {
   if (!url) return false
-  const embedHosts = [
+  const embedPatterns = [
     "youtube.com",
     "youtu.be",
     "vimeo.com",
     "dailymotion.com",
-    "streamtape.com",
-    "streamtape.to",
-    "streamtape.net",
-    "strtape.cloud",
-    "strcloud.link",
-    "strtpe.link",
-    "stape.fun",
-    "doodstream.com",
-    "filemoon.sx",
-    "filemoon.to",
-    "vidoza.net",
-    "upstream.to",
-    "mixdrop.co",
-    "mp4upload.com",
-    "streamsb.net",
-    "streamwish.to",
-    "vidhide.com",
-    "vtube.to",
+    "dai.ly",
     "drive.google.com",
+    "streamtape",
+    "strtape",
+    "strcloud",
+    "stape.fun",
+    "doodstream",
+    "dood.watch",
+    "dood.to",
+    "dood.so",
+    "dood.pm",
+    "dood.wf",
+    "filemoon",
+    "vidoza",
+    "upstream",
+    "mixdrop",
+    "mp4upload",
+    "streamsb",
+    "sbembed",
+    "sbvideo",
+    "sbplay",
+    "embedsb",
+    "streamwish",
+    "wishfast",
+    "sfastwish",
+    "swdyu",
+    "vidhide",
+    "vtube",
+    "vtbe",
+    "vidcloud",
+    "vidstream",
+    "vidmoly",
+    "voe.sx",
+    "fembed",
+    "fcdn.stream",
+    "ok.ru",
+    "rutube.ru",
     "embed",
     "iframe",
     "/e/",
     "/v/",
+    "player",
   ]
   const lowerUrl = url.toLowerCase()
-  return embedHosts.some((host) => lowerUrl.includes(host))
+  return embedPatterns.some((pattern) => lowerUrl.includes(pattern))
 }
 
-// Convert video URLs to embed format
 function getEmbedUrl(url: string): string {
   if (!url) return ""
   const lowerUrl = url.toLowerCase()
 
-  // YouTube watch URL
+  // YouTube
   if (lowerUrl.includes("youtube.com/watch")) {
     try {
       const videoId = new URL(url).searchParams.get("v")
-      if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`
+      if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`
     } catch {
       return url
     }
   }
-
-  // YouTube short URL
   if (lowerUrl.includes("youtu.be/")) {
     const videoId = url.split("youtu.be/")[1]?.split("?")[0]
-    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`
+    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`
   }
-
-  // YouTube embed (add autoplay)
   if (lowerUrl.includes("youtube.com/embed")) {
     return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1`
   }
 
   // Vimeo
-  if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("/video/")) {
-    const videoId = url.split("vimeo.com/")[1]?.split("?")[0]
+  if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("player.vimeo.com")) {
+    const videoId = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0]
     if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`
   }
 
-  // Streamtape - ensure /e/ format
+  // Dailymotion
+  if (lowerUrl.includes("dailymotion.com/video/")) {
+    const videoId = url.split("/video/")[1]?.split("?")[0]?.split("_")[0]
+    return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`
+  }
+
+  // Streamtape
   const streamtapeDomains = [
     "streamtape.com",
     "streamtape.to",
@@ -92,10 +111,27 @@ function getEmbedUrl(url: string): string {
     "stape.fun",
   ]
   if (streamtapeDomains.some((d) => lowerUrl.includes(d))) {
-    if (url.includes("/v/")) {
-      return url.replace("/v/", "/e/")
-    }
+    if (url.includes("/v/")) return url.replace("/v/", "/e/")
     return url
+  }
+
+  // Doodstream
+  const doodDomains = ["doodstream", "dood.watch", "dood.to", "dood.so", "dood.pm", "dood.wf", "dood.re", "dood.cx"]
+  if (doodDomains.some((d) => lowerUrl.includes(d))) {
+    if (url.includes("/d/")) return url.replace("/d/", "/e/")
+    return url
+  }
+
+  // Mixdrop
+  if (lowerUrl.includes("mixdrop")) {
+    if (url.includes("/f/")) return url.replace("/f/", "/e/")
+    return url
+  }
+
+  // Google Drive
+  if (lowerUrl.includes("drive.google.com/file/d/")) {
+    const fileId = url.split("/file/d/")[1]?.split("/")[0]
+    return `https://drive.google.com/file/d/${fileId}/preview`
   }
 
   return url
@@ -111,6 +147,7 @@ export default function SeriesVideoPlayer({
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
   const [isRotated, setIsRotated] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -120,19 +157,41 @@ export default function SeriesVideoPlayer({
   const isEmbed = isEmbedUrl(videoUrl)
   const embedUrl = getEmbedUrl(videoUrl)
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        if (typeof event.data === "string" && event.data.includes("youtube")) {
+          const data = JSON.parse(event.data)
+          if (data.event === "onError" || data.info?.errorCode) {
+            const errorCode = data.info?.errorCode || data.errorCode
+            if (errorCode === 150 || errorCode === 101 || errorCode === 153) {
+              setHasError(true)
+              setErrorMessage("This video cannot be embedded. The owner has restricted playback.")
+            }
+          }
+        }
+      } catch {}
+    }
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
+
   const handlePlay = useCallback(() => {
     if (!videoUrl) {
       setHasError(true)
+      setErrorMessage("No video URL provided.")
       onError?.()
       return
     }
     setIsLoading(true)
     setIsPlaying(true)
     setHasError(false)
+    setErrorMessage("")
   }, [videoUrl, onError])
 
   const handleRetry = useCallback(() => {
     setHasError(false)
+    setErrorMessage("")
     setIsPlaying(false)
     setIsLoading(false)
     setTimeout(() => handlePlay(), 100)
@@ -145,6 +204,7 @@ export default function SeriesVideoPlayer({
   const handleIframeError = useCallback(() => {
     setIsLoading(false)
     setHasError(true)
+    setErrorMessage("Failed to load video. The source may be unavailable.")
     onError?.()
   }, [onError])
 
@@ -174,24 +234,18 @@ export default function SeriesVideoPlayer({
     }
   }, [])
 
-  // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
-      if (!document.fullscreenElement) {
-        setIsRotated(false)
-      }
+      if (!document.fullscreenElement) setIsRotated(false)
     }
     document.addEventListener("fullscreenchange", handleFullscreenChange)
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
   }, [])
 
-  // Escape key to exit rotation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isRotated && !isFullscreen) {
-        setIsRotated(false)
-      }
+      if (e.key === "Escape" && isRotated && !isFullscreen) setIsRotated(false)
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
@@ -253,11 +307,11 @@ export default function SeriesVideoPlayer({
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0C10] to-[#1A1B23]">
             <div className="text-center p-8">
               <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
-                <X className="w-10 h-10 text-red-500" />
+                <AlertTriangle className="w-10 h-10 text-red-500" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Video Unavailable</h3>
               <p className="text-gray-400 mb-6 max-w-sm">
-                This video cannot be played. The source may be unavailable or restricted.
+                {errorMessage || "This video cannot be played. The source may be unavailable or restricted."}
               </p>
               <button
                 onClick={handleRetry}
@@ -272,7 +326,7 @@ export default function SeriesVideoPlayer({
 
         {isLoading && !hasError && <MobixVideoLoader />}
 
-        {/* Play Button Overlay (before playing) */}
+        {/* Play Button Overlay */}
         {!isPlaying && !hasError && (
           <div
             className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer group"
