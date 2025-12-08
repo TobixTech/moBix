@@ -169,6 +169,7 @@ export default function SeriesVideoPlayer({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
+  const [showMobixIntro, setShowMobixIntro] = useState(false)
   const [showPreroll, setShowPreroll] = useState(false)
   const [prerollCountdown, setPrerollCountdown] = useState(5)
   const [canSkipPreroll, setCanSkipPreroll] = useState(false)
@@ -177,6 +178,26 @@ export default function SeriesVideoPlayer({
   const isEmbed = isEmbedUrl(videoUrl)
   const embedUrl = getEmbedUrl(videoUrl)
   const isYouTube = isYouTubeUrl(videoUrl)
+
+  useEffect(() => {
+    if (showMobixIntro) {
+      const timer = setTimeout(() => {
+        setShowMobixIntro(false)
+        // After intro, check if we should show preroll (only for non-premium users)
+        if (showPrerollAds && prerollAdCodes.length > 0 && !isPremium) {
+          setShowPreroll(true)
+          setPrerollCountdown(5)
+          setCanSkipPreroll(false)
+        } else {
+          setIsLoading(true)
+          setIsPlaying(true)
+          setHasError(false)
+          setErrorMessage("")
+        }
+      }, 2000) // 2 second intro
+      return () => clearTimeout(timer)
+    }
+  }, [showMobixIntro, showPrerollAds, prerollAdCodes, isPremium])
 
   useEffect(() => {
     if (showPreroll && prerollCountdown > 0) {
@@ -196,18 +217,9 @@ export default function SeriesVideoPlayer({
       onError?.()
       return
     }
-
-    if (showPrerollAds && prerollAdCodes.length > 0 && !isPremium) {
-      setShowPreroll(true)
-      setPrerollCountdown(5)
-      setCanSkipPreroll(false)
-    } else {
-      setIsLoading(true)
-      setIsPlaying(true)
-      setHasError(false)
-      setErrorMessage("")
-    }
-  }, [videoUrl, onError, showPrerollAds, prerollAdCodes, isPremium])
+    // Always show moBix intro first
+    setShowMobixIntro(true)
+  }, [videoUrl, onError])
 
   const handleSkipPreroll = useCallback(() => {
     setShowPreroll(false)
@@ -312,7 +324,14 @@ export default function SeriesVideoPlayer({
         }`}
         style={containerStyles}
       >
-        {showPreroll && prerollAdCodes.length > 0 && (
+        {showMobixIntro && (
+          <div className="absolute inset-0 z-[110] bg-black">
+            <MobixVideoLoader />
+          </div>
+        )}
+
+        {/* Preroll Ad Overlay */}
+        {showPreroll && prerollAdCodes.length > 0 && !showMobixIntro && (
           <div className="absolute inset-0 z-[100] bg-black flex flex-col">
             <div className="flex-1 relative">
               <div
@@ -338,7 +357,7 @@ export default function SeriesVideoPlayer({
           </div>
         )}
 
-        {isPlaying && !hasError && !showPreroll && (
+        {isPlaying && !hasError && !showPreroll && !showMobixIntro && (
           <div className={`absolute top-3 right-3 flex items-center gap-2 ${isRotated ? "z-[100000]" : "z-50"}`}>
             <button
               onClick={handleRotate}
@@ -379,15 +398,15 @@ export default function SeriesVideoPlayer({
           </div>
         )}
 
-        {/* Loading State */}
-        {isLoading && !hasError && !showPreroll && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black">
+        {/* Loading State - using MobixVideoLoader */}
+        {isLoading && !hasError && !showPreroll && !showMobixIntro && (
+          <div className="absolute inset-0 z-30">
             <MobixVideoLoader />
           </div>
         )}
 
         {/* Play Button Overlay */}
-        {!isPlaying && !hasError && !showPreroll && (
+        {!isPlaying && !hasError && !showPreroll && !showMobixIntro && (
           <div
             className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer group"
             onClick={handlePlay}
@@ -410,7 +429,7 @@ export default function SeriesVideoPlayer({
         )}
 
         {/* Video Player */}
-        {isPlaying && !hasError && !showPreroll && (
+        {isPlaying && !hasError && !showPreroll && !showMobixIntro && (
           <>
             {isEmbed ? (
               <iframe

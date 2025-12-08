@@ -27,6 +27,9 @@ import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { Redis } from "@upstash/redis"
 
+// Re-export getSeriesById from series-actions for compatibility
+export { getSeriesById } from "@/lib/series-actions"
+
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
@@ -1505,7 +1508,7 @@ export async function reportContent(movieId: string, reason: string, description
 export async function getContentReports(status?: string) {
   try {
     // Get movie reports
-    const movieReports = await db
+    const movieReportsData = await db
       .select({
         id: contentReports.id,
         reason: contentReports.reason,
@@ -1531,12 +1534,12 @@ export async function getContentReports(status?: string) {
       .leftJoin(users, eq(contentReports.userId, users.id))
       .orderBy(desc(contentReports.createdAt))
 
-    const formattedMovieReports = movieReports.map((report) => ({
+    const formattedMovieReports = movieReportsData.map((report) => ({
       id: report.id,
       reason: report.reason,
       description: report.description,
       status: report.status,
-      createdAt: report.createdAt,
+      createdAt: report.createdAt?.toISOString() || new Date().toISOString(),
       email: report.email,
       contentType: "movie" as const,
       content: {
@@ -1553,7 +1556,7 @@ export async function getContentReports(status?: string) {
         : null,
     }))
 
-    // Get series reports
+    // Get series reports - try/catch in case table doesn't exist
     let formattedSeriesReports: any[] = []
     try {
       const seriesReportsData = await db
@@ -1587,7 +1590,7 @@ export async function getContentReports(status?: string) {
         reason: report.reason,
         description: report.description,
         status: report.status,
-        createdAt: report.createdAt,
+        createdAt: report.createdAt?.toISOString() || new Date().toISOString(),
         email: report.email,
         contentType: "series" as const,
         content: {
@@ -1604,8 +1607,7 @@ export async function getContentReports(status?: string) {
           : null,
       }))
     } catch (e) {
-      // Series reports table might not exist
-      console.warn("Could not fetch series reports:", e)
+      console.warn("Could not fetch series reports, table may not exist:", e)
     }
 
     // Combine and sort by date
@@ -3072,43 +3074,6 @@ export async function checkUserPremiumStatus(clerkId: string) {
     return { isPremium: false }
   }
 }
-
-// createNotificationForAllUsers function is duplicated. The first one seems to be the intended one.
-// The second one below is removed to resolve the 'noRedeclare' lint error.
-/*
-export async function createNotificationForAllUsers(
-  title: string,
-  message: string,
-  type: string,
-  movieId?: string,
-  seriesId?: string
-) {
-  try {
-    const allUsers = await db.query.users.findMany()
-
-    if (allUsers.length === 0) {
-      return { success: true, count: 0 }
-    }
-
-    for (const user of allUsers) {
-      await db.insert(notifications).values({
-        userId: user.id,
-        title,
-        message,
-        type,
-        movieId: movieId || null,
-        seriesId: seriesId || null,
-        isRead: false,
-      })
-    }
-
-    return { success: true, count: allUsers.length }
-  } catch (error) {
-    console.error("Error creating notifications:", error)
-    return { success: false, error: "Unable to send notifications." }
-  }
-}
-*/
 
 export async function toggleUserPremium(userId: string, durationDays?: number) {
   try {

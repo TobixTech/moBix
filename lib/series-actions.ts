@@ -781,6 +781,36 @@ export async function deleteSeriesReport(reportId: string) {
   }
 }
 
+export async function getEpisodeById(episodeId: string) {
+  try {
+    const [episode] = await db.select().from(episodes).where(eq(episodes.id, episodeId)).limit(1)
+
+    if (!episode) return null
+
+    // Get the season to find the series
+    const [season] = await db.select().from(seasons).where(eq(seasons.id, episode.seasonId)).limit(1)
+
+    return {
+      ...episode,
+      seasonNumber: season?.seasonNumber || 1,
+    }
+  } catch (error) {
+    console.error("Error fetching episode:", error)
+    return null
+  }
+}
+
+export async function getSeriesById(seriesId: string) {
+  try {
+    const [seriesData] = await db.select().from(series).where(eq(series.id, seriesId)).limit(1)
+
+    return seriesData || null
+  } catch (error) {
+    console.error("Error fetching series:", error)
+    return null
+  }
+}
+
 export async function createNotificationForAllUsers(
   title: string,
   message: string,

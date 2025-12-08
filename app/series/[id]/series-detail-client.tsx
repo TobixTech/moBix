@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import ReportContentModal from "@/components/report-content-modal"
+import { Link } from "next/link"
 import {
   Play,
   Plus,
@@ -20,6 +21,7 @@ import {
   Bookmark,
   Send,
   Eye,
+  Download,
 } from "lucide-react"
 import SeriesVideoPlayer from "@/components/series-video-player"
 import SocialShare from "@/components/social-share"
@@ -305,15 +307,13 @@ export default function SeriesDetailClient({
                   </div>
 
                   {currentEpisode.downloadEnabled && currentEpisode.downloadUrl && (
-                    <a
-                      href={currentEpisode.downloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      href={`/download/episode/${series.id}/${currentEpisode.id}`}
                       className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all w-fit"
                     >
-                      <Film className="w-5 h-5" />
+                      <Download className="w-5 h-5" />
                       Download Episode
-                    </a>
+                    </Link>
                   )}
                 </div>
               ) : (
