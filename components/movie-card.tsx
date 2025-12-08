@@ -24,7 +24,7 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  const movieUrl = `/movie/${movie.slug || movie.id}`
+  const movieUrl = movie.slug ? `/movie/${movie.slug}` : `/movie/${movie.id}`
   const rating =
     typeof movie.averageRating === "string" ? Number.parseFloat(movie.averageRating) : movie.averageRating || 0
 

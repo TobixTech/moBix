@@ -127,21 +127,24 @@ export function ProductionVideoPlayer({
   const getEmbedUrl = (url: string): string => {
     const lowerUrl = url.toLowerCase()
 
-    // YouTube
+    // YouTube - use strict-origin-when-cross-origin compatible embed
     if (lowerUrl.includes("youtube.com/watch")) {
       try {
         const videoId = new URL(url).searchParams.get("v")
-        return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
       } catch {
         return url
       }
     }
     if (lowerUrl.includes("youtu.be/")) {
       const videoId = url.split("youtu.be/")[1]?.split("?")[0]
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
     }
     if (lowerUrl.includes("youtube.com/embed")) {
-      return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1&rel=0&modestbranding=1`
+      if (!url.includes("autoplay")) {
+        return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1`
+      }
+      return url
     }
 
     // Vimeo
@@ -259,7 +262,7 @@ export function ProductionVideoPlayer({
   }, [isRotated])
 
   const getReferrerPolicy = (): React.HTMLAttributeReferrerPolicy => {
-    return isYouTubeUrl(videoUrl) ? "origin" : "no-referrer"
+    return isYouTubeUrl(videoUrl) ? "strict-origin-when-cross-origin" : "no-referrer"
   }
 
   const isEmbed = isEmbedUrl(videoUrl)
@@ -269,8 +272,11 @@ export function ProductionVideoPlayer({
         position: "fixed",
         top: 0,
         left: 0,
-        width: "100vw",
-        height: "100vh",
+        width: "100vh",
+        height: "100vw",
+        transform: "rotate(90deg)",
+        transformOrigin: "top left",
+        marginLeft: "100vw",
         zIndex: 99999,
         backgroundColor: "#000",
       }
@@ -285,6 +291,7 @@ export function ProductionVideoPlayer({
         className={`relative bg-black overflow-hidden ${isRotated ? "" : "w-full aspect-video rounded-xl"}`}
         style={rotatedStyles}
       >
+        {/* Preroll Ad Overlay */}
         {showPreroll && prerollAdCodes.length > 0 && (
           <div className="absolute inset-0 z-50 bg-black flex flex-col">
             <div className="flex-1 relative">
@@ -298,7 +305,7 @@ export function ProductionVideoPlayer({
               {canSkipPreroll ? (
                 <button
                   onClick={handleSkipPreroll}
-                  className="px-6 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-all shadow-lg"
+                  className="px-6 py-3 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 transition-all shadow-lg"
                 >
                   Skip Ad
                 </button>

@@ -288,6 +288,9 @@ export default function SeriesDetailClient({
                     posterUrl={currentEpisode.thumbnailUrl || series.posterUrl}
                     title={series.title}
                     episodeTitle={`S${selectedSeason?.seasonNumber} E${currentEpisode.episodeNumber}: ${currentEpisode.title}`}
+                    isPremium={isPremiumUser}
+                    prerollAdCodes={prerollAdCodes}
+                    showPrerollAds={!isPremiumUser && prerollAdCodes.length > 0}
                   />
 
                   <div className="bg-[#1A1B23]/80 backdrop-blur-sm rounded-xl p-4 border border-[#2A2B33]">

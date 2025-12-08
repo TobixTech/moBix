@@ -11,6 +11,9 @@ interface SeriesVideoPlayerProps {
   title: string
   episodeTitle?: string
   onError?: () => void
+  isPremium?: boolean
+  prerollAdCodes?: { name: string; code: string }[]
+  showPrerollAds?: boolean
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -77,21 +80,24 @@ function getEmbedUrl(url: string): string {
   if (!url) return ""
   const lowerUrl = url.toLowerCase()
 
-  // YouTube
+  // YouTube - Fixed YouTube embed URL generation
   if (lowerUrl.includes("youtube.com/watch")) {
     try {
       const videoId = new URL(url).searchParams.get("v")
-      if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`
+      if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
     } catch {
       return url
     }
   }
   if (lowerUrl.includes("youtu.be/")) {
     const videoId = url.split("youtu.be/")[1]?.split("?")[0]
-    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`
+    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
   }
   if (lowerUrl.includes("youtube.com/embed")) {
-    return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1`
+    if (!url.includes("autoplay")) {
+      return url.includes("?") ? `${url}&autoplay=1` : `${url}?autoplay=1`
+    }
+    return url
   }
 
   // Vimeo
@@ -149,6 +155,9 @@ export default function SeriesVideoPlayer({
   title,
   episodeTitle,
   onError,
+  isPremium = false,
+  prerollAdCodes = [],
+  showPrerollAds = true,
 }: SeriesVideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -160,9 +169,25 @@ export default function SeriesVideoPlayer({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
+  const [showPreroll, setShowPreroll] = useState(false)
+  const [prerollCountdown, setPrerollCountdown] = useState(5)
+  const [canSkipPreroll, setCanSkipPreroll] = useState(false)
+  const [currentAdIndex, setCurrentAdIndex] = useState(0)
+
   const isEmbed = isEmbedUrl(videoUrl)
   const embedUrl = getEmbedUrl(videoUrl)
   const isYouTube = isYouTubeUrl(videoUrl)
+
+  useEffect(() => {
+    if (showPreroll && prerollCountdown > 0) {
+      const timer = setTimeout(() => {
+        setPrerollCountdown((prev) => prev - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    } else if (showPreroll && prerollCountdown === 0) {
+      setCanSkipPreroll(true)
+    }
+  }, [showPreroll, prerollCountdown])
 
   const handlePlay = useCallback(() => {
     if (!videoUrl) {
@@ -171,11 +196,26 @@ export default function SeriesVideoPlayer({
       onError?.()
       return
     }
+
+    if (showPrerollAds && prerollAdCodes.length > 0 && !isPremium) {
+      setShowPreroll(true)
+      setPrerollCountdown(5)
+      setCanSkipPreroll(false)
+    } else {
+      setIsLoading(true)
+      setIsPlaying(true)
+      setHasError(false)
+      setErrorMessage("")
+    }
+  }, [videoUrl, onError, showPrerollAds, prerollAdCodes, isPremium])
+
+  const handleSkipPreroll = useCallback(() => {
+    setShowPreroll(false)
     setIsLoading(true)
     setIsPlaying(true)
     setHasError(false)
     setErrorMessage("")
-  }, [videoUrl, onError])
+  }, [])
 
   const handleRetry = useCallback(() => {
     setHasError(false)
@@ -245,17 +285,18 @@ export default function SeriesVideoPlayer({
           position: "fixed",
           top: 0,
           left: 0,
-          width: "100vw",
-          height: "100vh",
-          transform: "rotate(90deg) translateY(-100%)",
+          width: "100vh",
+          height: "100vw",
+          transform: "rotate(90deg)",
           transformOrigin: "top left",
+          marginLeft: "100vw",
           zIndex: 99999,
           backgroundColor: "#000",
         }
       : {}
 
   const getReferrerPolicy = (): React.HTMLAttributeReferrerPolicy => {
-    return isYouTube ? "origin" : "no-referrer"
+    return isYouTube ? "strict-origin-when-cross-origin" : "no-referrer"
   }
 
   return (
@@ -271,7 +312,33 @@ export default function SeriesVideoPlayer({
         }`}
         style={containerStyles}
       >
-        {isPlaying && !hasError && (
+        {showPreroll && prerollAdCodes.length > 0 && (
+          <div className="absolute inset-0 z-[100] bg-black flex flex-col">
+            <div className="flex-1 relative">
+              <div
+                className="absolute inset-0 flex items-center justify-center"
+                dangerouslySetInnerHTML={{ __html: prerollAdCodes[currentAdIndex]?.code || "" }}
+              />
+            </div>
+            <div className="absolute bottom-4 right-4 z-10">
+              {canSkipPreroll ? (
+                <button
+                  onClick={handleSkipPreroll}
+                  className="px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 transition-colors"
+                >
+                  Skip Ad
+                </button>
+              ) : (
+                <div className="px-4 py-2 bg-black/80 text-white rounded-lg">Skip in {prerollCountdown}s</div>
+              )}
+            </div>
+            <div className="absolute top-4 left-4 bg-yellow-500/90 text-black text-xs font-bold px-2 py-1 rounded">
+              AD
+            </div>
+          </div>
+        )}
+
+        {isPlaying && !hasError && !showPreroll && (
           <div className={`absolute top-3 right-3 flex items-center gap-2 ${isRotated ? "z-[100000]" : "z-50"}`}>
             <button
               onClick={handleRotate}
@@ -298,16 +365,12 @@ export default function SeriesVideoPlayer({
         {hasError && (
           <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-br from-[#0B0C10] to-[#1A1B23]">
             <div className="text-center p-8">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
-                <AlertTriangle className="w-10 h-10 text-red-500" />
-              </div>
+              <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Video Unavailable</h3>
-              <p className="text-gray-400 mb-6 max-w-sm">
-                {errorMessage || "This video cannot be played. The source may be unavailable or restricted."}
-              </p>
+              <p className="text-white/60 mb-6 max-w-md">{errorMessage || "The video could not be loaded."}</p>
               <button
                 onClick={handleRetry}
-                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-black font-bold rounded-xl hover:from-cyan-400 hover:to-cyan-500 transition-all flex items-center gap-2 mx-auto"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition-colors"
               >
                 <RefreshCw className="w-5 h-5" />
                 Try Again
@@ -316,46 +379,48 @@ export default function SeriesVideoPlayer({
           </div>
         )}
 
-        {isLoading && !hasError && <MobixVideoLoader />}
+        {/* Loading State */}
+        {isLoading && !hasError && !showPreroll && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black">
+            <MobixVideoLoader />
+          </div>
+        )}
 
         {/* Play Button Overlay */}
-        {!isPlaying && !hasError && (
+        {!isPlaying && !hasError && !showPreroll && (
           <div
             className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer group"
             onClick={handlePlay}
-            style={{
-              backgroundImage: `url(${posterUrl})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
           >
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${posterUrl || "/placeholder.svg?height=720&width=1280"})` }}
+            />
             <div className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-            <button className="relative z-10 w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center shadow-2xl shadow-cyan-500/40 group-hover:scale-110 transition-transform duration-300">
-              <Play className="w-10 h-10 md:w-12 md:h-12 text-black fill-black ml-1" />
-            </button>
-            <div className="absolute bottom-8 left-0 right-0 text-center">
-              <p className="text-white text-lg font-semibold drop-shadow-lg">{title}</p>
-              {episodeTitle && <p className="text-gray-300 text-sm">{episodeTitle}</p>}
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full bg-cyan-500/90 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-cyan-500/30">
+                <Play className="w-10 h-10 text-black ml-1" fill="black" />
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-white font-medium text-lg">{title}</p>
+                {episodeTitle && <p className="text-white/70 text-sm">{episodeTitle}</p>}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Video Content */}
-        {isPlaying && !hasError && (
+        {/* Video Player */}
+        {isPlaying && !hasError && !showPreroll && (
           <>
             {isEmbed ? (
               <iframe
                 ref={iframeRef}
                 src={embedUrl}
-                title={title}
                 className="absolute inset-0 w-full h-full"
                 frameBorder="0"
-                scrolling="no"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowFullScreen
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture; web-share; fullscreen"
                 referrerPolicy={getReferrerPolicy()}
-                loading="eager"
-                style={{ border: "none", backgroundColor: "#000" }}
                 onLoad={handleIframeLoad}
                 onError={handleIframeError}
               />
@@ -363,16 +428,16 @@ export default function SeriesVideoPlayer({
               <video
                 ref={videoRef}
                 src={videoUrl}
-                poster={posterUrl}
+                className="absolute inset-0 w-full h-full"
                 controls
                 autoPlay
-                className="w-full h-full object-contain"
-                style={{ backgroundColor: "#000" }}
+                playsInline
                 onLoadedData={() => setIsLoading(false)}
-                onError={handleIframeError}
-              >
-                Your browser does not support the video tag.
-              </video>
+                onError={() => {
+                  setHasError(true)
+                  setErrorMessage("Failed to load video file.")
+                }}
+              />
             )}
           </>
         )}
@@ -380,3 +445,5 @@ export default function SeriesVideoPlayer({
     </>
   )
 }
+
+export { SeriesVideoPlayer }
