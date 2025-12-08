@@ -27,8 +27,7 @@ import { currentUser, auth } from "@clerk/nextjs/server"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { Redis } from "@upstash/redis"
 
-// Re-export getSeriesById from series-actions for compatibility
-export { getSeriesById } from "@/lib/series-actions"
+// Files that need getSeriesById should import directly from "@/lib/series-actions"
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,

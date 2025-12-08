@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import type { Metadata } from "next"
-import { getSeriesById, getAdSettings } from "@/lib/server-actions"
-import { getEpisodeById } from "@/lib/series-actions"
+import { getAdSettings } from "@/lib/server-actions"
+import { getSeriesById, getEpisodeById } from "@/lib/series-actions"
 import EpisodeDownloadClient from "./episode-download-client"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
@@ -11,11 +11,10 @@ export const dynamic = "force-dynamic"
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ seriesId: string; episodeId: string }>
+  params: { seriesId: string; episodeId: string }
 }): Promise<Metadata> {
-  const resolvedParams = await params
-  const series = await getSeriesById(resolvedParams.seriesId)
-  const episode = await getEpisodeById(resolvedParams.episodeId)
+  const series = await getSeriesById(params.seriesId)
+  const episode = await getEpisodeById(params.episodeId)
 
   if (!series || !episode) {
     return { title: "Episode Not Found" }
@@ -30,12 +29,11 @@ export async function generateMetadata({
 export default async function EpisodeDownloadPage({
   params,
 }: {
-  params: Promise<{ seriesId: string; episodeId: string }>
+  params: { seriesId: string; episodeId: string }
 }) {
-  const resolvedParams = await params
   const [series, episode, adSettings] = await Promise.all([
-    getSeriesById(resolvedParams.seriesId),
-    getEpisodeById(resolvedParams.episodeId),
+    getSeriesById(params.seriesId),
+    getEpisodeById(params.episodeId),
     getAdSettings(),
   ])
 
