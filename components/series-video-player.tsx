@@ -13,6 +13,12 @@ interface SeriesVideoPlayerProps {
   onError?: () => void
 }
 
+function isYouTubeUrl(url: string): boolean {
+  if (!url) return false
+  const lowerUrl = url.toLowerCase()
+  return lowerUrl.includes("youtube.com") || lowerUrl.includes("youtu.be") || lowerUrl.includes("youtube-nocookie.com")
+}
+
 function isEmbedUrl(url: string): boolean {
   if (!url) return false
   const embedPatterns = [
@@ -156,25 +162,7 @@ export default function SeriesVideoPlayer({
 
   const isEmbed = isEmbedUrl(videoUrl)
   const embedUrl = getEmbedUrl(videoUrl)
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        if (typeof event.data === "string" && event.data.includes("youtube")) {
-          const data = JSON.parse(event.data)
-          if (data.event === "onError" || data.info?.errorCode) {
-            const errorCode = data.info?.errorCode || data.errorCode
-            if (errorCode === 150 || errorCode === 101 || errorCode === 153) {
-              setHasError(true)
-              setErrorMessage("This video cannot be embedded. The owner has restricted playback.")
-            }
-          }
-        }
-      } catch {}
-    }
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [])
+  const isYouTube = isYouTubeUrl(videoUrl)
 
   const handlePlay = useCallback(() => {
     if (!videoUrl) {
@@ -257,14 +245,18 @@ export default function SeriesVideoPlayer({
           position: "fixed",
           top: 0,
           left: 0,
-          width: "100vh",
-          height: "100vw",
+          width: "100vw",
+          height: "100vh",
           transform: "rotate(90deg) translateY(-100%)",
           transformOrigin: "top left",
           zIndex: 99999,
           backgroundColor: "#000",
         }
       : {}
+
+  const getReferrerPolicy = (): React.HTMLAttributeReferrerPolicy => {
+    return isYouTube ? "origin" : "no-referrer"
+  }
 
   return (
     <>
@@ -360,8 +352,8 @@ export default function SeriesVideoPlayer({
                 frameBorder="0"
                 scrolling="no"
                 allowFullScreen
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                referrerPolicy="no-referrer"
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture; web-share; fullscreen"
+                referrerPolicy={getReferrerPolicy()}
                 loading="eager"
                 style={{ border: "none", backgroundColor: "#000" }}
                 onLoad={handleIframeLoad}

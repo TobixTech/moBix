@@ -12,6 +12,7 @@ import {
   seriesComments,
   users,
   seriesReports,
+  notifications,
 } from "@/lib/db/schema"
 import { eq, desc, and, sql, ilike, or } from "drizzle-orm"
 import { auth } from "@clerk/nextjs/server"
@@ -450,6 +451,14 @@ export async function createSeries(data: {
       })
       .returning()
 
+    await createNotificationForAllUsers(
+      "New Series Added",
+      `A new series "${data.title}" has been added!`,
+      "series",
+      undefined,
+      newSeries.id,
+    )
+
     return { success: true, series: newSeries }
   } catch (error) {
     console.error("Error creating series:", error)
@@ -496,20 +505,28 @@ export async function deleteSeries(id: string) {
   }
 }
 
-export async function createSeason(data: {
-  seriesId: string
-  seasonNumber: number
-  title?: string
-  description?: string
-  releaseYear?: number
-}) {
+export async function createSeason(
+  seriesId: string,
+  data: {
+    seasonNumber: number
+    title?: string
+    description?: string
+    releaseYear?: number
+  },
+) {
   try {
-    const [newSeason] = await db.insert(seasons).values(data).returning()
+    const [newSeason] = await db
+      .insert(seasons)
+      .values({
+        ...data,
+        seriesId,
+      })
+      .returning()
 
     await db
       .update(series)
       .set({ totalSeasons: sql`${series.totalSeasons} + 1` })
-      .where(eq(series.id, data.seriesId))
+      .where(eq(series.id, seriesId))
 
     return { success: true, season: newSeason }
   } catch (error) {
@@ -554,24 +571,41 @@ export async function deleteSeason(id: string) {
   }
 }
 
-export async function createEpisode(data: {
-  seasonId: string
-  episodeNumber: number
-  title: string
-  description?: string
-  duration?: number
-  thumbnailUrl?: string
-  videoUrl: string
-}) {
+export async function createEpisode(
+  seasonId: string,
+  data: {
+    episodeNumber: number
+    title: string
+    description?: string
+    duration?: number
+    thumbnailUrl?: string
+    videoUrl: string
+    downloadEnabled?: boolean
+    downloadUrl?: string | null
+  },
+) {
   try {
-    const [newEpisode] = await db.insert(episodes).values(data).returning()
+    const [newEpisode] = await db
+      .insert(episodes)
+      .values({
+        seasonId,
+        episodeNumber: data.episodeNumber,
+        title: data.title,
+        description: data.description,
+        duration: data.duration,
+        thumbnailUrl: data.thumbnailUrl,
+        videoUrl: data.videoUrl,
+        downloadEnabled: data.downloadEnabled || false,
+        downloadUrl: data.downloadUrl || null,
+      })
+      .returning()
 
-    const season = await db.select().from(seasons).where(eq(seasons.id, data.seasonId)).limit(1)
+    const season = await db.select().from(seasons).where(eq(seasons.id, seasonId)).limit(1)
     if (season[0]) {
       await db
         .update(seasons)
         .set({ totalEpisodes: sql`${seasons.totalEpisodes} + 1` })
-        .where(eq(seasons.id, data.seasonId))
+        .where(eq(seasons.id, seasonId))
 
       await db
         .update(series)
@@ -595,10 +629,19 @@ export async function updateEpisode(
     duration?: number
     thumbnailUrl?: string
     videoUrl?: string
+    downloadEnabled?: boolean
+    downloadUrl?: string | null
   },
 ) {
   try {
-    await db.update(episodes).set(data).where(eq(episodes.id, id))
+    await db
+      .update(episodes)
+      .set({
+        ...data,
+        downloadEnabled: data.downloadEnabled ?? undefined,
+        downloadUrl: data.downloadUrl ?? undefined,
+      })
+      .where(eq(episodes.id, id))
     return { success: true }
   } catch (error) {
     console.error("Error updating episode:", error)
@@ -735,5 +778,38 @@ export async function deleteSeriesReport(reportId: string) {
   } catch (error) {
     console.error("Error deleting report:", error)
     return { success: false, error: "Failed to delete report" }
+  }
+}
+
+export async function createNotificationForAllUsers(
+  title: string,
+  message: string,
+  type: string,
+  movieId?: string,
+  seriesId?: string,
+) {
+  try {
+    const allUsers = await db.query.users.findMany()
+
+    if (allUsers.length === 0) {
+      return { success: true, count: 0 }
+    }
+
+    for (const user of allUsers) {
+      await db.insert(notifications).values({
+        userId: user.id,
+        title,
+        message,
+        type,
+        movieId: movieId || null,
+        seriesId: seriesId || null,
+        isRead: false,
+      })
+    }
+
+    return { success: true, count: allUsers.length }
+  } catch (error) {
+    console.error("Error creating notifications:", error)
+    return { success: false, error: "Unable to send notifications." }
   }
 }

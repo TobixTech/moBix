@@ -2,8 +2,9 @@ import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import AdBanner from "@/components/ad-banner"
 import { getSeriesWithSeasons, isSeriesInWatchlist, hasUserLikedSeries } from "@/lib/series-actions"
-import { getAdSettings } from "@/lib/server-actions"
+import { getAdSettings, checkUserPremiumStatus } from "@/lib/server-actions"
 import { notFound } from "next/navigation"
+import { auth } from "@clerk/nextjs/server"
 import SeriesDetailClient from "./series-detail-client"
 
 export const dynamic = "force-dynamic"
@@ -26,6 +27,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function SeriesDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+
+  const { userId } = await auth()
+  let isPremiumUser = false
+
+  if (userId) {
+    const premiumStatus = await checkUserPremiumStatus(userId)
+    isPremiumUser = premiumStatus.isPremium
+  }
 
   let series = null
   let adSettings = null
@@ -51,20 +60,21 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
     notFound()
   }
 
-  // Parse ad codes safely
   let prerollAdCodes: { name: string; code: string }[] = []
   let midrollAdCodes: { name: string; code: string }[] = []
 
-  try {
-    prerollAdCodes = JSON.parse(adSettings?.prerollAdCodes || "[]")
-  } catch {
-    prerollAdCodes = []
-  }
+  if (!isPremiumUser) {
+    try {
+      prerollAdCodes = JSON.parse(adSettings?.prerollAdCodes || "[]")
+    } catch {
+      prerollAdCodes = []
+    }
 
-  try {
-    midrollAdCodes = JSON.parse(adSettings?.midrollAdCodes || "[]")
-  } catch {
-    midrollAdCodes = []
+    try {
+      midrollAdCodes = JSON.parse(adSettings?.midrollAdCodes || "[]")
+    } catch {
+      midrollAdCodes = []
+    }
   }
 
   return (
@@ -77,10 +87,11 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         initialIsLiked={isLiked}
         prerollAdCodes={prerollAdCodes}
         midrollAdCodes={midrollAdCodes}
-        midrollEnabled={adSettings?.midrollEnabled ?? false}
+        midrollEnabled={isPremiumUser ? false : (adSettings?.midrollEnabled ?? false)}
         midrollIntervalMinutes={adSettings?.midrollIntervalMinutes ?? 20}
-        adBannerHorizontal={<AdBanner type="horizontal" placement="movie-detail" />}
-        adBannerVertical={<AdBanner type="vertical" placement="movie-detail" />}
+        isPremiumUser={isPremiumUser}
+        adBannerHorizontal={isPremiumUser ? null : <AdBanner type="horizontal" placement="movie-detail" />}
+        adBannerVertical={isPremiumUser ? null : <AdBanner type="vertical" placement="movie-detail" />}
       />
 
       <Footer />

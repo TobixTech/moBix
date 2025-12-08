@@ -1,9 +1,16 @@
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
+import { auth } from "@clerk/nextjs/server"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import AdBanner from "@/components/ad-banner"
-import { getMovieById, getRelatedMovies, getAdSettings, getWatchlistStatus } from "@/lib/server-actions"
+import {
+  getMovieById,
+  getRelatedMovies,
+  getAdSettings,
+  getWatchlistStatus,
+  checkUserPremiumStatus,
+} from "@/lib/server-actions"
 import MovieDetailClient from "@/components/movie-detail-client"
 import { MovieStructuredData, VideoStructuredData, BreadcrumbStructuredData } from "@/components/seo-structured-data"
 
@@ -78,6 +85,14 @@ export default async function MovieDetail({
   const resolvedParams = await params
   const idOrSlug = resolvedParams.id
 
+  const { userId } = await auth()
+  let isPremiumUser = false
+
+  if (userId) {
+    const premiumStatus = await checkUserPremiumStatus(userId)
+    isPremiumUser = premiumStatus.isPremium
+  }
+
   const [movie, adSettings, isInWatchlist] = await Promise.all([
     getMovieById(idOrSlug),
     getAdSettings(),
@@ -91,14 +106,14 @@ export default async function MovieDetail({
   const adTimeout = adSettings?.adTimeoutSeconds || 20
   const skipDelay = adSettings?.skipDelaySeconds || 10
   const rotationInterval = adSettings?.rotationIntervalSeconds || 5
-  const showPrerollAds = adSettings?.showPrerollAds ?? true
+  const showPrerollAds = isPremiumUser ? false : (adSettings?.showPrerollAds ?? true)
 
-  const midrollEnabled = adSettings?.midrollEnabled ?? false
+  const midrollEnabled = isPremiumUser ? false : (adSettings?.midrollEnabled ?? false)
   const midrollIntervalMinutes = adSettings?.midrollIntervalMinutes || 20
 
   let prerollAdCodes: { code: string; name?: string }[] = []
   try {
-    if (adSettings?.prerollAdCodes) {
+    if (adSettings?.prerollAdCodes && !isPremiumUser) {
       prerollAdCodes = JSON.parse(adSettings.prerollAdCodes)
     }
   } catch (e) {
@@ -107,7 +122,7 @@ export default async function MovieDetail({
 
   let midrollAdCodes: { code: string; name?: string }[] = []
   try {
-    if (adSettings?.midrollAdCodes) {
+    if (adSettings?.midrollAdCodes && !isPremiumUser) {
       midrollAdCodes = JSON.parse(adSettings.midrollAdCodes)
     }
   } catch (e) {
@@ -140,14 +155,19 @@ export default async function MovieDetail({
           midrollAdCodes={midrollAdCodes}
           midrollEnabled={midrollEnabled}
           midrollIntervalMinutes={midrollIntervalMinutes}
-          smartLinkUrl={adSettings?.smartLinkUrl}
+          smartLinkUrl={isPremiumUser ? undefined : adSettings?.smartLinkUrl}
           adTimeout={adTimeout}
           skipDelay={skipDelay}
           rotationInterval={rotationInterval}
           showPrerollAds={showPrerollAds}
           isInWatchlist={isInWatchlist}
-          adBannerVertical={<AdBanner type="vertical" placement="movieDetail" className="mb-6" />}
-          adBannerHorizontal={<AdBanner type="horizontal" placement="movieDetail" className="mb-12" />}
+          isPremiumUser={isPremiumUser}
+          adBannerVertical={
+            isPremiumUser ? null : <AdBanner type="vertical" placement="movieDetail" className="mb-6" />
+          }
+          adBannerHorizontal={
+            isPremiumUser ? null : <AdBanner type="horizontal" placement="movieDetail" className="mb-12" />
+          }
         />
       </div>
 

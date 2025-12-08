@@ -79,6 +79,7 @@ export default function MovieDetailClient({
   rotationInterval = 5,
   showPrerollAds = true,
   isInWatchlist = false,
+  isPremiumUser = false,
 }: {
   movie: Movie
   relatedMovies: RelatedMovie[]
@@ -94,6 +95,7 @@ export default function MovieDetailClient({
   rotationInterval?: number
   showPrerollAds?: boolean
   isInWatchlist?: boolean
+  isPremiumUser?: boolean
 }) {
   const { isSignedIn, userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)

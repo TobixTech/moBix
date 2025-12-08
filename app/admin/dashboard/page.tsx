@@ -56,7 +56,7 @@ import {
   getFeedbackEntries, // Added import
   updateFeedbackStatus, // Added import
   deleteFeedback, // Added import
-  getAllComments,
+  getAllCommentsAdmin, // Use the admin function that gets both movie and series comments
   createNotificationForAllUsers, // Added for notification
   createNotificationByEmail, // Added for notification
   getContentReports, // Added import for content reports
@@ -386,7 +386,7 @@ export default function AdminDashboard() {
         getUsers(),
         getAdSettings(),
         getFeedbackEntries(),
-        getAllComments(),
+        getAllCommentsAdmin(),
         getContentReports(),
         getAdminSeries(),
       ])
@@ -453,7 +453,7 @@ export default function AdminDashboard() {
           getUsers(),
           getAdSettings(),
           getFeedbackEntries(),
-          getAllComments(),
+          getAllCommentsAdmin(),
           getContentReports(),
           getAdminSeries(), // Assuming this server action exists
         ])

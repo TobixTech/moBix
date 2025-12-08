@@ -14,9 +14,9 @@ import {
   X,
   Settings,
   Globe,
-  AlertCircle,
-  Check,
   Loader2,
+  Crown,
+  Sparkles,
 } from "lucide-react"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
@@ -48,6 +48,8 @@ export default function ProfilePage() {
     firstName: "",
     lastName: "",
   })
+
+  const isPremium = profile?.role === "PREMIUM" || profile?.isPremium
 
   useEffect(() => {
     if (isLoaded && clerkUser) {
@@ -92,16 +94,11 @@ export default function ProfilePage() {
       setError("")
       setSuccess("")
 
-      console.log("[v0] Saving profile with data:", formData)
-
       const result = await updateUserProfile(formData)
-
-      console.log("[v0] Update result:", result)
 
       if (result.success) {
         setSuccess("Profile updated successfully!")
         setIsEditing(false)
-        // Reload profile to get fresh data
         await loadProfile()
         toast({
           title: "Profile Updated",
@@ -117,7 +114,6 @@ export default function ProfilePage() {
         })
       }
     } catch (err) {
-      console.error("[v0] Error saving profile:", err)
       setError("Failed to update profile")
     } finally {
       setIsSaving(false)
@@ -191,7 +187,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10]">
+    <div
+      className={`min-h-screen ${isPremium ? "bg-gradient-to-br from-[#1a1a0a] via-[#0F1018] to-[#0a1a1a]" : "bg-gradient-to-br from-[#0B0C10] via-[#0F1018] to-[#0B0C10]"}`}
+    >
       <Navbar showAuthButtons={false} />
 
       <div className="container mx-auto px-4 py-24">
@@ -201,11 +199,22 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Profile Header */}
-          <div className="bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 mb-6">
+          <div
+            className={`backdrop-blur-xl rounded-2xl p-8 mb-6 ${
+              isPremium
+                ? "bg-gradient-to-br from-amber-500/10 via-[#0B0C10]/40 to-amber-500/5 border border-amber-500/30"
+                : "bg-[#0B0C10]/40 border border-[#00FFFF]/30"
+            }`}
+          >
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] flex items-center justify-center text-[#0B0C10] text-3xl font-bold">
+                <div
+                  className={`relative w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold ${
+                    isPremium
+                      ? "bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-black"
+                      : "bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10]"
+                  }`}
+                >
                   {profile?.imageUrl ? (
                     <img
                       src={profile.imageUrl || "/placeholder.svg"}
@@ -215,11 +224,19 @@ export default function ProfilePage() {
                   ) : (
                     <User className="w-12 h-12" />
                   )}
+                  {isPremium && (
+                    <div className="absolute -top-1 -right-1 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/50">
+                      <Crown className="w-5 h-5 text-black" />
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">
-                    {profile?.username || profile?.firstName || "User"}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className={`text-3xl font-bold ${isPremium ? "text-amber-400" : "text-white"}`}>
+                      {profile?.username || profile?.firstName || "User"}
+                    </h1>
+                    {isPremium && <Sparkles className="w-6 h-6 text-amber-400" />}
+                  </div>
                   <div className="flex items-center gap-2 text-[#888888]">
                     <Mail className="w-4 h-4" />
                     <span>{profile?.email}</span>
@@ -235,16 +252,19 @@ export default function ProfilePage() {
                       <span>{countryInfo.name}</span>
                     </div>
                   )}
-                  {profile?.role === "ADMIN" && (
-                    <div className="mt-2 inline-block px-3 py-1 bg-[#00FFFF]/20 border border-[#00FFFF]/50 rounded-full text-[#00FFFF] text-xs font-semibold">
-                      Admin
-                    </div>
-                  )}
-                  {profile?.role === "PREMIUM" && (
-                    <div className="mt-2 inline-block px-3 py-1 bg-amber-500/20 border border-amber-500/50 rounded-full text-amber-400 text-xs font-semibold">
-                      Premium
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    {profile?.role === "ADMIN" && (
+                      <div className="inline-block px-3 py-1 bg-[#00FFFF]/20 border border-[#00FFFF]/50 rounded-full text-[#00FFFF] text-xs font-semibold">
+                        Admin
+                      </div>
+                    )}
+                    {isPremium && (
+                      <div className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/50 rounded-full text-amber-400 text-xs font-semibold">
+                        <Crown className="w-3 h-3" />
+                        Premium Member
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -256,7 +276,11 @@ export default function ProfilePage() {
                     setIsEditing(true)
                   }
                 }}
-                className="p-2 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-[#00FFFF] hover:bg-[#00FFFF]/10 transition"
+                className={`p-2 rounded-lg transition ${
+                  isPremium
+                    ? "bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20"
+                    : "bg-[#1A1B23]/60 border border-[#2A2B33] text-[#00FFFF] hover:bg-[#00FFFF]/10"
+                }`}
               >
                 {isEditing ? <X className="w-5 h-5" /> : <Edit2 className="w-5 h-5" />}
               </button>
@@ -264,18 +288,26 @@ export default function ProfilePage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <div className="bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg p-4">
+              <div
+                className={`rounded-lg p-4 ${
+                  isPremium ? "bg-amber-500/10 border border-amber-500/20" : "bg-[#1A1B23]/60 border border-[#2A2B33]"
+                }`}
+              >
                 <div className="flex items-center gap-3">
-                  <Heart className="w-6 h-6 text-[#00FFFF]" />
+                  <Heart className={`w-6 h-6 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
                   <div>
                     <p className="text-2xl font-bold text-white">{stats.likesCount}</p>
                     <p className="text-sm text-[#888888]">Movies Liked</p>
                   </div>
                 </div>
               </div>
-              <div className="bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg p-4">
+              <div
+                className={`rounded-lg p-4 ${
+                  isPremium ? "bg-amber-500/10 border border-amber-500/20" : "bg-[#1A1B23]/60 border border-[#2A2B33]"
+                }`}
+              >
                 <div className="flex items-center gap-3">
-                  <MessageSquare className="w-6 h-6 text-[#00FFFF]" />
+                  <MessageSquare className={`w-6 h-6 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
                   <div>
                     <p className="text-2xl font-bold text-white">{stats.commentsCount}</p>
                     <p className="text-sm text-[#888888]">Comments Posted</p>
@@ -283,18 +315,39 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+            {isPremium && (
+              <div className="mt-6 p-4 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/30 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Crown className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-amber-400 font-bold">Premium Benefits Active</h3>
+                </div>
+                <ul className="text-sm text-amber-200/70 space-y-1">
+                  <li>• Ad-free viewing experience</li>
+                  <li>• Early access to new content</li>
+                  <li>• HD streaming quality</li>
+                  <li>• Priority support</li>
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Edit Form */}
           {isEditing && (
             <motion.div
-              className="bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8 mb-6"
+              className={`backdrop-blur-xl rounded-2xl p-8 mb-6 ${
+                isPremium
+                  ? "bg-gradient-to-br from-amber-500/10 via-[#0B0C10]/40 to-amber-500/5 border border-amber-500/30"
+                  : "bg-[#0B0C10]/40 border border-[#00FFFF]/30"
+              }`}
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               transition={{ duration: 0.3 }}
             >
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-[#00FFFF]" />
+              <h2
+                className={`text-xl font-bold mb-4 flex items-center gap-2 ${isPremium ? "text-amber-400" : "text-white"}`}
+              >
+                <Edit2 className={`w-5 h-5 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
                 Edit Profile
               </h2>
 
@@ -312,7 +365,11 @@ export default function ProfilePage() {
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                    className={`w-full px-4 py-3 bg-[#1A1B23]/60 border rounded-lg text-white placeholder-[#666666] focus:outline-none transition-all ${
+                      isPremium
+                        ? "border-amber-500/30 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30"
+                        : "border-[#2A2B33] focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30"
+                    }`}
                     placeholder="Enter username"
                   />
                 </div>
@@ -324,7 +381,11 @@ export default function ProfilePage() {
                       type="text"
                       value={formData.firstName}
                       onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                      className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                      className={`w-full px-4 py-3 bg-[#1A1B23]/60 border rounded-lg text-white placeholder-[#666666] focus:outline-none transition-all ${
+                        isPremium
+                          ? "border-amber-500/30 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30"
+                          : "border-[#2A2B33] focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30"
+                      }`}
                       placeholder="First name"
                     />
                   </div>
@@ -334,100 +395,24 @@ export default function ProfilePage() {
                       type="text"
                       value={formData.lastName}
                       onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                      className="w-full px-4 py-3 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all"
+                      className={`w-full px-4 py-3 bg-[#1A1B23]/60 border rounded-lg text-white placeholder-[#666666] focus:outline-none transition-all ${
+                        isPremium
+                          ? "border-amber-500/30 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30"
+                          : "border-[#2A2B33] focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30"
+                      }`}
                       placeholder="Last name"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#888888] mb-2 flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    Country
-                  </label>
-
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg">
-                      {countryInfo ? (
-                        <>
-                          <span className="text-xl">{countryInfo.flag}</span>
-                          <span className="text-white">{countryInfo.name}</span>
-                        </>
-                      ) : (
-                        <span className="text-white/60">Not set</span>
-                      )}
-                    </div>
-
-                    {canChangeCountry && !showCountryEdit && (
-                      <button
-                        type="button"
-                        onClick={() => setShowCountryEdit(true)}
-                        className="px-3 py-2 text-sm bg-[#00FFFF]/20 border border-[#00FFFF]/30 rounded-lg text-[#00FFFF] hover:bg-[#00FFFF]/30 transition"
-                      >
-                        Change
-                      </button>
-                    )}
-                  </div>
-
-                  {showCountryEdit && canChangeCountry && (
-                    <div className="p-4 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg space-y-3">
-                      <div className="flex items-center gap-2 text-amber-400 text-sm">
-                        <AlertCircle className="w-4 h-4" />
-                        You can only change your country once
-                      </div>
-                      <select
-                        value={selectedCountry}
-                        onChange={(e) => setSelectedCountry(e.target.value)}
-                        className="w-full px-4 py-2 bg-[#0B0C10] border border-[#2A2B33] rounded-lg text-white"
-                      >
-                        <option value="">Select country</option>
-                        {COUNTRIES.map((c) => (
-                          <option key={c.code} value={c.name}>
-                            {c.flag} {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleChangeCountry}
-                          disabled={savingCountry || !selectedCountry}
-                          className="px-4 py-2 bg-[#00FFFF] text-[#0B0C10] font-medium rounded-lg hover:bg-[#00CCCC] transition disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {savingCountry ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-4 h-4" />
-                              Confirm
-                            </>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowCountryEdit(false)}
-                          className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {!canChangeCountry && (
-                    <p className="text-sm text-[#666666]">
-                      Country has already been changed and cannot be modified again.
-                    </p>
-                  )}
-                </div>
-
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="w-full py-3 bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] font-bold rounded-lg hover:shadow-xl hover:shadow-[#00FFFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className={`w-full py-3 font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    isPremium
+                      ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:shadow-xl hover:shadow-amber-500/50"
+                      : "bg-gradient-to-r from-[#00FFFF] to-[#00CCCC] text-[#0B0C10] hover:shadow-xl hover:shadow-[#00FFFF]/50"
+                  }`}
                 >
                   {isSaving ? (
                     <>
@@ -446,40 +431,26 @@ export default function ProfilePage() {
           )}
 
           {/* Settings Section */}
-          <div className="bg-[#0B0C10]/40 backdrop-blur-xl border border-[#00FFFF]/30 rounded-2xl p-8">
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Settings className="w-5 h-5 text-[#00FFFF]" />
+          <div
+            className={`backdrop-blur-xl rounded-2xl p-8 ${
+              isPremium
+                ? "bg-gradient-to-br from-amber-500/10 via-[#0B0C10]/40 to-amber-500/5 border border-amber-500/30"
+                : "bg-[#0B0C10]/40 border border-[#00FFFF]/30"
+            }`}
+          >
+            <h2
+              className={`text-xl font-bold mb-4 flex items-center gap-2 ${isPremium ? "text-amber-400" : "text-white"}`}
+            >
+              <Settings className={`w-5 h-5 ${isPremium ? "text-amber-400" : "text-[#00FFFF]"}`} />
               Account Settings
             </h2>
 
             <div className="space-y-4">
               <div className="p-4 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg">
-                <p className="text-white font-medium mb-1">Email Address</p>
-                <p className="text-sm text-[#888888]">{profile?.email}</p>
-                <p className="text-xs text-[#666666] mt-2">Email cannot be changed. Contact support for help.</p>
-              </div>
-
-              <div className="p-4 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg">
                 <p className="text-white font-medium mb-1">Account Type</p>
-                <p className="text-sm text-[#888888]">
-                  {profile?.role === "ADMIN"
-                    ? "Admin Account"
-                    : profile?.role === "PREMIUM"
-                      ? "Premium Account"
-                      : "User Account"}
+                <p className={`text-sm ${isPremium ? "text-amber-400" : "text-[#888888]"}`}>
+                  {profile?.role === "ADMIN" ? "Admin Account" : isPremium ? "Premium Account" : "Free Account"}
                 </p>
-              </div>
-
-              <div className="p-4 bg-[#1A1B23]/60 border border-[#2A2B33] rounded-lg">
-                <p className="text-white font-medium mb-1">Country</p>
-                {countryInfo ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{countryInfo.flag}</span>
-                    <span className="text-sm text-[#888888]">{countryInfo.name}</span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-[#888888]">Not set</p>
-                )}
               </div>
             </div>
           </div>

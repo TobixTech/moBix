@@ -98,6 +98,7 @@ interface SeriesDetailClientProps {
   midrollAdCodes: { name: string; code: string }[]
   midrollEnabled: boolean
   midrollIntervalMinutes: number
+  isPremiumUser?: boolean
 }
 
 const statusColors: Record<string, string> = {
@@ -117,6 +118,7 @@ export default function SeriesDetailClient({
   midrollAdCodes,
   midrollEnabled,
   midrollIntervalMinutes,
+  isPremiumUser = false,
 }: SeriesDetailClientProps) {
   const { isSignedIn } = useUser()
   const [inWatchlist, setInWatchlist] = useState(initialInWatchlist)

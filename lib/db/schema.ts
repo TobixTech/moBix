@@ -15,6 +15,8 @@ export const users = pgTable("User", {
   country: text("country"),
   ipAddress: text("ipAddress"),
   countryChangedAt: timestamp("countryChangedAt"),
+  isPremium: boolean("isPremium").default(false).notNull(),
+  premiumExpiresAt: timestamp("premiumExpiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")
     .defaultNow()
@@ -47,6 +49,7 @@ export const movies = pgTable("Movie", {
   downloadEnabled: boolean("downloadEnabled").default(false).notNull(),
   isTrending: boolean("isTrending").default(false).notNull(),
   isFeatured: boolean("isFeatured").default(false).notNull(),
+  isTop: boolean("isTop").default(false).notNull(),
   views: integer("views").default(0).notNull(),
   averageRating: decimal("averageRating", { precision: 2, scale: 1 }).default("0"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

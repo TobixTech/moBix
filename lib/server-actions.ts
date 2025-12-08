@@ -2182,7 +2182,13 @@ export async function markAllNotificationsAsRead() {
 }
 
 // Create notification (for admin use when uploading movies)
-export async function createNotificationForAllUsers(title: string, message: string, type: string, movieId?: string) {
+export async function createNotificationForAllUsers(
+  title: string,
+  message: string,
+  type: string,
+  movieId?: string,
+  seriesId?: string,
+) {
   try {
     const allUsers = await db.query.users.findMany()
 
@@ -2197,6 +2203,7 @@ export async function createNotificationForAllUsers(title: string, message: stri
         message,
         type,
         movieId: movieId || null,
+        seriesId: seriesId || null,
         isRead: false,
       })
     }
@@ -3007,5 +3014,127 @@ export async function updateSiteSettings(settings: Record<string, any>) {
   } catch (error) {
     console.error("Error updating site settings:", error)
     return { success: false, error: "Failed to update settings" }
+  }
+}
+
+export async function toggleMovieTop(movieId: string) {
+  try {
+    const movie = await db.query.movies.findFirst({
+      where: eq(movies.id, movieId),
+    })
+
+    if (!movie) {
+      return { success: false, error: "Movie not found" }
+    }
+
+    await db.update(movies).set({ isTop: !movie.isTop }).where(eq(movies.id, movieId))
+
+    return { success: true, isTop: !movie.isTop }
+  } catch (error) {
+    console.error("Error toggling movie top status:", error)
+    return { success: false, error: "Failed to update movie" }
+  }
+}
+
+export async function getTopMovies() {
+  try {
+    const topMovies = await db.query.movies.findMany({
+      where: eq(movies.isTop, true),
+      orderBy: [desc(movies.createdAt)],
+    })
+    return topMovies
+  } catch (error) {
+    console.error("Error fetching top movies:", error)
+    return []
+  }
+}
+
+export async function checkUserPremiumStatus(clerkId: string) {
+  try {
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+    })
+
+    if (!user) return { isPremium: false }
+
+    // Check if premium has expired
+    if (user.isPremium && user.premiumExpiresAt) {
+      if (new Date(user.premiumExpiresAt) < new Date()) {
+        // Premium expired, update status
+        await db.update(users).set({ isPremium: false }).where(eq(users.id, user.id))
+        return { isPremium: false }
+      }
+    }
+
+    return { isPremium: user.isPremium }
+  } catch (error) {
+    console.error("Error checking premium status:", error)
+    return { isPremium: false }
+  }
+}
+
+// createNotificationForAllUsers function is duplicated. The first one seems to be the intended one.
+// The second one below is removed to resolve the 'noRedeclare' lint error.
+/*
+export async function createNotificationForAllUsers(
+  title: string,
+  message: string,
+  type: string,
+  movieId?: string,
+  seriesId?: string
+) {
+  try {
+    const allUsers = await db.query.users.findMany()
+
+    if (allUsers.length === 0) {
+      return { success: true, count: 0 }
+    }
+
+    for (const user of allUsers) {
+      await db.insert(notifications).values({
+        userId: user.id,
+        title,
+        message,
+        type,
+        movieId: movieId || null,
+        seriesId: seriesId || null,
+        isRead: false,
+      })
+    }
+
+    return { success: true, count: allUsers.length }
+  } catch (error) {
+    console.error("Error creating notifications:", error)
+    return { success: false, error: "Unable to send notifications." }
+  }
+}
+*/
+
+export async function toggleUserPremium(userId: string, durationDays?: number) {
+  try {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    })
+
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    const newPremiumStatus = !user.isPremium
+    const premiumExpiresAt =
+      newPremiumStatus && durationDays ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000) : null
+
+    await db
+      .update(users)
+      .set({
+        isPremium: newPremiumStatus,
+        premiumExpiresAt,
+      })
+      .where(eq(users.id, userId))
+
+    return { success: true, isPremium: newPremiumStatus }
+  } catch (error) {
+    console.error("Error toggling premium status:", error)
+    return { success: false, error: "Failed to update user" }
   }
 }
