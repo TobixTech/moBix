@@ -77,6 +77,8 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
     }
   }
 
+  const showPrerollAds = isPremiumUser ? false : (adSettings?.showPrerollAds ?? true) && prerollAdCodes.length > 0
+
   return (
     <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar />
@@ -90,6 +92,7 @@ export default async function SeriesDetailPage({ params }: { params: Promise<{ i
         midrollEnabled={isPremiumUser ? false : (adSettings?.midrollEnabled ?? false)}
         midrollIntervalMinutes={adSettings?.midrollIntervalMinutes ?? 20}
         isPremiumUser={isPremiumUser}
+        showPrerollAds={showPrerollAds}
         adBannerHorizontal={isPremiumUser ? null : <AdBanner type="horizontal" placement="movie-detail" />}
         adBannerVertical={isPremiumUser ? null : <AdBanner type="vertical" placement="movie-detail" />}
       />
