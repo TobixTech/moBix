@@ -91,10 +91,14 @@ interface Series {
   likesCount: number
 }
 
+interface SeriesWithSeasons extends Series {
+  // Additional fields if needed
+}
+
 interface SeriesDetailClientProps {
-  series: Series
-  adBannerHorizontal: React.ReactNode
-  adBannerVertical: React.ReactNode
+  series: SeriesWithSeasons
+  adBannerHorizontal?: React.ReactNode
+  adBannerVertical?: React.ReactNode
   initialInWatchlist: boolean
   initialIsLiked: boolean
   prerollAdCodes: { name: string; code: string }[]
@@ -102,6 +106,9 @@ interface SeriesDetailClientProps {
   midrollEnabled: boolean
   midrollIntervalMinutes: number
   isPremiumUser?: boolean
+  showPrerollAds?: boolean
+  skipDelay?: number
+  adTimeout?: number
 }
 
 const statusColors: Record<string, string> = {
@@ -122,6 +129,9 @@ export default function SeriesDetailClient({
   midrollEnabled,
   midrollIntervalMinutes,
   isPremiumUser = false,
+  showPrerollAds = true,
+  skipDelay = 5,
+  adTimeout = 30,
 }: SeriesDetailClientProps) {
   const { isSignedIn } = useUser()
   const siteSettings = useSiteSettings()
@@ -294,7 +304,9 @@ export default function SeriesDetailClient({
                     episodeTitle={`S${selectedSeason?.seasonNumber} E${currentEpisode.episodeNumber}: ${currentEpisode.title}`}
                     isPremium={isPremiumUser}
                     prerollAdCodes={prerollAdCodes}
-                    showPrerollAds={!isPremiumUser && prerollAdCodes.length > 0}
+                    showPrerollAds={showPrerollAds}
+                    skipDelay={skipDelay}
+                    adTimeout={adTimeout}
                   />
 
                   <div className="bg-[#1A1B23]/80 backdrop-blur-sm rounded-xl p-4 border border-[#2A2B33]">

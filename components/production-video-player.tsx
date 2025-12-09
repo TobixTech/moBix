@@ -66,6 +66,54 @@ export function ProductionVideoPlayer({
 
   const shouldShowAds = !isPremium && showPrerollAds && prerollAdCodes.length > 0
 
+  const executeAdScripts = useCallback((container: HTMLDivElement, adCode: string) => {
+    if (!container || !adCode) return
+
+    // Clear previous content
+    container.innerHTML = ""
+
+    // Create a wrapper div
+    const wrapper = document.createElement("div")
+    wrapper.className = "w-full h-full flex items-center justify-center"
+
+    // Parse the ad code
+    const tempDiv = document.createElement("div")
+    tempDiv.innerHTML = adCode
+
+    // Extract and execute scripts separately
+    const scripts = tempDiv.querySelectorAll("script")
+    const nonScriptContent = adCode.replace(/<script[\s\S]*?<\/script>/gi, "")
+
+    // Add non-script content first
+    wrapper.innerHTML = nonScriptContent
+    container.appendChild(wrapper)
+
+    // Execute scripts
+    scripts.forEach((oldScript) => {
+      const newScript = document.createElement("script")
+
+      // Copy attributes
+      Array.from(oldScript.attributes).forEach((attr) => {
+        newScript.setAttribute(attr.name, attr.value)
+      })
+
+      // Copy content or set src
+      if (oldScript.src) {
+        newScript.src = oldScript.src
+      } else {
+        newScript.textContent = oldScript.textContent
+      }
+
+      container.appendChild(newScript)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (showPreroll && shouldShowAds && adContainerRef.current && prerollAdCodes[currentAdIndex]) {
+      executeAdScripts(adContainerRef.current, prerollAdCodes[currentAdIndex].code)
+    }
+  }, [showPreroll, shouldShowAds, currentAdIndex, prerollAdCodes, executeAdScripts])
+
   const isYouTubeUrl = (url: string): boolean => {
     const lowerUrl = url.toLowerCase()
     return (
@@ -131,7 +179,6 @@ export function ProductionVideoPlayer({
   const getEmbedUrl = (url: string): string => {
     const lowerUrl = url.toLowerCase()
 
-    // YouTube - use strict-origin-when-cross-origin compatible embed
     if (lowerUrl.includes("youtube.com/watch")) {
       try {
         const videoId = new URL(url).searchParams.get("v")
@@ -151,31 +198,26 @@ export function ProductionVideoPlayer({
       return url
     }
 
-    // Vimeo
     if (lowerUrl.includes("vimeo.com") && !lowerUrl.includes("player.vimeo.com")) {
       const videoId = url.split("vimeo.com/")[1]?.split("?")[0]
       return `https://player.vimeo.com/video/${videoId}?autoplay=1`
     }
 
-    // Streamtape
     if (lowerUrl.includes("streamtape") || lowerUrl.includes("strtape") || lowerUrl.includes("strcloud")) {
       if (lowerUrl.includes("/v/")) return url.replace("/v/", "/e/")
       return url
     }
 
-    // Doodstream
     if (lowerUrl.includes("dood")) {
       if (url.includes("/d/")) return url.replace("/d/", "/e/")
       return url
     }
 
-    // Mixdrop
     if (lowerUrl.includes("mixdrop")) {
       if (url.includes("/f/")) return url.replace("/f/", "/e/")
       return url
     }
 
-    // Voe
     if (lowerUrl.includes("voe.sx") || lowerUrl.includes("voeunblock")) {
       if (!lowerUrl.includes("/e/")) {
         const parts = url.split("/")
@@ -192,17 +234,15 @@ export function ProductionVideoPlayer({
     if (showMobixIntro) {
       const timer = setTimeout(() => {
         setShowMobixIntro(false)
-        // After intro, check if we should show preroll (only for non-premium)
         if (shouldShowAds) {
           setShowPreroll(true)
           setPrerollCountdown(skipDelay)
           setCanSkipPreroll(false)
         } else {
-          // Premium users or no ads - go straight to video
           setShowPlayOverlay(false)
           setIsPlaying(true)
         }
-      }, 2000) // 2 second intro
+      }, 2000)
       return () => clearTimeout(timer)
     }
   }, [showMobixIntro, shouldShowAds, skipDelay])
@@ -219,11 +259,13 @@ export function ProductionVideoPlayer({
   }, [showPreroll, prerollCountdown])
 
   const handlePlayClick = useCallback(() => {
-    // Always show moBix intro first
     setShowMobixIntro(true)
   }, [])
 
   const handleSkipPreroll = useCallback(() => {
+    if (adContainerRef.current) {
+      adContainerRef.current.innerHTML = ""
+    }
     setShowPreroll(false)
     setShowPlayOverlay(false)
     setIsPlaying(true)
@@ -318,12 +360,8 @@ export function ProductionVideoPlayer({
         {/* Preroll Ad Overlay - only for non-premium users */}
         {showPreroll && shouldShowAds && !showMobixIntro && (
           <div className="absolute inset-0 z-50 bg-black flex flex-col">
-            <div className="flex-1 relative">
-              <div
-                ref={adContainerRef}
-                className="absolute inset-0 flex items-center justify-center"
-                dangerouslySetInnerHTML={{ __html: prerollAdCodes[currentAdIndex]?.code || "" }}
-              />
+            <div className="flex-1 relative overflow-hidden">
+              <div ref={adContainerRef} className="absolute inset-0 flex items-center justify-center" />
             </div>
             <div className="absolute bottom-4 right-4 z-10">
               {canSkipPreroll ? (
@@ -340,6 +378,11 @@ export function ProductionVideoPlayer({
             <div className="absolute top-4 left-4 bg-yellow-500/90 text-black text-xs font-bold px-2 py-1 rounded">
               AD
             </div>
+            {prerollAdCodes[currentAdIndex]?.name && (
+              <div className="absolute top-4 right-4 bg-black/60 text-white/60 text-xs px-2 py-1 rounded">
+                {prerollAdCodes[currentAdIndex].name}
+              </div>
+            )}
           </div>
         )}
 
@@ -363,7 +406,7 @@ export function ProductionVideoPlayer({
           </div>
         )}
 
-        {/* Loading State - using MobixVideoLoader */}
+        {/* Loading State */}
         {isPlaying && !iframeLoaded && !hasError && !showPreroll && !showMobixIntro && (
           <div className="absolute inset-0 z-30">
             <MobixVideoLoader />
@@ -389,7 +432,6 @@ export function ProductionVideoPlayer({
         {/* Video Player */}
         {isPlaying && !showPlayOverlay && !showPreroll && !showMobixIntro && !hasError && (
           <>
-            {/* Controls */}
             <div className={`absolute top-3 right-3 flex items-center gap-2 ${isRotated ? "z-[100000]" : "z-50"}`}>
               <button
                 onClick={toggleRotation}

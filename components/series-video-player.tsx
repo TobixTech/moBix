@@ -14,6 +14,8 @@ interface SeriesVideoPlayerProps {
   isPremium?: boolean
   prerollAdCodes?: { name: string; code: string }[]
   showPrerollAds?: boolean
+  skipDelay?: number
+  adTimeout?: number
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -80,7 +82,6 @@ function getEmbedUrl(url: string): string {
   if (!url) return ""
   const lowerUrl = url.toLowerCase()
 
-  // YouTube - Fixed YouTube embed URL generation
   if (lowerUrl.includes("youtube.com/watch")) {
     try {
       const videoId = new URL(url).searchParams.get("v")
@@ -100,19 +101,16 @@ function getEmbedUrl(url: string): string {
     return url
   }
 
-  // Vimeo
   if (lowerUrl.includes("vimeo.com/") && !lowerUrl.includes("player.vimeo.com")) {
     const videoId = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0]
     if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`
   }
 
-  // Dailymotion
   if (lowerUrl.includes("dailymotion.com/video/")) {
     const videoId = url.split("/video/")[1]?.split("?")[0]?.split("_")[0]
     return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`
   }
 
-  // Streamtape
   const streamtapeDomains = [
     "streamtape.com",
     "streamtape.to",
@@ -127,20 +125,17 @@ function getEmbedUrl(url: string): string {
     return url
   }
 
-  // Doodstream
   const doodDomains = ["doodstream", "dood.watch", "dood.to", "dood.so", "dood.pm", "dood.wf", "dood.re", "dood.cx"]
   if (doodDomains.some((d) => lowerUrl.includes(d))) {
     if (url.includes("/d/")) return url.replace("/d/", "/e/")
     return url
   }
 
-  // Mixdrop
   if (lowerUrl.includes("mixdrop")) {
     if (url.includes("/f/")) return url.replace("/f/", "/e/")
     return url
   }
 
-  // Google Drive
   if (lowerUrl.includes("drive.google.com/file/d/")) {
     const fileId = url.split("/file/d/")[1]?.split("/")[0]
     return `https://drive.google.com/file/d/${fileId}/preview`
@@ -158,6 +153,8 @@ export default function SeriesVideoPlayer({
   isPremium = false,
   prerollAdCodes = [],
   showPrerollAds = true,
+  skipDelay = 5,
+  adTimeout = 30,
 }: SeriesVideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -168,10 +165,11 @@ export default function SeriesVideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const adContainerRef = useRef<HTMLDivElement>(null)
 
   const [showMobixIntro, setShowMobixIntro] = useState(false)
   const [showPreroll, setShowPreroll] = useState(false)
-  const [prerollCountdown, setPrerollCountdown] = useState(5)
+  const [prerollCountdown, setPrerollCountdown] = useState(skipDelay)
   const [canSkipPreroll, setCanSkipPreroll] = useState(false)
   const [currentAdIndex, setCurrentAdIndex] = useState(0)
 
@@ -181,26 +179,64 @@ export default function SeriesVideoPlayer({
 
   const shouldShowAds = !isPremium && showPrerollAds && prerollAdCodes.length > 0
 
+  const executeAdScripts = useCallback((container: HTMLDivElement, adCode: string) => {
+    if (!container || !adCode) return
+
+    container.innerHTML = ""
+
+    const wrapper = document.createElement("div")
+    wrapper.className = "w-full h-full flex items-center justify-center"
+
+    const tempDiv = document.createElement("div")
+    tempDiv.innerHTML = adCode
+
+    const scripts = tempDiv.querySelectorAll("script")
+    const nonScriptContent = adCode.replace(/<script[\s\S]*?<\/script>/gi, "")
+
+    wrapper.innerHTML = nonScriptContent
+    container.appendChild(wrapper)
+
+    scripts.forEach((oldScript) => {
+      const newScript = document.createElement("script")
+
+      Array.from(oldScript.attributes).forEach((attr) => {
+        newScript.setAttribute(attr.name, attr.value)
+      })
+
+      if (oldScript.src) {
+        newScript.src = oldScript.src
+      } else {
+        newScript.textContent = oldScript.textContent
+      }
+
+      container.appendChild(newScript)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (showPreroll && shouldShowAds && adContainerRef.current && prerollAdCodes[currentAdIndex]) {
+      executeAdScripts(adContainerRef.current, prerollAdCodes[currentAdIndex].code)
+    }
+  }, [showPreroll, shouldShowAds, currentAdIndex, prerollAdCodes, executeAdScripts])
+
   useEffect(() => {
     if (showMobixIntro) {
       const timer = setTimeout(() => {
         setShowMobixIntro(false)
-        // After intro, check if we should show preroll (only for non-premium users)
         if (shouldShowAds) {
           setShowPreroll(true)
-          setPrerollCountdown(5)
+          setPrerollCountdown(skipDelay)
           setCanSkipPreroll(false)
         } else {
-          // Premium users or no ads - go straight to video
           setIsLoading(true)
           setIsPlaying(true)
           setHasError(false)
           setErrorMessage("")
         }
-      }, 2000) // 2 second intro
+      }, 2000)
       return () => clearTimeout(timer)
     }
-  }, [showMobixIntro, shouldShowAds])
+  }, [showMobixIntro, shouldShowAds, skipDelay])
 
   useEffect(() => {
     if (showPreroll && prerollCountdown > 0) {
@@ -220,11 +256,13 @@ export default function SeriesVideoPlayer({
       onError?.()
       return
     }
-    // Always show moBix intro first
     setShowMobixIntro(true)
   }, [videoUrl, onError])
 
   const handleSkipPreroll = useCallback(() => {
+    if (adContainerRef.current) {
+      adContainerRef.current.innerHTML = ""
+    }
     setShowPreroll(false)
     setIsLoading(true)
     setIsPlaying(true)
@@ -337,11 +375,8 @@ export default function SeriesVideoPlayer({
         {/* Preroll Ad Overlay - only for non-premium users */}
         {showPreroll && shouldShowAds && !showMobixIntro && (
           <div className="absolute inset-0 z-[100] bg-black flex flex-col">
-            <div className="flex-1 relative">
-              <div
-                className="absolute inset-0 flex items-center justify-center"
-                dangerouslySetInnerHTML={{ __html: prerollAdCodes[currentAdIndex]?.code || "" }}
-              />
+            <div className="flex-1 relative overflow-hidden">
+              <div ref={adContainerRef} className="absolute inset-0 flex items-center justify-center" />
             </div>
             <div className="absolute bottom-4 right-4 z-10">
               {canSkipPreroll ? (
@@ -358,6 +393,11 @@ export default function SeriesVideoPlayer({
             <div className="absolute top-4 left-4 bg-yellow-500/90 text-black text-xs font-bold px-2 py-1 rounded">
               AD
             </div>
+            {prerollAdCodes[currentAdIndex]?.name && (
+              <div className="absolute top-4 right-4 bg-black/60 text-white/60 text-xs px-2 py-1 rounded">
+                {prerollAdCodes[currentAdIndex].name}
+              </div>
+            )}
           </div>
         )}
 
@@ -402,7 +442,7 @@ export default function SeriesVideoPlayer({
           </div>
         )}
 
-        {/* Loading State - using MobixVideoLoader */}
+        {/* Loading State */}
         {isLoading && !hasError && !showPreroll && !showMobixIntro && (
           <div className="absolute inset-0 z-30">
             <MobixVideoLoader />
