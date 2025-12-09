@@ -148,200 +148,235 @@ function DashboardContent() {
                     clerkUser.firstName ||
                     clerkUser.emailAddresses?.[0]?.emailAddress?.split("@")[0]}
                 </h1>
-                <p className="text-white/60 mb-4">{clerkUser.emailAddresses?.[0]?.emailAddress}</p>
+                <p className="text-white/60 text-sm mb-3">{clerkUser.emailAddresses?.[0]?.emailAddress}</p>
 
-                {userData?.user?.bio && <p className="text-white/70 text-sm mb-4 max-w-md">{userData.user.bio}</p>}
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => setShowProfileModal(true)}
-                    className="flex-1 px-4 py-3 bg-[#2A2B33] text-white rounded-lg hover:bg-[#3A3B43] transition"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    Edit Profile
-                  </button>
-
-                  {!isPremium && (
-                    <Link
-                      href="/premium"
-                      className="flex-1 px-4 py-3 bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0B0C10] font-bold rounded-lg hover:shadow-lg hover:shadow-[#FFD700]/30 transition"
-                    >
-                      <Crown className="w-4 h-4" />
-                      Upgrade to Premium
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-              <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
-                <Bookmark className="w-6 h-6 text-[#00FFFF] mx-auto mb-2" />
-                <p className="text-2xl font-bold text-white">{stats.watchlistCount}</p>
-                <p className="text-white/50 text-sm">Watchlist</p>
-              </div>
-              <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
-                <Eye className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-white">{stats.historyCount}</p>
-                <p className="text-white/50 text-sm">Watched</p>
-              </div>
-              <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
-                <Heart className="w-6 h-6 text-red-400 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-white">{stats.favoritesCount}</p>
-                <p className="text-white/50 text-sm">Favorites</p>
-              </div>
-              <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
-                <Clock className="w-6 h-6 text-amber-400 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-white">{Math.round(stats.totalWatchTime / 60)}h</p>
-                <p className="text-white/50 text-sm">Watch Time</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Creator Card Section */}
-          {!creatorLoading && creatorStatus && (
-            <div className="bg-gradient-to-br from-purple-500/10 to-[#1A1B23] border border-purple-500/20 rounded-2xl p-6 mb-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500/30 to-[#00FFFF]/30 flex items-center justify-center">
-                    <Video className="w-7 h-7 text-purple-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      Creator Studio
-                      {creatorStatus.isCreator && creatorStatus.status === "approved" && (
-                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Active</span>
-                      )}
-                      {creatorStatus.status === "pending" && (
-                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">Pending</span>
-                      )}
-                    </h3>
-                    <p className="text-white/60 text-sm">
-                      {creatorStatus.isCreator && creatorStatus.status === "approved"
-                        ? "Upload and manage your content"
-                        : creatorStatus.status === "pending"
-                          ? "Your request is being reviewed"
-                          : creatorStatus.status === "rejected"
-                            ? "Your request was not approved"
-                            : creatorStatus.isEligible
-                              ? "Share your movies and series with the community"
-                              : `Account must be ${creatorStatus.minAgeDays}+ days old`}
-                    </p>
-                  </div>
-                </div>
-
-                {creatorStatus.isCreator && creatorStatus.status === "approved" ? (
-                  <Link
-                    href="/creator"
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-[#00FFFF] text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    Open Creator Studio
-                  </Link>
-                ) : creatorStatus.status === "pending" ? (
-                  <div className="flex items-center gap-2 px-6 py-3 bg-amber-500/20 text-amber-400 rounded-lg">
-                    <Clock className="w-5 h-5" />
-                    Request Pending
+                {isPremium ? (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FFD700]/20 to-[#FFA500]/20 border border-[#FFD700]/30 rounded-xl">
+                    <Crown className="w-5 h-5 text-[#FFD700]" />
+                    <span className="text-[#FFD700] font-semibold">Premium Member</span>
                   </div>
                 ) : (
                   <Link
-                    href="/creator"
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-500/20 border border-purple-500/30 text-purple-400 font-bold rounded-lg hover:bg-purple-500/30 transition"
+                    href="/premium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0B0C10] font-bold rounded-xl hover:shadow-lg hover:shadow-[#FFD700]/30 transition group"
                   >
-                    <Video className="w-5 h-5" />
-                    {creatorStatus.isEligible ? "Become a Creator" : "Learn More"}
+                    <Crown className="w-5 h-5 group-hover:scale-110 transition" />
+                    <span>Upgrade to Premium</span>
+                    <ChevronRight className="w-4 h-4" />
                   </Link>
                 )}
+
+                {/* Bio */}
+                {userData?.user?.bio && <p className="text-white/70 mt-3 text-sm">{userData.user.bio}</p>}
               </div>
 
-              {/* Progress bar for ineligible users */}
-              {!creatorStatus.isCreator &&
-                creatorStatus.status !== "pending" &&
-                creatorStatus.accountAgeDays < creatorStatus.minAgeDays && (
-                  <div className="mt-4 pt-4 border-t border-purple-500/20">
-                    <div className="flex justify-between text-sm text-white/60 mb-2">
-                      <span>Account Age: {creatorStatus.accountAgeDays} days</span>
-                      <span>Required: {creatorStatus.minAgeDays} days</span>
-                    </div>
-                    <div className="h-2 bg-[#0B0C10] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-500 to-[#00FFFF] transition-all"
-                        style={{
-                          width: `${Math.min(100, (creatorStatus.accountAgeDays / creatorStatus.minAgeDays) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="p-3 bg-[#1A1B23] border border-[#2A2B33] rounded-xl text-white/70 hover:text-white hover:border-[#00FFFF] transition"
+                >
+                  <Edit2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="p-3 bg-[#1A1B23] border border-[#2A2B33] rounded-xl text-white/70 hover:text-red-500 hover:border-red-500 transition"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-          )}
-
-          {/* Quick Links */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <Link
-              href="/watchlist"
-              className="flex items-center justify-between p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-xl hover:border-[#00FFFF]/30 transition group"
-            >
-              <div className="flex items-center gap-3">
-                <Bookmark className="w-5 h-5 text-[#00FFFF]" />
-                <span className="text-white font-medium">My Watchlist</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-[#00FFFF] transition" />
-            </Link>
-
-            <Link
-              href="/history"
-              className="flex items-center justify-between p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-xl hover:border-[#00FFFF]/30 transition group"
-            >
-              <div className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-purple-400" />
-                <span className="text-white font-medium">Watch History</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-[#00FFFF] transition" />
-            </Link>
           </div>
 
-          {/* Recent Activity */}
-          {userData?.recentHistory && userData.recentHistory.length > 0 && (
-            <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-2xl p-6 mb-6">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Eye className="w-5 h-5 text-[#00FFFF]" />
-                Continue Watching
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {userData.recentHistory.slice(0, 4).map((item: any) => (
-                  <Link
-                    key={item.id}
-                    href={item.type === "movie" ? `/movie/${item.contentId}` : `/series/${item.contentId}`}
-                    className="group"
-                  >
-                    <div className="aspect-[2/3] rounded-lg overflow-hidden mb-2 relative">
-                      <img
-                        src={item.posterUrl || "/placeholder.svg?height=300&width=200&query=movie poster"}
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-3">
-                        <span className="text-white text-sm font-medium">Continue</span>
-                      </div>
-                    </div>
-                    <p className="text-white text-sm font-medium truncate">{item.title}</p>
-                  </Link>
-                ))}
+          {!isPremium && (
+            <div className="bg-gradient-to-r from-[#FFD700]/10 via-[#FFA500]/10 to-[#FFD700]/10 border border-[#FFD700]/20 rounded-2xl p-4 md:p-6 mb-6">
+              <div className="flex flex-col md:flex-row items-center gap-4">
+                <div className="p-3 bg-[#FFD700]/20 rounded-xl">
+                  <Crown className="w-8 h-8 text-[#FFD700]" />
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                  <h3 className="text-lg font-bold text-white mb-1">Upgrade to Premium</h3>
+                  <p className="text-white/60 text-sm">
+                    Enjoy ad-free viewing, unlimited downloads, early access to content, and more exclusive features.
+                  </p>
+                </div>
+                <Link
+                  href="/premium"
+                  className="px-6 py-3 bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0B0C10] font-bold rounded-xl hover:shadow-lg hover:shadow-[#FFD700]/30 transition whitespace-nowrap"
+                >
+                  Go Premium
+                </Link>
               </div>
             </div>
           )}
 
-          {/* Sign Out */}
-          <button
-            onClick={handleSignOut}
-            className="w-full flex items-center justify-center gap-2 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition mb-8"
-          >
-            <LogOut className="w-5 h-5" />
-            Sign Out
-          </button>
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+            <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
+              <Bookmark className="w-6 h-6 text-[#00FFFF] mx-auto mb-2" />
+              <p className="text-2xl font-bold text-white">{stats.watchlistCount}</p>
+              <p className="text-white/50 text-sm">Watchlist</p>
+            </div>
+            <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
+              <Eye className="w-6 h-6 text-purple-400 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-white">{stats.historyCount}</p>
+              <p className="text-white/50 text-sm">Watched</p>
+            </div>
+            <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
+              <Heart className="w-6 h-6 text-red-400 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-white">{stats.favoritesCount}</p>
+              <p className="text-white/50 text-sm">Favorites</p>
+            </div>
+            <div className="bg-[#0B0C10]/50 rounded-xl p-4 text-center">
+              <Clock className="w-6 h-6 text-amber-400 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-white">{Math.round(stats.totalWatchTime / 60)}h</p>
+              <p className="text-white/50 text-sm">Watch Time</p>
+            </div>
+          </div>
         </div>
+
+        {/* Creator Card Section */}
+        {!creatorLoading && creatorStatus && (
+          <div className="bg-gradient-to-br from-purple-500/10 to-[#1A1B23] border border-purple-500/20 rounded-2xl p-6 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500/30 to-[#00FFFF]/30 flex items-center justify-center">
+                  <Video className="w-7 h-7 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Creator Studio
+                    {creatorStatus.isCreator && creatorStatus.status === "approved" && (
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Active</span>
+                    )}
+                    {creatorStatus.status === "pending" && (
+                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full">Pending</span>
+                    )}
+                  </h3>
+                  <p className="text-white/60 text-sm">
+                    {creatorStatus.isCreator && creatorStatus.status === "approved"
+                      ? "Upload and manage your content"
+                      : creatorStatus.status === "pending"
+                        ? "Your request is being reviewed"
+                        : creatorStatus.status === "rejected"
+                          ? "Your request was not approved"
+                          : creatorStatus.isEligible
+                            ? "Share your movies and series with the community"
+                            : `Account must be ${creatorStatus.minAgeDays}+ days old`}
+                  </p>
+                </div>
+              </div>
+
+              {creatorStatus.isCreator && creatorStatus.status === "approved" ? (
+                <Link
+                  href="/creator"
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-[#00FFFF] text-white font-bold rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition group"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Open Creator Studio
+                </Link>
+              ) : creatorStatus.status === "pending" ? (
+                <div className="flex items-center gap-2 px-6 py-3 bg-amber-500/20 text-amber-400 rounded-lg">
+                  <Clock className="w-5 h-5" />
+                  Request Pending
+                </div>
+              ) : (
+                <Link
+                  href="/creator"
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-500/20 border border-purple-500/30 text-purple-400 font-bold rounded-lg hover:bg-purple-500/30 transition"
+                >
+                  <Video className="w-5 h-5" />
+                  {creatorStatus.isEligible ? "Become a Creator" : "Learn More"}
+                </Link>
+              )}
+            </div>
+
+            {/* Progress bar for ineligible users */}
+            {!creatorStatus.isCreator &&
+              creatorStatus.status !== "pending" &&
+              creatorStatus.accountAgeDays < creatorStatus.minAgeDays && (
+                <div className="mt-4 pt-4 border-t border-purple-500/20">
+                  <div className="flex justify-between text-sm text-white/60 mb-2">
+                    <span>Account Age: {creatorStatus.accountAgeDays} days</span>
+                    <span>Required: {creatorStatus.minAgeDays} days</span>
+                  </div>
+                  <div className="h-2 bg-[#0B0C10] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-[#00FFFF] transition-all"
+                      style={{
+                        width: `${Math.min(100, (creatorStatus.accountAgeDays / creatorStatus.minAgeDays) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* Quick Links */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <Link
+            href="/watchlist"
+            className="flex items-center justify-between p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-xl hover:border-[#00FFFF]/30 transition group"
+          >
+            <div className="flex items-center gap-3">
+              <Bookmark className="w-5 h-5 text-[#00FFFF]" />
+              <span className="text-white font-medium">My Watchlist</span>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-[#00FFFF] transition" />
+          </Link>
+
+          <Link
+            href="/history"
+            className="flex items-center justify-between p-4 bg-[#1A1B23] border border-[#2A2B33] rounded-xl hover:border-[#00FFFF]/30 transition group"
+          >
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-purple-400" />
+              <span className="text-white font-medium">Watch History</span>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-[#00FFFF] transition" />
+          </Link>
+        </div>
+
+        {/* Recent Activity */}
+        {userData?.recentHistory && userData.recentHistory.length > 0 && (
+          <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-2xl p-6 mb-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Eye className="w-5 h-5 text-[#00FFFF]" />
+              Continue Watching
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {userData.recentHistory.slice(0, 4).map((item: any) => (
+                <Link
+                  key={item.id}
+                  href={item.type === "movie" ? `/movie/${item.contentId}` : `/series/${item.contentId}`}
+                  className="group"
+                >
+                  <div className="aspect-[2/3] rounded-lg overflow-hidden mb-2 relative">
+                    <img
+                      src={item.posterUrl || "/placeholder.svg?height=300&width=200&query=movie poster"}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-3">
+                      <span className="text-white text-sm font-medium">Continue</span>
+                    </div>
+                  </div>
+                  <p className="text-white text-sm font-medium truncate">{item.title}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sign Out */}
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center justify-center gap-2 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition mb-8"
+        >
+          <LogOut className="w-5 h-5" />
+          Sign Out
+        </button>
       </div>
 
       {/* Edit Profile Modal */}

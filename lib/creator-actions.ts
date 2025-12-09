@@ -22,6 +22,26 @@ import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 import { generateSlug } from "@/lib/server-actions"
 
+async function getCreatorSettingsWithDefaults() {
+  const [settings] = await db.select().from(creatorSettings).limit(1)
+
+  // Return default values if no settings exist
+  if (!settings) {
+    return {
+      id: "default",
+      minAccountAgeDays: 30,
+      maxAccountAgeDays: 90,
+      defaultDailyUploadLimit: 4,
+      defaultDailyStorageLimitGb: "8",
+      autoApproveNewCreators: false,
+      maxStrikesBeforeSuspension: 3,
+      isCreatorSystemEnabled: true, // Default to enabled
+    }
+  }
+
+  return settings
+}
+
 // Get current user's creator status
 export async function getCreatorStatus() {
   try {
@@ -34,6 +54,9 @@ export async function getCreatorStatus() {
     if (!user) {
       return { success: false, error: "User not found" }
     }
+
+    const settings = await getCreatorSettingsWithDefaults()
+    const isCreatorSystemEnabled = settings.isCreatorSystemEnabled !== false
 
     // Check if user has a creator profile (approved)
     const [profile] = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, user.id)).limit(1)
@@ -59,6 +82,7 @@ export async function getCreatorStatus() {
         success: true,
         isCreator: true,
         status: "approved",
+        isCreatorSystemEnabled, // Now included for approved creators
         profile: {
           ...profile,
           uploadsToday: dailyTrack?.uploadsToday || 0,
@@ -77,10 +101,8 @@ export async function getCreatorStatus() {
       .orderBy(desc(creatorRequests.requestedAt))
       .limit(1)
 
-    // Get creator settings for eligibility
-    const [settings] = await db.select().from(creatorSettings).limit(1)
-    const minAgeDays = settings?.minAccountAgeDays || 30
-    const maxAgeDays = settings?.maxAccountAgeDays || 90
+    const minAgeDays = settings.minAccountAgeDays || 30
+    const maxAgeDays = settings.maxAccountAgeDays || 90
 
     const accountAgeDays = Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
     const isEligible = accountAgeDays >= minAgeDays && accountAgeDays <= maxAgeDays
@@ -95,7 +117,7 @@ export async function getCreatorStatus() {
       minAgeDays,
       maxAgeDays,
       isEligible,
-      isCreatorSystemEnabled: settings?.isCreatorSystemEnabled !== false,
+      isCreatorSystemEnabled,
     }
   } catch (error) {
     console.error("Error getting creator status:", error)
@@ -139,9 +161,9 @@ export async function requestCreatorAccess() {
     }
 
     // Check eligibility
-    const [settings] = await db.select().from(creatorSettings).limit(1)
-    const minAgeDays = settings?.minAccountAgeDays || 30
-    const maxAgeDays = settings?.maxAccountAgeDays || 90
+    const settings = await getCreatorSettingsWithDefaults()
+    const minAgeDays = settings.minAccountAgeDays || 30
+    const maxAgeDays = settings.maxAccountAgeDays || 90
     const accountAgeDays = Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
 
     if (accountAgeDays < minAgeDays) {
