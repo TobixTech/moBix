@@ -23,6 +23,27 @@ export function useSiteSettings() {
   return useContext(SiteSettingsContext)
 }
 
+const MAINTENANCE_EXEMPT_ROUTES = [
+  "/admin", // All admin routes (dashboard, login, signup, etc.)
+  "/admin/access-key",
+  "/admin/dashboard",
+  "/admin/login",
+  "/admin/signup",
+  "/admin/point",
+  "/admin/seed",
+  "/admin/ads",
+  "/maintenance", // The maintenance page itself
+  "/api", // All API routes
+]
+
+function isExemptFromMaintenance(pathname: string | null): boolean {
+  if (!pathname) return false
+
+  return MAINTENANCE_EXEMPT_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`) || pathname.startsWith(route),
+  )
+}
+
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SiteSettings>(defaultSettings)
   const [loaded, setLoaded] = useState(false)
@@ -37,12 +58,11 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
         if (data.success && data.settings) {
           setSettings(data.settings)
 
-          // Check maintenance mode - redirect non-admin users
+          // Check maintenance mode - redirect non-exempt routes
           if (data.settings.maintenanceMode) {
-            const isAdminRoute = pathname?.startsWith("/admin")
-            const isMaintenancePage = pathname === "/maintenance"
+            const isExempt = isExemptFromMaintenance(pathname)
 
-            if (!isAdminRoute && !isMaintenancePage) {
+            if (!isExempt) {
               router.push("/maintenance")
             }
           }
@@ -61,8 +81,8 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval)
   }, [pathname, router])
 
-  // If maintenance mode and not on maintenance page or admin, show nothing while redirecting
-  if (loaded && settings.maintenanceMode && !pathname?.startsWith("/admin") && pathname !== "/maintenance") {
+  // If maintenance mode and not exempt, show nothing while redirecting
+  if (loaded && settings.maintenanceMode && !isExemptFromMaintenance(pathname)) {
     return null
   }
 
