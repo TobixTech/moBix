@@ -15,6 +15,7 @@ import {
   X,
   FileVideo,
   ImagePlusIcon as ImageLucide,
+  LinkIcon,
 } from "lucide-react"
 import { submitContent } from "@/lib/creator-actions"
 import { toast } from "sonner"
@@ -40,12 +41,15 @@ interface Episode {
   videoUrl: string
   thumbnailUrl: string
   duration: number
+  videoFile?: File | null
 }
 
 interface UploadProgress {
   video: number
   thumbnail: number
+  episodeUploads: { [key: number]: number }
   isUploading: boolean
+  currentEpisode?: number
 }
 
 const GENRES = [
@@ -69,13 +73,19 @@ const GENRES = [
 
 export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUploadFormProps) {
   const [contentType, setContentType] = useState<ContentType>("movie")
-  const [uploadMode, setUploadMode] = useState<UploadMode>("file")
+  const [uploadMode, setUploadMode] = useState<UploadMode>("url")
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ video: 0, thumbnail: 0, isUploading: false })
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
+    video: 0,
+    thumbnail: 0,
+    episodeUploads: {},
+    isUploading: false,
+  })
 
   // File refs
   const videoInputRef = useRef<HTMLInputElement>(null)
   const thumbnailInputRef = useRef<HTMLInputElement>(null)
+  const episodeVideoRefs = useRef<{ [key: number]: HTMLInputElement | null }>({})
 
   // Selected files
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null)
@@ -95,7 +105,16 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
   const [totalSeasons, setTotalSeasons] = useState(1)
   const [seriesStatus, setSeriesStatus] = useState("ongoing")
   const [episodes, setEpisodes] = useState<Episode[]>([
-    { seasonNumber: 1, episodeNumber: 1, title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: 0 },
+    {
+      seasonNumber: 1,
+      episodeNumber: 1,
+      title: "",
+      description: "",
+      videoUrl: "",
+      thumbnailUrl: "",
+      duration: 0,
+      videoFile: null,
+    },
   ])
 
   const canUpload = dailyTracking.uploadsToday < dailyTracking.uploadLimit
@@ -104,13 +123,11 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
   const handleVideoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // Validate file type
-      const allowedTypes = ["video/mp4", "video/webm", "video/x-matroska", "video/avi", "video/quicktime"]
-      if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|webm|mkv|avi|mov)$/i)) {
+      const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
+      if (!file.name.match(allowedExtensions)) {
         toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
         return
       }
-      // Check file size (max 10GB)
       if (file.size > 10 * 1024 * 1024 * 1024) {
         toast.error("File too large. Maximum size is 10GB")
         return
@@ -123,19 +140,16 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
   const handleThumbnailFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // Validate file type
       const allowedTypes = ["image/jpeg", "image/png", "image/webp"]
       if (!allowedTypes.includes(file.type)) {
         toast.error("Invalid file type. Allowed: jpg, png, webp")
         return
       }
-      // Check file size (max 15MB)
       if (file.size > 15 * 1024 * 1024) {
         toast.error("File too large. Maximum size is 15MB")
         return
       }
       setSelectedThumbnailFile(file)
-      // Create preview
       const reader = new FileReader()
       reader.onload = (e) => {
         setThumbnailPreview(e.target?.result as string)
@@ -144,15 +158,32 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
     }
   }
 
+  const handleEpisodeVideoFileSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
+      if (!file.name.match(allowedExtensions)) {
+        toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
+        return
+      }
+      if (file.size > 10 * 1024 * 1024 * 1024) {
+        toast.error("File too large. Maximum size is 10GB")
+        return
+      }
+      const updated = [...episodes]
+      updated[index] = { ...updated[index], videoFile: file }
+      setEpisodes(updated)
+      toast.success(`Episode ${index + 1} video selected: ${file.name}`)
+    }
+  }
+
   // Upload file to API
-  const uploadVideoFile = async (file: File): Promise<string | null> => {
+  const uploadVideoFile = async (file: File, episodeTitle?: string): Promise<string | null> => {
     const formData = new FormData()
     formData.append("video", file)
-    formData.append("title", title)
+    formData.append("title", episodeTitle || title)
 
     try {
-      setUploadProgress((prev) => ({ ...prev, isUploading: true, video: 0 }))
-
       const response = await fetch("/api/upload/video", {
         method: "POST",
         body: formData,
@@ -160,11 +191,10 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
 
       const result = await response.json()
 
-      if (!response.ok || !result.success) {
+      if (!result.success) {
         throw new Error(result.error || "Video upload failed")
       }
 
-      setUploadProgress((prev) => ({ ...prev, video: 100 }))
       return result.embedUrl
     } catch (error: any) {
       toast.error(error.message || "Failed to upload video")
@@ -177,8 +207,6 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
     formData.append("thumbnail", file)
 
     try {
-      setUploadProgress((prev) => ({ ...prev, thumbnail: 0 }))
-
       const response = await fetch("/api/upload/thumbnail", {
         method: "POST",
         body: formData,
@@ -186,11 +214,10 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
 
       const result = await response.json()
 
-      if (!response.ok || !result.success) {
+      if (!result.success) {
         throw new Error(result.error || "Thumbnail upload failed")
       }
 
-      setUploadProgress((prev) => ({ ...prev, thumbnail: 100 }))
       return result.thumbnailUrl
     } catch (error: any) {
       toast.error(error.message || "Failed to upload thumbnail")
@@ -210,6 +237,7 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
         videoUrl: "",
         thumbnailUrl: "",
         duration: 0,
+        videoFile: null,
       },
     ])
   }
@@ -234,90 +262,160 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
       return
     }
 
+    // Validation
+    if (title.length < 3) {
+      toast.error("Title must be at least 3 characters")
+      return
+    }
+    if (description.length < 20) {
+      toast.error("Description must be at least 20 characters")
+      return
+    }
+    if (!genre) {
+      toast.error("Please select a genre")
+      return
+    }
+
     setLoading(true)
+    setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: true })
 
     let finalVideoUrl = videoUrl
     let finalThumbnailUrl = thumbnailUrl
 
-    // Upload files if in file mode
-    if (uploadMode === "file") {
-      if (contentType === "movie" && selectedVideoFile) {
-        toast.info("Uploading video to VOE...")
-        const uploadedVideoUrl = await uploadVideoFile(selectedVideoFile)
-        if (!uploadedVideoUrl) {
-          setLoading(false)
-          setUploadProgress({ video: 0, thumbnail: 0, isUploading: false })
-          return
-        }
-        finalVideoUrl = uploadedVideoUrl
-      }
-
-      if (selectedThumbnailFile) {
-        toast.info("Uploading thumbnail to Publitio...")
+    try {
+      // Upload thumbnail if in file mode
+      if (uploadMode === "file" && selectedThumbnailFile) {
+        toast.info("Uploading thumbnail...")
+        setUploadProgress((prev) => ({ ...prev, thumbnail: 50 }))
         const uploadedThumbnailUrl = await uploadThumbnailFile(selectedThumbnailFile)
         if (!uploadedThumbnailUrl) {
-          setLoading(false)
-          setUploadProgress({ video: 0, thumbnail: 0, isUploading: false })
-          return
+          throw new Error("Thumbnail upload failed")
         }
         finalThumbnailUrl = uploadedThumbnailUrl
+        setUploadProgress((prev) => ({ ...prev, thumbnail: 100 }))
       }
-    }
 
-    // Validate required URLs
-    if (contentType === "movie" && !finalVideoUrl) {
-      toast.error("Video URL is required")
-      setLoading(false)
-      return
-    }
-    if (!finalThumbnailUrl) {
-      toast.error("Thumbnail URL is required")
-      setLoading(false)
-      return
-    }
+      // For movies, upload video file
+      if (contentType === "movie" && uploadMode === "file" && selectedVideoFile) {
+        toast.info("Uploading video to VOE...")
+        setUploadProgress((prev) => ({ ...prev, video: 50 }))
+        const uploadedVideoUrl = await uploadVideoFile(selectedVideoFile)
+        if (!uploadedVideoUrl) {
+          throw new Error("Video upload failed")
+        }
+        finalVideoUrl = uploadedVideoUrl
+        setUploadProgress((prev) => ({ ...prev, video: 100 }))
+      }
 
-    const result = await submitContent({
-      type: contentType,
-      title,
-      description,
-      genre,
-      year,
-      videoUrl: contentType === "movie" ? finalVideoUrl : undefined,
-      thumbnailUrl: finalThumbnailUrl,
-      bannerUrl: bannerUrl || undefined,
-      seriesData:
-        contentType === "series"
-          ? {
-              totalSeasons,
-              totalEpisodes: episodes.length,
-              status: seriesStatus,
+      const finalEpisodes = [...episodes]
+      if (contentType === "series" && uploadMode === "file") {
+        for (let i = 0; i < episodes.length; i++) {
+          const ep = episodes[i]
+          if (ep.videoFile) {
+            toast.info(`Uploading Episode ${i + 1} video...`)
+            setUploadProgress((prev) => ({
+              ...prev,
+              currentEpisode: i,
+              episodeUploads: { ...prev.episodeUploads, [i]: 50 },
+            }))
+            const uploadedUrl = await uploadVideoFile(
+              ep.videoFile,
+              `${title} - S${ep.seasonNumber}E${ep.episodeNumber}`,
+            )
+            if (!uploadedUrl) {
+              throw new Error(`Episode ${i + 1} video upload failed`)
             }
-          : undefined,
-      episodes: contentType === "series" ? episodes : undefined,
-    })
+            finalEpisodes[i] = { ...finalEpisodes[i], videoUrl: uploadedUrl }
+            setUploadProgress((prev) => ({
+              ...prev,
+              episodeUploads: { ...prev.episodeUploads, [i]: 100 },
+            }))
+          }
+        }
+      }
 
-    setLoading(false)
-    setUploadProgress({ video: 0, thumbnail: 0, isUploading: false })
+      // Validate required fields
+      if (contentType === "movie" && !finalVideoUrl) {
+        throw new Error("Video URL is required for movies")
+      }
+      if (!finalThumbnailUrl) {
+        throw new Error("Thumbnail is required")
+      }
+      if (contentType === "series") {
+        const missingVideos = finalEpisodes.filter((ep) => !ep.videoUrl)
+        if (missingVideos.length > 0) {
+          throw new Error(
+            `Video URL required for all episodes. Missing: Episode ${finalEpisodes.findIndex((ep) => !ep.videoUrl) + 1}`,
+          )
+        }
+      }
 
-    if (result.success) {
-      toast.success(result.autoApproved ? "Content published successfully!" : "Content submitted for review!")
-      // Reset form
-      setTitle("")
-      setDescription("")
-      setGenre("")
-      setYear(new Date().getFullYear())
-      setVideoUrl("")
-      setThumbnailUrl("")
-      setBannerUrl("")
-      setSelectedVideoFile(null)
-      setSelectedThumbnailFile(null)
-      setThumbnailPreview("")
-      setEpisodes([
-        { seasonNumber: 1, episodeNumber: 1, title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: 0 },
-      ])
-      onUploadComplete()
-    } else {
-      toast.error(result.error || "Failed to submit content")
+      // Submit content
+      const result = await submitContent({
+        type: contentType,
+        title,
+        description,
+        genre,
+        year,
+        videoUrl: contentType === "movie" ? finalVideoUrl : undefined,
+        thumbnailUrl: finalThumbnailUrl,
+        bannerUrl: bannerUrl || undefined,
+        seriesData:
+          contentType === "series"
+            ? {
+                totalSeasons,
+                totalEpisodes: finalEpisodes.length,
+                status: seriesStatus,
+              }
+            : undefined,
+        episodes:
+          contentType === "series"
+            ? finalEpisodes.map((ep) => ({
+                seasonNumber: ep.seasonNumber,
+                episodeNumber: ep.episodeNumber,
+                title: ep.title,
+                description: ep.description,
+                videoUrl: ep.videoUrl,
+                thumbnailUrl: ep.thumbnailUrl,
+                duration: ep.duration,
+              }))
+            : undefined,
+      })
+
+      if (result.success) {
+        toast.success(result.autoApproved ? "Content published successfully!" : "Content submitted for review!")
+        // Reset form
+        setTitle("")
+        setDescription("")
+        setGenre("")
+        setYear(new Date().getFullYear())
+        setVideoUrl("")
+        setThumbnailUrl("")
+        setBannerUrl("")
+        setSelectedVideoFile(null)
+        setSelectedThumbnailFile(null)
+        setThumbnailPreview("")
+        setEpisodes([
+          {
+            seasonNumber: 1,
+            episodeNumber: 1,
+            title: "",
+            description: "",
+            videoUrl: "",
+            thumbnailUrl: "",
+            duration: 0,
+            videoFile: null,
+          },
+        ])
+        onUploadComplete()
+      } else {
+        throw new Error(result.error || "Failed to submit content")
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Submission failed")
+    } finally {
+      setLoading(false)
+      setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: false })
     }
   }
 
@@ -331,6 +429,28 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
   return (
     <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-xl p-4 md:p-6">
       <h2 className="text-xl font-bold text-white mb-6">Upload Content</h2>
+
+      {/* Daily Limits Display */}
+      <div className="mb-6 p-4 bg-[#0B0C10] border border-[#2A2B33] rounded-xl">
+        <div className="flex flex-wrap gap-4 text-sm">
+          <div>
+            <span className="text-white/60">Uploads today: </span>
+            <span
+              className={`font-bold ${dailyTracking.uploadsToday >= dailyTracking.uploadLimit ? "text-red-400" : "text-[#00FFFF]"}`}
+            >
+              {dailyTracking.uploadsToday}/{dailyTracking.uploadLimit}
+            </span>
+          </div>
+          <div>
+            <span className="text-white/60">Storage used: </span>
+            <span
+              className={`font-bold ${dailyTracking.storageUsedToday >= dailyTracking.storageLimit ? "text-red-400" : "text-[#00FFFF]"}`}
+            >
+              {dailyTracking.storageUsedToday.toFixed(1)}/{dailyTracking.storageLimit} GB
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Content Type Selector */}
       <div className="flex gap-4 mb-6">
@@ -363,19 +483,21 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
         <button
           type="button"
           onClick={() => setUploadMode("file")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+          className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-2 ${
             uploadMode === "file" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white/60 hover:text-white"
           }`}
         >
+          <FileVideo className="w-4 h-4" />
           Upload Files
         </button>
         <button
           type="button"
           onClick={() => setUploadMode("url")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+          className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-2 ${
             uploadMode === "url" ? "bg-[#00FFFF] text-[#0B0C10]" : "text-white/60 hover:text-white"
           }`}
         >
+          <LinkIcon className="w-4 h-4" />
           Paste URLs
         </button>
       </div>
@@ -393,7 +515,7 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
         {/* Basic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-white/70 text-sm mb-2">Title *</label>
+            <label className="block text-white/70 text-sm mb-2">Title * (min 3 characters)</label>
             <input
               type="text"
               value={title}
@@ -520,6 +642,16 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
               </div>
             </div>
           )}
+          {uploadProgress.isUploading && uploadProgress.thumbnail > 0 && uploadProgress.thumbnail < 100 && (
+            <div className="mt-2">
+              <div className="h-2 bg-[#0B0C10] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#00FFFF] transition-all duration-300"
+                  style={{ width: `${uploadProgress.thumbnail}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Banner URL (optional) */}
@@ -578,7 +710,7 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
                     </>
                   )}
                 </button>
-                {uploadProgress.isUploading && uploadProgress.video > 0 && (
+                {uploadProgress.isUploading && uploadProgress.video > 0 && uploadProgress.video < 100 && (
                   <div className="mt-2">
                     <div className="flex justify-between text-sm text-white/60 mb-1">
                       <span>Uploading to VOE...</span>
@@ -633,10 +765,12 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
               </div>
             </div>
 
-            {/* Episodes - Always use URL mode for series */}
+            {/* Episodes */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <label className="text-white/70 text-sm">Episodes * (paste VOE embed URLs)</label>
+                <label className="text-white/70 text-sm">
+                  Episodes * ({uploadMode === "file" ? "Upload videos or paste URLs" : "Paste VOE embed URLs"})
+                </label>
                 <button
                   type="button"
                   onClick={addEpisode}
@@ -647,7 +781,7 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
                 </button>
               </div>
 
-              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 {episodes.map((episode, index) => (
                   <div key={index} className="p-4 bg-[#0B0C10] border border-[#2A2B33] rounded-lg">
                     <div className="flex items-center justify-between mb-3">
@@ -688,14 +822,81 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
                       required
                       className="w-full px-3 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded text-white text-sm mb-3 focus:outline-none focus:border-purple-500"
                     />
-                    <input
-                      type="url"
-                      value={episode.videoUrl}
-                      onChange={(e) => updateEpisode(index, "videoUrl", e.target.value)}
-                      placeholder="Video URL (VOE embed) *"
-                      required
-                      className="w-full px-3 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded text-white text-sm focus:outline-none focus:border-purple-500"
-                    />
+
+                    {uploadMode === "file" ? (
+                      <div className="space-y-2">
+                        <input
+                          ref={(el) => {
+                            episodeVideoRefs.current[index] = el
+                          }}
+                          type="file"
+                          accept="video/mp4,video/webm,video/x-matroska,video/avi,video/quicktime,.mkv"
+                          onChange={(e) => handleEpisodeVideoFileSelect(index, e)}
+                          className="hidden"
+                        />
+                        {episode.videoFile ? (
+                          <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded">
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                            <span className="text-white text-sm flex-1 truncate">{episode.videoFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateEpisode(index, "videoFile", null)}
+                              className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : episode.videoUrl ? (
+                          <div className="flex items-center gap-2 p-2 bg-[#1A1B23] border border-[#2A2B33] rounded">
+                            <LinkIcon className="w-4 h-4 text-[#00FFFF]" />
+                            <span className="text-white/60 text-sm flex-1 truncate">{episode.videoUrl}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateEpisode(index, "videoUrl", "")}
+                              className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => episodeVideoRefs.current[index]?.click()}
+                              className="flex-1 px-3 py-2 bg-purple-500/20 text-purple-400 rounded text-sm hover:bg-purple-500/30 transition flex items-center justify-center gap-2"
+                            >
+                              <FileVideo className="w-4 h-4" />
+                              Upload Video
+                            </button>
+                            <span className="text-white/40 flex items-center">or</span>
+                            <input
+                              type="url"
+                              value={episode.videoUrl}
+                              onChange={(e) => updateEpisode(index, "videoUrl", e.target.value)}
+                              placeholder="Paste VOE URL"
+                              className="flex-1 px-3 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded text-white text-sm focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        )}
+                        {uploadProgress.episodeUploads[index] > 0 && uploadProgress.episodeUploads[index] < 100 && (
+                          <div className="h-1 bg-[#1A1B23] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-purple-500 transition-all duration-300"
+                              style={{ width: `${uploadProgress.episodeUploads[index]}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="url"
+                        value={episode.videoUrl}
+                        onChange={(e) => updateEpisode(index, "videoUrl", e.target.value)}
+                        placeholder="Video URL (VOE embed) *"
+                        required
+                        className="w-full px-3 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded text-white text-sm focus:outline-none focus:border-purple-500"
+                      />
+                    )}
                   </div>
                 ))}
               </div>

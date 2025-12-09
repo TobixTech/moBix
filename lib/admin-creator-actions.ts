@@ -17,7 +17,6 @@ import {
 } from "@/lib/db/schema"
 import { eq, desc, and, count, gte } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
-import { generateSlug } from "@/lib/server-actions"
 
 // Get all creator requests for admin
 export async function getCreatorRequests(status?: string) {
@@ -574,54 +573,112 @@ async function publishSubmissionContent(submissionId: string) {
       .where(eq(contentSubmissions.id, submissionId))
       .limit(1)
 
-    if (!submission) return
+    if (!submission) {
+      console.error("[publishSubmissionContent] Submission not found:", submissionId)
+      return
+    }
+
+    console.log("[v0] Publishing submission:", submission.type, submission.title)
 
     if (submission.type === "movie") {
-      const slug = await generateSlug(submission.title)
+      // Generate unique slug
+      const baseSlug = submission.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+
+      // Check for existing slug and make unique if needed
+      let slug = baseSlug
+      let counter = 1
+      while (true) {
+        const existing = await db.query.movies.findFirst({
+          where: eq(movies.slug, slug),
+        })
+        if (!existing) break
+        slug = `${baseSlug}-${counter}`
+        counter++
+      }
+
       const [movie] = await db
         .insert(movies)
         .values({
           title: submission.title,
           slug,
-          description: submission.description,
-          genre: submission.genre,
+          description: submission.description || "",
+          genre: submission.genre || "Other",
           year: submission.year || new Date().getFullYear(),
-          posterUrl: submission.thumbnailUrl,
+          posterUrl: submission.thumbnailUrl || "",
           videoUrl: submission.videoUrl || "",
+          views: 0,
+          isTrending: false,
+          isFeatured: false,
+          isTop: false,
         })
         .returning()
+
+      console.log("[v0] Movie created:", movie.id, movie.title)
 
       await db
         .update(contentSubmissions)
         .set({ publishedMovieId: movie.id })
         .where(eq(contentSubmissions.id, submissionId))
     } else if (submission.type === "series") {
-      const slug = await generateSlug(submission.title)
-      const seriesData = submission.seriesData ? JSON.parse(submission.seriesData) : {}
+      // Generate unique slug
+      const baseSlug = submission.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+
+      let slug = baseSlug
+      let counter = 1
+      while (true) {
+        const existing = await db.query.series.findFirst({
+          where: eq(series.slug, slug),
+        })
+        if (!existing) break
+        slug = `${baseSlug}-${counter}`
+        counter++
+      }
+
+      // Parse series data
+      let seriesData: any = {}
+      try {
+        seriesData = submission.seriesData ? JSON.parse(submission.seriesData) : {}
+      } catch (e) {
+        console.error("[v0] Error parsing series data:", e)
+      }
 
       const [newSeries] = await db
         .insert(series)
         .values({
           title: submission.title,
           slug,
-          description: submission.description,
-          genre: submission.genre,
-          posterUrl: submission.thumbnailUrl,
-          bannerUrl: submission.bannerUrl,
+          description: submission.description || "",
+          genre: submission.genre || "Other",
+          posterUrl: submission.thumbnailUrl || "",
+          bannerUrl: submission.bannerUrl || null,
           releaseYear: submission.year || new Date().getFullYear(),
           status: seriesData.status || "ongoing",
           totalSeasons: seriesData.totalSeasons || 1,
           totalEpisodes: seriesData.totalEpisodes || 0,
+          views: 0,
+          isTrending: false,
+          isFeatured: false,
         })
         .returning()
+
+      console.log("[v0] Series created:", newSeries.id, newSeries.title)
 
       // Get submission episodes
       const subEpisodes = await db
         .select()
         .from(submissionEpisodes)
         .where(eq(submissionEpisodes.submissionId, submissionId))
+        .orderBy(submissionEpisodes.seasonNumber, submissionEpisodes.episodeNumber)
 
-      // Group by season
+      console.log("[v0] Found episodes:", subEpisodes.length)
+
+      // Group episodes by season
       const seasonMap = new Map<number, typeof subEpisodes>()
       for (const ep of subEpisodes) {
         if (!seasonMap.has(ep.seasonNumber)) {
@@ -641,26 +698,34 @@ async function publishSubmissionContent(submissionId: string) {
           })
           .returning()
 
+        console.log("[v0] Season created:", season.id, "Season", seasonNum)
+
         for (const ep of eps) {
           await db.insert(episodes).values({
             seasonId: season.id,
             episodeNumber: ep.episodeNumber,
-            title: ep.title,
-            description: ep.description,
+            title: ep.title || `Episode ${ep.episodeNumber}`,
+            description: ep.description || "",
             videoUrl: ep.videoUrl,
-            thumbnailUrl: ep.thumbnailUrl,
-            duration: ep.duration,
+            thumbnailUrl: ep.thumbnailUrl || submission.thumbnailUrl || "",
+            duration: ep.duration || 0,
           })
         }
       }
+
+      // Update total episodes count
+      await db.update(series).set({ totalEpisodes: subEpisodes.length }).where(eq(series.id, newSeries.id))
 
       await db
         .update(contentSubmissions)
         .set({ publishedSeriesId: newSeries.id })
         .where(eq(contentSubmissions.id, submissionId))
     }
+
+    console.log("[v0] Content published successfully")
   } catch (error) {
-    console.error("Error publishing submission:", error)
+    console.error("[publishSubmissionContent] Error:", error)
+    throw error
   }
 }
 
