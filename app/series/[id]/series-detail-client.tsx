@@ -6,7 +6,7 @@ import { useUser } from "@clerk/nextjs"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import ReportContentModal from "@/components/report-content-modal"
-import { Link } from "next/link"
+import Link from "next/link"
 import {
   Play,
   Plus,
@@ -33,6 +33,7 @@ import {
   addSeriesToWatchLater,
   rateSeriesAction,
 } from "@/lib/series-actions"
+import { useSiteSettings } from "@/components/site-settings-provider"
 
 interface Episode {
   id: string
@@ -123,6 +124,7 @@ export default function SeriesDetailClient({
   isPremiumUser = false,
 }: SeriesDetailClientProps) {
   const { isSignedIn } = useUser()
+  const siteSettings = useSiteSettings()
   const [inWatchlist, setInWatchlist] = useState(initialInWatchlist)
   const [isLiked, setIsLiked] = useState(initialIsLiked)
   const [likesCount, setLikesCount] = useState(series.likesCount || 0)
@@ -306,7 +308,7 @@ export default function SeriesDetailClient({
                     )}
                   </div>
 
-                  {currentEpisode.downloadEnabled && currentEpisode.downloadUrl && (
+                  {siteSettings.enableDownloads && currentEpisode.downloadEnabled && currentEpisode.downloadUrl && (
                     <Link
                       href={`/download/episode/${series.id}/${currentEpisode.id}`}
                       className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold rounded-xl transition-all w-fit"
@@ -336,8 +338,8 @@ export default function SeriesDetailClient({
                 </div>
               )}
 
-              {/* Ad Banner Below Player */}
-              <div className="mt-6">{adBannerHorizontal}</div>
+              {/* Ad Banner Below Player - hide for premium users */}
+              {!isPremiumUser && <div className="mt-6">{adBannerHorizontal}</div>}
             </div>
 
             {/* Series Info */}
@@ -572,83 +574,85 @@ export default function SeriesDetailClient({
         </div>
       </div>
 
-      {/* Comments Section */}
-      <div className="container mx-auto px-4 py-12">
-        <h2 className="text-2xl font-bold text-white mb-6">Comments</h2>
+      {/* Comments Section - Only show if comments enabled */}
+      {siteSettings.enableComments && (
+        <div className="container mx-auto px-4 py-12">
+          <h2 className="text-2xl font-bold text-white mb-6">Comments</h2>
 
-        {/* Add Comment */}
-        {isSignedIn && (
-          <div className="bg-[#1A1B23] rounded-xl p-6 border border-[#2A2B33] mb-8">
-            <textarea
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Write your comment..."
-              className="w-full bg-[#0B0C10] text-white rounded-lg p-4 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none resize-none"
-              rows={3}
-            />
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm">Rating:</span>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button key={star} onClick={() => setCommentRating(star)}>
-                    <Star
-                      className={`w-5 h-5 ${
-                        star <= commentRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={handleAddComment}
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#00FFFF] text-black font-semibold rounded-lg hover:bg-[#00FFFF]/90 transition-colors disabled:opacity-50"
-              >
-                {isSubmitting ? <Film className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                Post Comment
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Comments List */}
-        <div className="space-y-4">
-          {comments.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <p>No comments yet. Be the first to share your thoughts!</p>
-            </div>
-          ) : (
-            comments.map((comment) => (
-              <div key={comment.id} className="bg-[#1A1B23] rounded-xl p-6 border border-[#2A2B33]">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00FFFF] to-cyan-600 flex items-center justify-center text-black font-bold">
-                      {comment.user.displayName?.[0]?.toUpperCase() || "U"}
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">{comment.user.displayName}</p>
-                      <p className="text-gray-500 text-xs">{new Date(comment.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  {comment.rating && (
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          className={`w-4 h-4 ${
-                            star <= comment.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  )}
+          {/* Add Comment */}
+          {isSignedIn && (
+            <div className="bg-[#1A1B23] rounded-xl p-6 border border-[#2A2B33] mb-8">
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Write your comment..."
+                className="w-full bg-[#0B0C10] text-white rounded-lg p-4 border border-[#2A2B33] focus:border-[#00FFFF] focus:outline-none resize-none"
+                rows={3}
+              />
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-sm">Rating:</span>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} onClick={() => setCommentRating(star)}>
+                      <Star
+                        className={`w-5 h-5 ${
+                          star <= commentRating ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
+                        }`}
+                      />
+                    </button>
+                  ))}
                 </div>
-                <p className="text-gray-300">{comment.text}</p>
+                <button
+                  onClick={handleAddComment}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#00FFFF] text-black font-semibold rounded-lg hover:bg-[#00FFFF]/90 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? <Film className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  Post Comment
+                </button>
               </div>
-            ))
+            </div>
           )}
+
+          {/* Comments List */}
+          <div className="space-y-4">
+            {comments.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p>No comments yet. Be the first to share your thoughts!</p>
+              </div>
+            ) : (
+              comments.map((comment) => (
+                <div key={comment.id} className="bg-[#1A1B23] rounded-xl p-6 border border-[#2A2B33]">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00FFFF] to-cyan-600 flex items-center justify-center text-black font-bold">
+                        {comment.user.displayName?.[0]?.toUpperCase() || "U"}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{comment.user.displayName}</p>
+                        <p className="text-gray-500 text-xs">{new Date(comment.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    {comment.rating && (
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-4 h-4 ${
+                              star <= comment.rating! ? "text-yellow-400 fill-yellow-400" : "text-gray-600"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-gray-300">{comment.text}</p>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
