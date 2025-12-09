@@ -37,6 +37,7 @@ import {
   Clock,
   TrendingUp,
   AlertTriangle,
+  Video,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -76,6 +77,14 @@ import {
   getAnalyticsData, // Added for analytics
   getSiteSettings, // Added for settings
   updateSiteSettings, // Added for settings
+  getAdminCreators, // Added
+  deleteCreator, // Added
+  updateCreatorRole, // Added
+  createCreator, // Added
+  // Add new imports for content submissions
+  getContentSubmissions, // Added
+  updateSubmissionStatus, // Added
+  deleteSubmission, // Added
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -95,6 +104,9 @@ import { AdminSeriesManager } from "@/components/admin-series-manager" // First 
 // Import AdminDashboardLoader
 import { AdminDashboardLoader } from "@/components/admin-dashboard-loader"
 
+import { AdminCreatorManagementTab } from "@/components/admin-creator-management-tab"
+import { AdminContentSubmissionsTab } from "@/components/admin-content-submissions-tab"
+
 // Update AdminTab type
 type AdminTab =
   | "overview"
@@ -109,6 +121,8 @@ type AdminTab =
   | "series" // Added "promotions" and "series" to AdminTab type
   | "analytics" // Added
   | "settings" // Added
+  | "creators" // Added creators tab
+  | "submissions" // Added submissions tab
 
 interface Metric {
   label: string
@@ -214,6 +228,31 @@ interface Series {
   // Add other relevant series properties
 }
 
+// Define interfaces for Creators and Submissions
+interface Creator {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  role: "PENDING" | "APPROVED" | "REJECTED"
+  submittedContentCount: number
+  createdAt: string
+}
+
+interface ContentSubmission {
+  id: string
+  title: string
+  contentType: "movie" | "series"
+  status: "PENDING" | "APPROVED" | "REJECTED"
+  submittedAt: string
+  creator: {
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+  }
+}
+
 export default function AdminDashboard() {
   const [pinVerified, setPinVerified] = useState(false)
   const [pinInput, setPinInput] = useState("")
@@ -317,6 +356,17 @@ export default function AdminDashboard() {
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
 
+  // ADDED STATES FOR CREATORS AND SUBMISSIONS
+  const [creators, setCreators] = useState<Creator[]>([])
+  const [submissions, setSubmissions] = useState<ContentSubmission[]>([])
+  const [creatorSearch, setCreatorSearch] = useState("")
+  const [submissionSearch, setSubmissionSearch] = useState("")
+  const [creatorTab, setCreatorTab] = useState<"all" | "pending" | "approved" | "rejected">("all")
+  const [submissionTab, setSubmissionTab] = useState<"all" | "pending" | "approved" | "rejected">("all")
+  const [isCreatorModalOpen, setIsCreatorModalOpen] = useState(false)
+  const [editingCreator, setEditingCreator] = useState<Creator | null>(null)
+  const [newCreatorFormData, setNewCreatorFormData] = useState({ firstName: "", lastName: "", email: "" })
+
   // ... existing handlers (handlePinSubmit, etc.) ...
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -378,6 +428,9 @@ export default function AdminDashboard() {
         commentsData,
         reportsData,
         seriesData,
+        // Add creators and submissions data fetch
+        creatorsData,
+        submissionsData,
       ] = await Promise.all([
         getAdminMetrics(),
         getTrendingMovies(),
@@ -389,6 +442,9 @@ export default function AdminDashboard() {
         getAllCommentsAdmin(),
         getContentReports(),
         getAdminSeries(),
+        // Fetch creators and submissions
+        getAdminCreators(),
+        getContentSubmissions(),
       ])
 
       setMetrics(metricsData)
@@ -400,6 +456,9 @@ export default function AdminDashboard() {
       setComments(commentsData)
       setContentReports(reportsData as ContentReport[])
       setSeries(seriesData)
+      // Set creators and submissions
+      setCreators(creatorsData)
+      setSubmissions(submissionsData)
 
       if (adSettingsData) {
         setAdSettings({
@@ -558,6 +617,72 @@ export default function AdminDashboard() {
       if (interval) clearInterval(interval)
     }
   }, [autoRefresh, pinVerified])
+
+  // HANDLERS FOR CREATORS AND SUBMISSIONS
+  const handleCreateCreator = async () => {
+    setLoading(true)
+    const result = await createCreator(newCreatorFormData)
+    if (result.success) {
+      toast.success("Creator created successfully!")
+      setCreators([...creators, result.creator])
+      setIsCreatorModalOpen(false)
+      setNewCreatorFormData({ firstName: "", lastName: "", email: "" })
+    } else {
+      toast.error(result.error || "Failed to create creator")
+    }
+    setLoading(false)
+  }
+
+  const handleUpdateCreatorRole = async (id: string, newRole: "APPROVED" | "REJECTED") => {
+    setLoading(true)
+    const result = await updateCreatorRole(id, newRole)
+    if (result.success) {
+      toast.success(`Creator role updated to ${newRole}`)
+      setCreators(creators.map((c) => (c.id === id ? { ...c, role: newRole } : c)))
+    } else {
+      toast.error(result.error || "Failed to update creator role")
+    }
+    setLoading(false)
+  }
+
+  const handleDeleteCreator = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this creator?")) return
+    setLoading(true)
+    const result = await deleteCreator(id)
+    if (result.success) {
+      toast.success("Creator deleted successfully")
+      setCreators(creators.filter((c) => c.id !== id))
+    } else {
+      toast.error(result.error || "Failed to delete creator")
+    }
+    setLoading(false)
+  }
+
+  const handleUpdateSubmissionStatus = async (id: string, newStatus: "APPROVED" | "REJECTED") => {
+    setLoading(true)
+    const result = await updateSubmissionStatus(id, newStatus)
+    if (result.success) {
+      toast.success(`Submission status updated to ${newStatus}`)
+      setSubmissions(submissions.map((s) => (s.id === id ? { ...s, status: newStatus } : s)))
+      // Potentially update creator's submitted content count if needed
+    } else {
+      toast.error(result.error || "Failed to update submission status")
+    }
+    setLoading(false)
+  }
+
+  const handleDeleteSubmission = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this submission?")) return
+    setLoading(true)
+    const result = await deleteSubmission(id)
+    if (result.success) {
+      toast.success("Submission deleted successfully")
+      setSubmissions(submissions.filter((s) => s.id !== id))
+    } else {
+      toast.error(result.error || "Failed to delete submission")
+    }
+    setLoading(false)
+  }
 
   // ... existing handlers (handleFormChange, handleUpload, handleEdit, handleSaveEdit, handleSaveAdSettings, handleDelete, handleDeleteComment, handleBanUser, handleDeleteUser) ...
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -1252,6 +1377,62 @@ export default function AdminDashboard() {
         />
       )}
 
+      {/* Add Creator Modal */}
+      <Dialog open={isCreatorModalOpen} onOpenChange={setIsCreatorModalOpen}>
+        <DialogContent className="bg-[#1A1B23] border border-[#00FFFF]/30 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-[#00FFFF]">Add New Creator</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="block text-white/70 text-sm font-medium mb-2">First Name</label>
+              <input
+                type="text"
+                value={newCreatorFormData.firstName}
+                onChange={(e) => setNewCreatorFormData({ ...newCreatorFormData, firstName: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                placeholder="Enter first name"
+              />
+            </div>
+            <div>
+              <label className="block text-white/70 text-sm font-medium mb-2">Last Name</label>
+              <input
+                type="text"
+                value={newCreatorFormData.lastName}
+                onChange={(e) => setNewCreatorFormData({ ...newCreatorFormData, lastName: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                placeholder="Enter last name"
+              />
+            </div>
+            <div>
+              <label className="block text-white/70 text-sm font-medium mb-2">Email</label>
+              <input
+                type="email"
+                value={newCreatorFormData.email}
+                onChange={(e) => setNewCreatorFormData({ ...newCreatorFormData, email: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50"
+                placeholder="Enter email address"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                onClick={() => setIsCreatorModalOpen(false)}
+                className="px-4 py-2 bg-white/5 text-white hover:bg-white/10 rounded-xl font-medium transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCreator}
+                className="px-6 py-2 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition"
+                disabled={loading}
+              >
+                {loading ? "Creating..." : "Create Creator"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <aside
         className={`w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 flex flex-col transition-all duration-300 ${
           sidebarOpen ? "fixed inset-y-0 left-0 z-40" : "hidden lg:flex"
@@ -1278,6 +1459,9 @@ export default function AdminDashboard() {
             { id: "feedback", label: "Feedback & Requests", icon: Inbox },
             { id: "analytics", label: "Analytics", icon: BarChart3 }, // Added
             { id: "settings", label: "Site Settings", icon: Cog }, // Added
+            // Add creators and submissions tabs to sidebar navigation
+            { id: "creators", label: "Creators", icon: Users },
+            { id: "submissions", label: "Submissions", icon: Video },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1323,6 +1507,9 @@ export default function AdminDashboard() {
             { id: "ads", icon: Settings },
             { id: "analytics", icon: BarChart3 },
             { id: "settings", icon: Cog },
+            // Add creators and submissions to mobile nav
+            { id: "creators", icon: Users },
+            { id: "submissions", icon: Video },
           ].map(({ id, icon: Icon }) => (
             <button
               key={id}
@@ -2006,7 +2193,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Update comments tab UI to show content type */}
+          {/* Comments Tab Content */}
           {activeTab === "comments" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -3011,7 +3198,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Update settings tab with better mobile layout, working save, and proper spacing */}
+          {/* Settings Tab */}
           {activeTab === "settings" && (
             <div className="space-y-6 pb-24 lg:pb-6">
               <h3 className="text-2xl font-bold text-white">Site Settings</h3>
@@ -3163,6 +3350,12 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {/* Creators Tab Content */}
+          {activeTab === "creators" && <AdminCreatorManagementTab />}
+
+          {/* Content Submissions Tab Content */}
+          {activeTab === "submissions" && <AdminContentSubmissionsTab />}
         </div>
       </main>
 

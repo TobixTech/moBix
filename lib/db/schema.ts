@@ -695,3 +695,238 @@ export const siteSettings = pgTable("SiteSettings", {
   updatedAt: timestamp("updatedAt").defaultNow(),
   createdAt: timestamp("createdAt").defaultNow(),
 })
+
+// Creator System Tables
+
+// Creator Requests - for users requesting creator access
+export const creatorRequests = pgTable("CreatorRequest", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected'
+  requestedAt: timestamp("requestedAt").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewedBy: text("reviewedBy").references(() => users.id, { onDelete: "set null" }),
+  rejectionReason: text("rejectionReason"),
+})
+
+export const creatorRequestsRelations = relations(creatorRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorRequests.userId],
+    references: [users.id],
+  }),
+  reviewer: one(users, {
+    fields: [creatorRequests.reviewedBy],
+    references: [users.id],
+  }),
+}))
+
+// Creator Profiles - for approved creators
+export const creatorProfiles = pgTable("CreatorProfile", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  isAutoApproveEnabled: boolean("isAutoApproveEnabled").default(false).notNull(),
+  dailyUploadLimit: integer("dailyUploadLimit").default(4).notNull(),
+  dailyStorageLimitGb: decimal("dailyStorageLimitGb", { precision: 5, scale: 2 }).default("8").notNull(),
+  totalUploads: integer("totalUploads").default(0).notNull(),
+  totalViews: integer("totalViews").default(0).notNull(),
+  status: text("status").default("active").notNull(), // 'active', 'suspended', 'banned'
+  suspendedReason: text("suspendedReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const creatorProfilesRelations = relations(creatorProfiles, ({ one, many }) => ({
+  user: one(users, {
+    fields: [creatorProfiles.userId],
+    references: [users.id],
+  }),
+  submissions: many(contentSubmissions),
+  strikes: many(creatorStrikes),
+  dailyTracking: many(dailyUploadTracking),
+}))
+
+// Content Submissions - creator uploaded content
+export const contentSubmissions = pgTable("ContentSubmission", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  creatorId: text("creatorId")
+    .notNull()
+    .references(() => creatorProfiles.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'movie', 'series'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  genre: text("genre").notNull(),
+  year: integer("year"),
+  videoUrl: text("videoUrl"),
+  thumbnailUrl: text("thumbnailUrl").notNull(),
+  bannerUrl: text("bannerUrl"),
+  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected'
+  rejectionReason: text("rejectionReason"),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewedBy: text("reviewedBy").references(() => users.id, { onDelete: "set null" }),
+  viewsCount: integer("viewsCount").default(0).notNull(),
+  likesCount: integer("likesCount").default(0).notNull(),
+  // For series: store season/episode info as JSON
+  seriesData: text("seriesData"), // JSON: { totalSeasons, totalEpisodes, status }
+  // Reference to published movie/series
+  publishedMovieId: text("publishedMovieId").references(() => movies.id, { onDelete: "set null" }),
+  publishedSeriesId: text("publishedSeriesId").references(() => series.id, { onDelete: "set null" }),
+  fileSizeGb: decimal("fileSizeGb", { precision: 10, scale: 4 }),
+})
+
+export const contentSubmissionsRelations = relations(contentSubmissions, ({ one, many }) => ({
+  creator: one(creatorProfiles, {
+    fields: [contentSubmissions.creatorId],
+    references: [creatorProfiles.id],
+  }),
+  reviewer: one(users, {
+    fields: [contentSubmissions.reviewedBy],
+    references: [users.id],
+  }),
+  publishedMovie: one(movies, {
+    fields: [contentSubmissions.publishedMovieId],
+    references: [movies.id],
+  }),
+  publishedSeries: one(series, {
+    fields: [contentSubmissions.publishedSeriesId],
+    references: [series.id],
+  }),
+  episodes: many(submissionEpisodes),
+  analytics: many(creatorAnalytics),
+}))
+
+// Submission Episodes - for series submissions
+export const submissionEpisodes = pgTable("SubmissionEpisode", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  submissionId: text("submissionId")
+    .notNull()
+    .references(() => contentSubmissions.id, { onDelete: "cascade" }),
+  seasonNumber: integer("seasonNumber").notNull(),
+  episodeNumber: integer("episodeNumber").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  videoUrl: text("videoUrl").notNull(),
+  thumbnailUrl: text("thumbnailUrl"),
+  duration: integer("duration"), // in minutes
+  fileSizeGb: decimal("fileSizeGb", { precision: 10, scale: 4 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const submissionEpisodesRelations = relations(submissionEpisodes, ({ one }) => ({
+  submission: one(contentSubmissions, {
+    fields: [submissionEpisodes.submissionId],
+    references: [contentSubmissions.id],
+  }),
+}))
+
+// Creator Analytics - track performance per submission
+export const creatorAnalytics = pgTable("CreatorAnalytics", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  submissionId: text("submissionId")
+    .notNull()
+    .references(() => contentSubmissions.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  views: integer("views").default(0).notNull(),
+  watchTimeMinutes: integer("watchTimeMinutes").default(0).notNull(),
+  likes: integer("likes").default(0).notNull(),
+  favorites: integer("favorites").default(0).notNull(),
+})
+
+export const creatorAnalyticsRelations = relations(creatorAnalytics, ({ one }) => ({
+  submission: one(contentSubmissions, {
+    fields: [creatorAnalytics.submissionId],
+    references: [contentSubmissions.id],
+  }),
+}))
+
+// Creator Notifications - creator-specific notifications
+export const creatorNotifications = pgTable("CreatorNotification", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'submission_approved', 'submission_rejected', 'strike_received', 'limit_increased', 'system'
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  submissionId: text("submissionId").references(() => contentSubmissions.id, { onDelete: "set null" }),
+  isRead: boolean("isRead").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const creatorNotificationsRelations = relations(creatorNotifications, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorNotifications.userId],
+    references: [users.id],
+  }),
+  submission: one(contentSubmissions, {
+    fields: [creatorNotifications.submissionId],
+    references: [contentSubmissions.id],
+  }),
+}))
+
+// Creator Strikes - track violations
+export const creatorStrikes = pgTable("CreatorStrike", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  creatorId: text("creatorId")
+    .notNull()
+    .references(() => creatorProfiles.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  issuedBy: text("issuedBy").references(() => users.id, { onDelete: "set null" }),
+  isAppealed: boolean("isAppealed").default(false).notNull(),
+  appealReason: text("appealReason"),
+  appealStatus: text("appealStatus"), // 'pending', 'approved', 'rejected'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const creatorStrikesRelations = relations(creatorStrikes, ({ one }) => ({
+  creator: one(creatorProfiles, {
+    fields: [creatorStrikes.creatorId],
+    references: [creatorProfiles.id],
+  }),
+  issuer: one(users, {
+    fields: [creatorStrikes.issuedBy],
+    references: [users.id],
+  }),
+}))
+
+// Daily Upload Tracking - enforce daily limits
+export const dailyUploadTracking = pgTable("DailyUploadTracking", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  creatorId: text("creatorId")
+    .notNull()
+    .references(() => creatorProfiles.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  uploadsToday: integer("uploadsToday").default(0).notNull(),
+  storageUsedTodayGb: decimal("storageUsedTodayGb", { precision: 10, scale: 4 }).default("0").notNull(),
+})
+
+export const dailyUploadTrackingRelations = relations(dailyUploadTracking, ({ one }) => ({
+  creator: one(creatorProfiles, {
+    fields: [dailyUploadTracking.creatorId],
+    references: [creatorProfiles.id],
+  }),
+}))
+
+// Creator Settings - global creator system settings
+export const creatorSettings = pgTable("CreatorSettings", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  minAccountAgeDays: integer("minAccountAgeDays").default(30).notNull(), // Min 1 month
+  maxAccountAgeDays: integer("maxAccountAgeDays").default(90).notNull(), // Max 3 months
+  defaultDailyUploadLimit: integer("defaultDailyUploadLimit").default(4).notNull(),
+  defaultDailyStorageLimitGb: decimal("defaultDailyStorageLimitGb", { precision: 5, scale: 2 }).default("8").notNull(),
+  autoApproveNewCreators: boolean("autoApproveNewCreators").default(false).notNull(),
+  maxStrikesBeforeSuspension: integer("maxStrikesBeforeSuspension").default(3).notNull(),
+  isCreatorSystemEnabled: boolean("isCreatorSystemEnabled").default(true).notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})

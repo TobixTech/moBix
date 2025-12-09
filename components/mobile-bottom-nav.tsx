@@ -2,33 +2,43 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Film, Bookmark, User, Tv, Crown } from "lucide-react"
+import { Home, Film, Bookmark, User, Tv, Crown, Video } from "lucide-react"
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 
 export function MobileBottomNav() {
   const pathname = usePathname()
   const [isPremium, setIsPremium] = useState(false)
+  const [isCreator, setIsCreator] = useState(false)
 
   useEffect(() => {
-    const checkPremiumStatus = async () => {
+    const checkStatus = async () => {
       try {
-        const res = await fetch("/api/user/premium-status")
-        const data = await res.json()
-        if (data.isPremium) {
+        // Check premium status
+        const premiumRes = await fetch("/api/user/premium-status")
+        const premiumData = await premiumRes.json()
+        if (premiumData.isPremium) {
           setIsPremium(true)
         }
+
+        // Check creator status
+        const creatorRes = await fetch("/api/user/creator-status")
+        const creatorData = await creatorRes.json()
+        if (creatorData.isCreator) {
+          setIsCreator(true)
+        }
       } catch (error) {
-        // Silently fail - not premium
+        // Silently fail
       }
     }
-    checkPremiumStatus()
+    checkStatus()
   }, [])
 
   const navItems = [
     { href: "/home", icon: Home, label: "Home" },
     { href: "/browse", icon: Film, label: "Movies" },
     { href: "/series", icon: Tv, label: "Series" },
+    ...(isCreator ? [{ href: "/creator", icon: Video, label: "Creator", isCreatorTab: true }] : []),
     { href: "/watchlist", icon: Bookmark, label: "List" },
     { href: "/dashboard", icon: isPremium ? Crown : User, label: "Me", isPremiumTab: true },
   ]
@@ -66,6 +76,7 @@ export function MobileBottomNav() {
             const isActive = pathname === item.href || (item.href !== "/home" && pathname.startsWith(item.href))
             const Icon = item.icon
             const isPremiumMe = item.isPremiumTab && isPremium
+            const isCreatorItem = item.isCreatorTab
 
             return (
               <Link
@@ -81,7 +92,9 @@ export function MobileBottomNav() {
                     style={{
                       background: isPremiumMe
                         ? "radial-gradient(ellipse at center, rgba(255, 215, 0, 0.2) 0%, rgba(0, 255, 255, 0.1) 50%, transparent 70%)"
-                        : "radial-gradient(ellipse at center, rgba(0, 255, 255, 0.15) 0%, transparent 70%)",
+                        : isCreatorItem
+                          ? "radial-gradient(ellipse at center, rgba(168, 85, 247, 0.2) 0%, rgba(0, 255, 255, 0.1) 50%, transparent 70%)"
+                          : "radial-gradient(ellipse at center, rgba(0, 255, 255, 0.15) 0%, transparent 70%)",
                     }}
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
@@ -93,7 +106,9 @@ export function MobileBottomNav() {
                     isActive
                       ? isPremiumMe
                         ? "bg-gradient-to-br from-[#FFD700]/20 to-[#00FFFF]/20"
-                        : "bg-[#00FFFF]/15"
+                        : isCreatorItem
+                          ? "bg-purple-500/15"
+                          : "bg-[#00FFFF]/15"
                       : "bg-transparent hover:bg-white/5"
                   }`}
                   style={
@@ -101,7 +116,9 @@ export function MobileBottomNav() {
                       ? {
                           boxShadow: isPremiumMe
                             ? "0 0 15px rgba(255, 215, 0, 0.4), 0 0 25px rgba(0, 255, 255, 0.2), inset 0 0 8px rgba(255, 215, 0, 0.2)"
-                            : "0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 8px rgba(0, 255, 255, 0.1)",
+                            : isCreatorItem
+                              ? "0 0 15px rgba(168, 85, 247, 0.4), inset 0 0 8px rgba(168, 85, 247, 0.2)"
+                              : "0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 8px rgba(0, 255, 255, 0.1)",
                         }
                       : isPremiumMe
                         ? { boxShadow: "0 0 8px rgba(255, 215, 0, 0.2)" }
@@ -114,16 +131,22 @@ export function MobileBottomNav() {
                         ? isActive
                           ? "text-[#FFD700]"
                           : "text-[#FFD700]/70"
-                        : isActive
-                          ? "text-[#00FFFF]"
-                          : "text-[#666666]"
+                        : isCreatorItem
+                          ? isActive
+                            ? "text-purple-400"
+                            : "text-purple-400/70"
+                          : isActive
+                            ? "text-[#00FFFF]"
+                            : "text-[#666666]"
                     }`}
                     style={
-                      isActive || isPremiumMe
+                      isActive || isPremiumMe || isCreatorItem
                         ? {
                             filter: isPremiumMe
                               ? "drop-shadow(0 0 6px rgba(255, 215, 0, 0.8))"
-                              : "drop-shadow(0 0 6px rgba(0, 255, 255, 0.6))",
+                              : isCreatorItem
+                                ? "drop-shadow(0 0 6px rgba(168, 85, 247, 0.8))"
+                                : "drop-shadow(0 0 6px rgba(0, 255, 255, 0.6))",
                           }
                         : {}
                     }
@@ -136,14 +159,22 @@ export function MobileBottomNav() {
                       ? isActive
                         ? "text-[#FFD700]"
                         : "text-[#FFD700]/70"
-                      : isActive
-                        ? "text-[#00FFFF]"
-                        : "text-[#555555]"
+                      : isCreatorItem
+                        ? isActive
+                          ? "text-purple-400"
+                          : "text-purple-400/70"
+                        : isActive
+                          ? "text-[#00FFFF]"
+                          : "text-[#555555]"
                   }`}
                   style={
-                    isActive || isPremiumMe
+                    isActive || isPremiumMe || isCreatorItem
                       ? {
-                          textShadow: isPremiumMe ? "0 0 8px rgba(255, 215, 0, 0.6)" : "0 0 8px rgba(0, 255, 255, 0.5)",
+                          textShadow: isPremiumMe
+                            ? "0 0 8px rgba(255, 215, 0, 0.6)"
+                            : isCreatorItem
+                              ? "0 0 8px rgba(168, 85, 247, 0.6)"
+                              : "0 0 8px rgba(0, 255, 255, 0.5)",
                         }
                       : {}
                   }

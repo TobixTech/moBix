@@ -30,6 +30,18 @@ import { Redis } from "@upstash/redis"
 
 // Files that need getSeriesById should import directly from "@/lib/series-actions"
 
+// These wrap functions from lib/admin-creator-actions.ts
+
+import {
+  getAllCreators,
+  getContentSubmissions as getContentSubmissionsFromCreator,
+  approveSubmission,
+  rejectSubmission,
+  grantCreatorAccess,
+  suspendCreator,
+  unsuspendCreator,
+} from "@/lib/admin-creator-actions"
+
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
   token: process.env.KV_REST_API_TOKEN!,
@@ -852,33 +864,31 @@ export async function getUserProfile() {
   }
 }
 
-export async function updateUserProfile(data: { username: string; firstName: string; lastName: string }) {
+export async function updateUserProfile(data: { username?: string; bio?: string }) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    const clerkUser = await currentUser()
+    if (!clerkUser) {
       return { success: false, error: "Not authenticated" }
     }
 
-    try {
-      await db
-        .update(users)
-        .set({
-          username: data.username || null,
-          firstName: data.firstName || null,
-          lastName: data.lastName || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.clerkId, userId))
-    } catch (dbError: any) {
-      console.error("[v0] Database error updating profile:", dbError)
-      return { success: false, error: "Failed to update profile" }
+    const [user] = await db.select().from(users).where(eq(users.clerkId, clerkUser.id)).limit(1)
+
+    if (!user) {
+      return { success: false, error: "User not found" }
     }
 
-    revalidatePath("/profile")
+    await db
+      .update(users)
+      .set({
+        username: data.username || user.username,
+        bio: data.bio,
+      })
+      .where(eq(users.id, user.id))
+
     revalidatePath("/dashboard")
     return { success: true }
-  } catch (error: any) {
-    console.error("[v0] Error updating user profile:", error)
+  } catch (error) {
+    console.error("Error updating user profile:", error)
     return { success: false, error: "Failed to update profile" }
   }
 }
@@ -3146,5 +3156,203 @@ export async function toggleUserPremium(userId: string, durationDays?: number) {
   } catch (error) {
     console.error("Error toggling premium status:", error)
     return { success: false, error: "Failed to update user" }
+  }
+}
+
+// Wrapper for getAllCreators
+export async function getAdminCreators() {
+  return getAllCreators()
+}
+
+// Wrapper for getContentSubmissions
+export async function getContentSubmissions(status?: string) {
+  return getContentSubmissionsFromCreator(status)
+}
+
+// Delete creator profile
+export async function deleteCreator(creatorId: string) {
+  try {
+    const { creatorProfiles, creatorStrikes, dailyUploadTracking, creatorNotifications, contentSubmissions } =
+      await import("@/lib/db/schema")
+
+    // Delete related records first
+    await db.delete(creatorStrikes).where(eq(creatorStrikes.creatorId, creatorId))
+    await db.delete(dailyUploadTracking).where(eq(dailyUploadTracking.creatorId, creatorId))
+
+    // Get creator profile to get userId for notifications
+    const [profile] = await db.select().from(creatorProfiles).where(eq(creatorProfiles.id, creatorId)).limit(1)
+
+    if (profile) {
+      await db.delete(creatorNotifications).where(eq(creatorNotifications.userId, profile.userId))
+      // Delete submissions by this creator
+      await db.delete(contentSubmissions).where(eq(contentSubmissions.creatorId, creatorId))
+    }
+
+    // Delete the creator profile
+    await db.delete(creatorProfiles).where(eq(creatorProfiles.id, creatorId))
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting creator:", error)
+    return { success: false, error: "Failed to delete creator" }
+  }
+}
+
+// Update creator role/status
+export async function updateCreatorRole(
+  creatorId: string,
+  newStatus: "APPROVED" | "REJECTED" | "active" | "suspended",
+) {
+  try {
+    const { creatorProfiles } = await import("@/lib/db/schema")
+
+    const statusMap: Record<string, string> = {
+      APPROVED: "active",
+      REJECTED: "suspended",
+      active: "active",
+      suspended: "suspended",
+    }
+
+    const dbStatus = statusMap[newStatus] || "active"
+
+    if (dbStatus === "suspended") {
+      return suspendCreator(creatorId, "Status changed by admin")
+    } else {
+      return unsuspendCreator(creatorId)
+    }
+  } catch (error) {
+    console.error("Error updating creator role:", error)
+    return { success: false, error: "Failed to update creator role" }
+  }
+}
+
+// Create a new creator (grant access)
+export async function createCreator(data: { email: string }) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    return grantCreatorAccess(data.email, userId)
+  } catch (error) {
+    console.error("Error creating creator:", error)
+    return { success: false, error: "Failed to create creator" }
+  }
+}
+
+// Update submission status (approve or reject)
+export async function updateSubmissionStatus(
+  submissionId: string,
+  newStatus: "APPROVED" | "REJECTED",
+  reason?: string,
+) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    if (newStatus === "APPROVED") {
+      return approveSubmission(submissionId, userId)
+    } else {
+      return rejectSubmission(submissionId, userId, reason || "Rejected by admin")
+    }
+  } catch (error) {
+    console.error("Error updating submission status:", error)
+    return { success: false, error: "Failed to update submission status" }
+  }
+}
+
+// Delete a content submission
+export async function deleteSubmission(submissionId: string) {
+  try {
+    const { contentSubmissions, submissionEpisodes, creatorAnalytics } = await import("@/lib/db/schema")
+
+    // Delete related records
+    await db.delete(submissionEpisodes).where(eq(submissionEpisodes.submissionId, submissionId))
+    await db.delete(creatorAnalytics).where(eq(creatorAnalytics.submissionId, submissionId))
+
+    // Delete the submission
+    await db.delete(contentSubmissions).where(eq(contentSubmissions.id, submissionId))
+
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting submission:", error)
+    return { success: false, error: "Failed to delete submission" }
+  }
+}
+
+export async function getUserDashboardData() {
+  try {
+    const clerkUser = await currentUser()
+    if (!clerkUser) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.clerkId, clerkUser.id)).limit(1)
+
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Get watchlist count
+    const [watchlistCount] = await db.select({ count: count() }).from(watchlist).where(eq(watchlist.userId, user.id))
+
+    // Get history count
+    const [historyCount] = await db
+      .select({ count: count() })
+      .from(watchHistory)
+      .where(eq(watchHistory.userId, user.id))
+
+    const [favoritesCount] = await db.select({ count: count() }).from(likes).where(eq(likes.userId, user.id))
+
+    // Get total watch time (sum of durations from history)
+    const [watchTimeResult] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${watchHistory.duration}), 0)` })
+      .from(watchHistory)
+      .where(eq(watchHistory.userId, user.id))
+
+    // Get recent watch history with movie details
+    const recentHistory = await db
+      .select({
+        id: watchHistory.id,
+        contentId: watchHistory.movieId,
+        type: sql<string>`'movie'`,
+        watchedAt: watchHistory.watchedAt,
+        title: movies.title,
+        posterUrl: movies.posterUrl,
+      })
+      .from(watchHistory)
+      .leftJoin(movies, eq(watchHistory.movieId, movies.id))
+      .where(eq(watchHistory.userId, user.id))
+      .orderBy(desc(watchHistory.watchedAt))
+      .limit(8)
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        bio: user.bio,
+        isPremium: user.isPremium,
+        createdAt: user.createdAt,
+      },
+      stats: {
+        watchlistCount: watchlistCount?.count || 0,
+        historyCount: historyCount?.count || 0,
+        favoritesCount: favoritesCount?.count || 0,
+        totalWatchTime: watchTimeResult?.total || 0,
+      },
+      recentHistory,
+    }
+  } catch (error) {
+    console.error("Error getting user dashboard data:", error)
+    return { success: false, error: "Failed to load dashboard data" }
   }
 }
