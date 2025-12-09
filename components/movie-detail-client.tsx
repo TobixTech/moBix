@@ -64,39 +64,41 @@ interface PrerollAdCode {
   name?: string
 }
 
+interface MovieDetailClientProps {
+  movie: Movie
+  relatedMovies: any[]
+  prerollAdCodes: { code: string; name?: string }[]
+  midrollAdCodes: { code: string; name?: string }[]
+  midrollEnabled: boolean
+  midrollIntervalMinutes: number
+  smartLinkUrl?: string
+  adTimeout: number
+  skipDelay: number
+  rotationInterval: number
+  showPrerollAds: boolean
+  isInWatchlist: boolean
+  isPremiumUser?: boolean
+  adBannerVertical?: React.ReactNode
+  adBannerHorizontal?: React.ReactNode
+}
+
 export default function MovieDetailClient({
   movie,
   relatedMovies,
+  prerollAdCodes,
+  midrollAdCodes,
+  midrollEnabled,
+  midrollIntervalMinutes,
+  smartLinkUrl,
+  adTimeout,
+  skipDelay,
+  rotationInterval,
+  showPrerollAds,
+  isInWatchlist,
+  isPremiumUser = false,
   adBannerVertical,
   adBannerHorizontal,
-  prerollAdCodes = [],
-  midrollAdCodes = [],
-  midrollEnabled = false,
-  midrollIntervalMinutes = 20,
-  smartLinkUrl,
-  adTimeout = 20,
-  skipDelay = 10,
-  rotationInterval = 5,
-  showPrerollAds = true,
-  isInWatchlist = false,
-  isPremiumUser = false,
-}: {
-  movie: Movie
-  relatedMovies: RelatedMovie[]
-  adBannerVertical?: React.ReactNode
-  adBannerHorizontal?: React.ReactNode
-  prerollAdCodes?: PrerollAdCode[]
-  midrollAdCodes?: PrerollAdCode[]
-  midrollEnabled?: boolean
-  midrollIntervalMinutes?: number
-  smartLinkUrl?: string
-  adTimeout?: number
-  skipDelay?: number
-  rotationInterval?: number
-  showPrerollAds?: boolean
-  isInWatchlist?: boolean
-  isPremiumUser?: boolean
-}) {
+}: MovieDetailClientProps) {
   const { isSignedIn, userId } = useAuth()
   const [isLiked, setIsLiked] = useState(false)
   const [likesCount, setLikesCount] = useState(movie.likesCount)
@@ -239,7 +241,7 @@ export default function MovieDetailClient({
   }
 
   return (
-    <>
+    <div className="max-w-7xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
         {/* Main Content */}
         <div className="lg:col-span-2">
@@ -250,18 +252,19 @@ export default function MovieDetailClient({
             transition={{ duration: 0.5 }}
           >
             <ProductionVideoPlayer
-              videoUrl={movie.videoUrl}
-              posterUrl={movie.posterUrl}
+              videoUrl={movie.videoUrl || ""}
               title={movie.title}
-              showPrerollAds={showPrerollAds}
+              posterUrl={movie.posterUrl}
+              movieId={movie.id}
               prerollAdCodes={prerollAdCodes}
-              midrollEnabled={midrollEnabled}
               midrollAdCodes={midrollAdCodes}
+              midrollEnabled={midrollEnabled}
               midrollIntervalMinutes={midrollIntervalMinutes}
+              showPrerollAds={showPrerollAds}
               adTimeout={adTimeout}
               skipDelay={skipDelay}
               rotationInterval={rotationInterval}
-              movieId={movie.id}
+              isPremium={isPremiumUser}
             />
           </motion.div>
 
@@ -588,6 +591,6 @@ export default function MovieDetailClient({
           </div>
         </motion.div>
       )}
-    </>
+    </div>
   )
 }

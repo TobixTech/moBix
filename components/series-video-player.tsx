@@ -179,16 +179,19 @@ export default function SeriesVideoPlayer({
   const embedUrl = getEmbedUrl(videoUrl)
   const isYouTube = isYouTubeUrl(videoUrl)
 
+  const shouldShowAds = !isPremium && showPrerollAds && prerollAdCodes.length > 0
+
   useEffect(() => {
     if (showMobixIntro) {
       const timer = setTimeout(() => {
         setShowMobixIntro(false)
         // After intro, check if we should show preroll (only for non-premium users)
-        if (showPrerollAds && prerollAdCodes.length > 0 && !isPremium) {
+        if (shouldShowAds) {
           setShowPreroll(true)
           setPrerollCountdown(5)
           setCanSkipPreroll(false)
         } else {
+          // Premium users or no ads - go straight to video
           setIsLoading(true)
           setIsPlaying(true)
           setHasError(false)
@@ -197,7 +200,7 @@ export default function SeriesVideoPlayer({
       }, 2000) // 2 second intro
       return () => clearTimeout(timer)
     }
-  }, [showMobixIntro, showPrerollAds, prerollAdCodes, isPremium])
+  }, [showMobixIntro, shouldShowAds])
 
   useEffect(() => {
     if (showPreroll && prerollCountdown > 0) {
@@ -324,14 +327,15 @@ export default function SeriesVideoPlayer({
         }`}
         style={containerStyles}
       >
+        {/* moBix Intro */}
         {showMobixIntro && (
           <div className="absolute inset-0 z-[110] bg-black">
             <MobixVideoLoader />
           </div>
         )}
 
-        {/* Preroll Ad Overlay */}
-        {showPreroll && prerollAdCodes.length > 0 && !showMobixIntro && (
+        {/* Preroll Ad Overlay - only for non-premium users */}
+        {showPreroll && shouldShowAds && !showMobixIntro && (
           <div className="absolute inset-0 z-[100] bg-black flex flex-col">
             <div className="flex-1 relative">
               <div

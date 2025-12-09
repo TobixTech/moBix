@@ -11,15 +11,25 @@ import {
   getMoviesByGenre,
   getAllGenres,
   getContinueWatching,
+  checkUserPremiumStatus,
 } from "@/lib/server-actions"
 import { getTrendingSeries, getRecentSeries } from "@/lib/series-actions"
 import PromotionModalWrapper from "@/components/promotion-modal-wrapper"
+import { auth } from "@clerk/nextjs/server"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const fetchCache = "force-no-store"
 
 export default async function AuthenticatedHomePage() {
+  const { userId } = await auth()
+  let isPremiumUser = false
+
+  if (userId) {
+    const premiumStatus = await checkUserPremiumStatus(userId)
+    isPremiumUser = premiumStatus.isPremium
+  }
+
   const [trending, recent, allGenres, continueWatching, trendingSeries, recentSeries] = await Promise.all([
     getTrendingMovies(),
     getPublicMovies(),
@@ -48,7 +58,7 @@ export default async function AuthenticatedHomePage() {
       <div className="px-4 md:px-8 py-8 space-y-12">
         {continueWatching && continueWatching.length > 0 && <ContinueWatchingCarousel movies={continueWatching} />}
 
-        <AdBanner type="horizontal" placement="homepage" className="mb-4" />
+        {!isPremiumUser && <AdBanner type="horizontal" placement="homepage" className="mb-4" />}
 
         {/* Trending Section */}
         {trending.length > 0 && (
@@ -60,7 +70,7 @@ export default async function AuthenticatedHomePage() {
         {/* Trending Series Section */}
         {trendingSeries.length > 0 && <SeriesCarousel title="Popular TV Series" series={trendingSeries} />}
 
-        <AdBanner type="horizontal" placement="homepage" />
+        {!isPremiumUser && <AdBanner type="horizontal" placement="homepage" />}
 
         {/* Recently Added Section */}
         {recent.length > 0 && (
@@ -81,13 +91,13 @@ export default async function AuthenticatedHomePage() {
               genre={genreData.genre}
               showSeeMore={true}
             />
-            {(index + 1) % 2 === 0 && index < genresWithMovies.length - 1 && (
+            {!isPremiumUser && (index + 1) % 2 === 0 && index < genresWithMovies.length - 1 && (
               <AdBanner type="horizontal" placement="homepage" className="mt-8" />
             )}
           </div>
         ))}
 
-        <AdBanner type="horizontal" placement="homepage" className="mt-8" />
+        {!isPremiumUser && <AdBanner type="horizontal" placement="homepage" className="mt-8" />}
       </div>
 
       <Footer />

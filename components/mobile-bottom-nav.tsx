@@ -2,18 +2,35 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Film, Bookmark, User, Tv } from "lucide-react"
+import { Home, Film, Bookmark, User, Tv, Crown } from "lucide-react"
 import { motion } from "framer-motion"
+import { useEffect, useState } from "react"
 
 export function MobileBottomNav() {
   const pathname = usePathname()
+  const [isPremium, setIsPremium] = useState(false)
+
+  useEffect(() => {
+    const checkPremiumStatus = async () => {
+      try {
+        const res = await fetch("/api/user/premium-status")
+        const data = await res.json()
+        if (data.isPremium) {
+          setIsPremium(true)
+        }
+      } catch (error) {
+        // Silently fail - not premium
+      }
+    }
+    checkPremiumStatus()
+  }, [])
 
   const navItems = [
     { href: "/home", icon: Home, label: "Home" },
     { href: "/browse", icon: Film, label: "Movies" },
     { href: "/series", icon: Tv, label: "Series" },
     { href: "/watchlist", icon: Bookmark, label: "List" },
-    { href: "/dashboard", icon: User, label: "Me" },
+    { href: "/dashboard", icon: isPremium ? Crown : User, label: "Me", isPremiumTab: true },
   ]
 
   // Don't show on landing page or auth pages
@@ -48,6 +65,7 @@ export function MobileBottomNav() {
           {navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/home" && pathname.startsWith(item.href))
             const Icon = item.icon
+            const isPremiumMe = item.isPremiumTab && isPremium
 
             return (
               <Link
@@ -61,7 +79,9 @@ export function MobileBottomNav() {
                     layoutId="activeTab"
                     className="absolute inset-0 rounded-xl"
                     style={{
-                      background: "radial-gradient(ellipse at center, rgba(0, 255, 255, 0.15) 0%, transparent 70%)",
+                      background: isPremiumMe
+                        ? "radial-gradient(ellipse at center, rgba(255, 215, 0, 0.2) 0%, rgba(0, 255, 255, 0.1) 50%, transparent 70%)"
+                        : "radial-gradient(ellipse at center, rgba(0, 255, 255, 0.15) 0%, transparent 70%)",
                     }}
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
@@ -70,22 +90,40 @@ export function MobileBottomNav() {
                 <motion.div
                   whileTap={{ scale: 0.85 }}
                   className={`relative p-2 rounded-xl transition-all duration-300 ${
-                    isActive ? "bg-[#00FFFF]/15" : "bg-transparent hover:bg-white/5"
+                    isActive
+                      ? isPremiumMe
+                        ? "bg-gradient-to-br from-[#FFD700]/20 to-[#00FFFF]/20"
+                        : "bg-[#00FFFF]/15"
+                      : "bg-transparent hover:bg-white/5"
                   }`}
                   style={
                     isActive
                       ? {
-                          boxShadow: "0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 8px rgba(0, 255, 255, 0.1)",
+                          boxShadow: isPremiumMe
+                            ? "0 0 15px rgba(255, 215, 0, 0.4), 0 0 25px rgba(0, 255, 255, 0.2), inset 0 0 8px rgba(255, 215, 0, 0.2)"
+                            : "0 0 15px rgba(0, 255, 255, 0.3), inset 0 0 8px rgba(0, 255, 255, 0.1)",
                         }
-                      : {}
+                      : isPremiumMe
+                        ? { boxShadow: "0 0 8px rgba(255, 215, 0, 0.2)" }
+                        : {}
                   }
                 >
                   <Icon
-                    className={`w-4 h-4 transition-all duration-300 ${isActive ? "text-[#00FFFF]" : "text-[#666666]"}`}
+                    className={`w-4 h-4 transition-all duration-300 ${
+                      isPremiumMe
+                        ? isActive
+                          ? "text-[#FFD700]"
+                          : "text-[#FFD700]/70"
+                        : isActive
+                          ? "text-[#00FFFF]"
+                          : "text-[#666666]"
+                    }`}
                     style={
-                      isActive
+                      isActive || isPremiumMe
                         ? {
-                            filter: "drop-shadow(0 0 6px rgba(0, 255, 255, 0.6))",
+                            filter: isPremiumMe
+                              ? "drop-shadow(0 0 6px rgba(255, 215, 0, 0.8))"
+                              : "drop-shadow(0 0 6px rgba(0, 255, 255, 0.6))",
                           }
                         : {}
                     }
@@ -94,17 +132,23 @@ export function MobileBottomNav() {
 
                 <span
                   className={`text-[9px] font-semibold transition-all duration-300 ${
-                    isActive ? "text-[#00FFFF]" : "text-[#555555]"
+                    isPremiumMe
+                      ? isActive
+                        ? "text-[#FFD700]"
+                        : "text-[#FFD700]/70"
+                      : isActive
+                        ? "text-[#00FFFF]"
+                        : "text-[#555555]"
                   }`}
                   style={
-                    isActive
+                    isActive || isPremiumMe
                       ? {
-                          textShadow: "0 0 8px rgba(0, 255, 255, 0.5)",
+                          textShadow: isPremiumMe ? "0 0 8px rgba(255, 215, 0, 0.6)" : "0 0 8px rgba(0, 255, 255, 0.5)",
                         }
                       : {}
                   }
                 >
-                  {item.label}
+                  {isPremiumMe ? "Premium" : item.label}
                 </span>
               </Link>
             )

@@ -25,6 +25,7 @@ interface ProductionVideoPlayerProps {
   adTimeout?: number
   skipDelay?: number
   rotationInterval?: number
+  isPremium?: boolean
 }
 
 export function ProductionVideoPlayer({
@@ -42,6 +43,7 @@ export function ProductionVideoPlayer({
   adTimeout = 30,
   skipDelay = 5,
   rotationInterval = 5,
+  isPremium = false,
 }: ProductionVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -61,6 +63,8 @@ export function ProductionVideoPlayer({
   const [prerollCountdown, setPrerollCountdown] = useState(skipDelay)
   const [canSkipPreroll, setCanSkipPreroll] = useState(false)
   const [currentAdIndex, setCurrentAdIndex] = useState(0)
+
+  const shouldShowAds = !isPremium && showPrerollAds && prerollAdCodes.length > 0
 
   const isYouTubeUrl = (url: string): boolean => {
     const lowerUrl = url.toLowerCase()
@@ -188,19 +192,20 @@ export function ProductionVideoPlayer({
     if (showMobixIntro) {
       const timer = setTimeout(() => {
         setShowMobixIntro(false)
-        // After intro, check if we should show preroll
-        if (showPrerollAds && prerollAdCodes.length > 0) {
+        // After intro, check if we should show preroll (only for non-premium)
+        if (shouldShowAds) {
           setShowPreroll(true)
           setPrerollCountdown(skipDelay)
           setCanSkipPreroll(false)
         } else {
+          // Premium users or no ads - go straight to video
           setShowPlayOverlay(false)
           setIsPlaying(true)
         }
       }, 2000) // 2 second intro
       return () => clearTimeout(timer)
     }
-  }, [showMobixIntro, showPrerollAds, prerollAdCodes, skipDelay])
+  }, [showMobixIntro, shouldShowAds, skipDelay])
 
   useEffect(() => {
     if (showPreroll && prerollCountdown > 0) {
@@ -303,19 +308,20 @@ export function ProductionVideoPlayer({
         className={`relative bg-black overflow-hidden ${isRotated ? "" : "w-full aspect-video rounded-xl"}`}
         style={rotatedStyles}
       >
+        {/* moBix Intro */}
         {showMobixIntro && (
           <div className="absolute inset-0 z-[60] bg-black">
             <MobixVideoLoader />
           </div>
         )}
 
-        {/* Preroll Ad Overlay */}
-        {showPreroll && prerollAdCodes.length > 0 && !showMobixIntro && (
+        {/* Preroll Ad Overlay - only for non-premium users */}
+        {showPreroll && shouldShowAds && !showMobixIntro && (
           <div className="absolute inset-0 z-50 bg-black flex flex-col">
             <div className="flex-1 relative">
               <div
                 ref={adContainerRef}
-                className="absolute inset-0"
+                className="absolute inset-0 flex items-center justify-center"
                 dangerouslySetInnerHTML={{ __html: prerollAdCodes[currentAdIndex]?.code || "" }}
               />
             </div>
