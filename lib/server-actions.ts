@@ -21,6 +21,7 @@ import {
   seriesComments, // Import seriesComments table
   series, // Import series table for analytics and reports
   seriesReports, // Import seriesReports table for reports
+  siteSettings, // Import siteSettings table
 } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum, gt, lt } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
@@ -2991,26 +2992,71 @@ export async function getAnalyticsData() {
 
 export async function getSiteSettings() {
   try {
-    // Check for settings in Redis/KV if available
-    const settings = {
+    const settings = await db.select().from(siteSettings)
+
+    // Convert to key-value object
+    const settingsObject: Record<string, any> = {
       maintenanceMode: false,
-      registrationEnabled: true,
-      commentsEnabled: true,
-      ratingsEnabled: true,
-      downloadEnabled: true,
-      adsEnabled: true,
+      allowRegistrations: true,
+      enableComments: true,
+      enableDownloads: true,
     }
-    return settings
+
+    settings.forEach((setting) => {
+      let value: any = setting.value
+      if (setting.type === "boolean") {
+        value = setting.value === "true"
+      } else if (setting.type === "number") {
+        value = Number(setting.value)
+      }
+      settingsObject[setting.key] = value
+    })
+
+    return settingsObject
   } catch (error) {
     console.error("Error fetching site settings:", error)
-    return null
+    return {
+      maintenanceMode: false,
+      allowRegistrations: true,
+      enableComments: true,
+      enableDownloads: true,
+    }
   }
 }
 
 export async function updateSiteSettings(settings: Record<string, any>) {
   try {
-    // Store settings - you can use Redis/KV or database
-    console.log("Updating site settings:", settings)
+    // Update each setting in the database
+    for (const [key, value] of Object.entries(settings)) {
+      let type = "string"
+      let stringValue = String(value)
+
+      if (typeof value === "boolean") {
+        type = "boolean"
+        stringValue = value ? "true" : "false"
+      } else if (typeof value === "number") {
+        type = "number"
+        stringValue = String(value)
+      }
+
+      await db
+        .insert(siteSettings)
+        .values({
+          key,
+          value: stringValue,
+          type,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: siteSettings.key,
+          set: {
+            value: stringValue,
+            type,
+            updatedAt: new Date(),
+          },
+        })
+    }
+
     return { success: true }
   } catch (error) {
     console.error("Error updating site settings:", error)

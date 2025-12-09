@@ -101,7 +101,6 @@ interface SeriesDetailClientProps {
   midrollEnabled: boolean
   midrollIntervalMinutes: number
   isPremiumUser?: boolean
-  showPrerollAds?: boolean
 }
 
 const statusColors: Record<string, string> = {
@@ -122,7 +121,6 @@ export default function SeriesDetailClient({
   midrollEnabled,
   midrollIntervalMinutes,
   isPremiumUser = false,
-  showPrerollAds = false,
 }: SeriesDetailClientProps) {
   const { isSignedIn } = useUser()
   const [inWatchlist, setInWatchlist] = useState(initialInWatchlist)
@@ -294,7 +292,7 @@ export default function SeriesDetailClient({
                     episodeTitle={`S${selectedSeason?.seasonNumber} E${currentEpisode.episodeNumber}: ${currentEpisode.title}`}
                     isPremium={isPremiumUser}
                     prerollAdCodes={prerollAdCodes}
-                    showPrerollAds={showPrerollAds}
+                    showPrerollAds={!isPremiumUser && prerollAdCodes.length > 0}
                   />
 
                   <div className="bg-[#1A1B23]/80 backdrop-blur-sm rounded-xl p-4 border border-[#2A2B33]">

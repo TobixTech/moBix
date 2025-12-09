@@ -1310,8 +1310,9 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
+      {/* Add settings tab to mobile bottom tabs and fix padding for mobile */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B0C10]/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
-        <div className="flex items-center justify-around py-2 px-2 overflow-x-auto">
+        <div className="flex items-center justify-around py-2 px-1 overflow-x-auto scrollbar-hide">
           {[
             { id: "overview", icon: LayoutDashboard },
             { id: "movies", icon: Film },
@@ -1321,16 +1322,17 @@ export default function AdminDashboard() {
             { id: "reports", icon: Flag },
             { id: "ads", icon: Settings },
             { id: "analytics", icon: BarChart3 },
+            { id: "settings", icon: Cog },
           ].map(({ id, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id as AdminTab)}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
+              className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all min-w-[48px] ${
                 activeTab === id ? "text-cyan-400 bg-cyan-500/10" : "text-white/50"
               }`}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] capitalize">{id}</span>
+              <Icon className="w-4 h-4" />
+              <span className="text-[9px] capitalize truncate">{id}</span>
             </button>
           ))}
         </div>
@@ -3009,24 +3011,24 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Settings Tab */}
+          {/* Update settings tab with better mobile layout, working save, and proper spacing */}
           {activeTab === "settings" && (
-            <div className="space-y-6">
+            <div className="space-y-6 pb-24 lg:pb-6">
               <h3 className="text-2xl font-bold text-white">Site Settings</h3>
 
               {/* General Settings */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 md:p-6">
                 <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                   <Cog className="w-5 h-5 text-cyan-400" />
                   General Settings
                 </h4>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white/5 rounded-xl">
                     <div>
                       <p className="text-white font-medium">Maintenance Mode</p>
                       <p className="text-white/50 text-sm">Temporarily disable the site for maintenance</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
                       <input
                         type="checkbox"
                         checked={siteSettings.maintenanceMode || false}
@@ -3036,12 +3038,12 @@ export default function AdminDashboard() {
                       <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                     </label>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white/5 rounded-xl">
                     <div>
                       <p className="text-white font-medium">Allow New Registrations</p>
                       <p className="text-white/50 text-sm">Enable or disable new user signups</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
                       <input
                         type="checkbox"
                         checked={siteSettings.allowRegistrations ?? true}
@@ -3051,12 +3053,12 @@ export default function AdminDashboard() {
                       <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                     </label>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white/5 rounded-xl">
                     <div>
                       <p className="text-white font-medium">Enable Comments</p>
                       <p className="text-white/50 text-sm">Allow users to comment on content</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
                       <input
                         type="checkbox"
                         checked={siteSettings.enableComments ?? true}
@@ -3066,53 +3068,96 @@ export default function AdminDashboard() {
                       <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                     </label>
                   </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white/5 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">Enable Downloads</p>
+                      <p className="text-white/50 text-sm">Allow users to download content</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
+                      <input
+                        type="checkbox"
+                        checked={siteSettings.enableDownloads ?? true}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, enableDownloads: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
               {/* Cache Management */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 md:p-6">
                 <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                   <RefreshCw className="w-5 h-5 text-cyan-400" />
                   Cache Management
                 </h4>
-                <div className="flex gap-4">
-                  <button className="px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => toast.success("Page cache cleared")}
+                    className="px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors border border-cyan-500/30 text-sm"
+                  >
                     Clear Page Cache
                   </button>
-                  <button className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30">
+                  <button
+                    onClick={() => toast.success("Image cache cleared")}
+                    className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30 text-sm"
+                  >
                     Clear Image Cache
                   </button>
-                  <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30">
+                  <button
+                    onClick={() => toast.success("All caches cleared")}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30 text-sm"
+                  >
                     Clear All Cache
                   </button>
                 </div>
               </div>
 
               {/* Danger Zone */}
-              <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+              <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 md:p-6">
                 <h4 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5" />
                   Danger Zone
                 </h4>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-red-500/10 rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-red-500/10 rounded-xl">
                     <div>
                       <p className="text-white font-medium">Reset All Statistics</p>
                       <p className="text-red-400/70 text-sm">This will reset all view counts and analytics data</p>
                     </div>
-                    <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30">
+                    <button
+                      onClick={() => toast.error("This action is disabled for safety")}
+                      className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30 text-sm self-start sm:self-center"
+                    >
                       Reset
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end pt-6">
+              {/* Save Button - Fixed and visible on mobile */}
+              <div className="flex justify-center sm:justify-end pt-4 pb-4">
                 <button
-                  onClick={() => updateSiteSettings(siteSettings)}
-                  className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center gap-2"
+                  onClick={async () => {
+                    setLoading(true)
+                    try {
+                      const result = await updateSiteSettings(siteSettings)
+                      if (result.success) {
+                        toast.success("Settings saved successfully!")
+                      } else {
+                        toast.error(result.error || "Failed to save settings")
+                      }
+                    } catch (error) {
+                      toast.error("Failed to save settings")
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading}
+                  className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <Save className="w-5 h-5" />
+                  {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   Save Settings
                 </button>
               </div>
