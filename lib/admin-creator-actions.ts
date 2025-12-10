@@ -15,7 +15,7 @@ import {
   seasons,
   episodes,
 } from "@/lib/db/schema"
-import { eq, desc, and, count, gte } from "drizzle-orm"
+import { eq, desc, and, count, gte, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 // Get all creator requests for admin
@@ -462,6 +462,8 @@ export async function getContentSubmissions(status?: string) {
 // Approve content submission
 export async function approveSubmission(submissionId: string, adminUserId: string) {
   try {
+    console.log("[approveSubmission] Starting approval for:", submissionId)
+
     const [submission] = await db
       .select()
       .from(contentSubmissions)
@@ -469,14 +471,17 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
       .limit(1)
 
     if (!submission) {
+      console.error("[approveSubmission] Submission not found:", submissionId)
       return { success: false, error: "Submission not found" }
     }
+
+    console.log("[approveSubmission] Found submission:", submission.title, submission.status)
 
     if (submission.status !== "pending") {
       return { success: false, error: "Submission already processed" }
     }
 
-    // Update submission status
+    // Update submission status first
     await db
       .update(contentSubmissions)
       .set({
@@ -486,8 +491,22 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
       })
       .where(eq(contentSubmissions.id, submissionId))
 
-    // Publish content
-    await publishSubmissionContent(submissionId)
+    console.log("[approveSubmission] Status updated to approved")
+
+    // Publish content to main site
+    const publishResult = await publishSubmissionContent(submissionId)
+
+    if (!publishResult.success) {
+      console.error("[approveSubmission] Publish failed:", publishResult.error)
+      // Revert status if publish fails
+      await db
+        .update(contentSubmissions)
+        .set({ status: "pending", reviewedAt: null, reviewedBy: null })
+        .where(eq(contentSubmissions.id, submissionId))
+      return { success: false, error: publishResult.error || "Failed to publish content" }
+    }
+
+    console.log("[approveSubmission] Content published successfully")
 
     // Get creator for notification
     const [profile] = await db
@@ -504,15 +523,25 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
         message: `Your ${submission.type} "${submission.title}" has been approved and is now live on moBix!`,
         submissionId,
       })
+
+      // Update creator's total views (initial)
+      await db
+        .update(creatorProfiles)
+        .set({ totalViews: sql`${creatorProfiles.totalViews} + 0` })
+        .where(eq(creatorProfiles.id, profile.id))
     }
 
     revalidatePath("/admin/dashboard")
     revalidatePath("/home")
     revalidatePath("/browse")
+    revalidatePath("/movies")
+    revalidatePath("/series")
+
+    console.log("[approveSubmission] Completed successfully")
     return { success: true }
-  } catch (error) {
-    console.error("Error approving submission:", error)
-    return { success: false, error: "Failed to approve submission" }
+  } catch (error: any) {
+    console.error("[approveSubmission] Error:", error)
+    return { success: false, error: error.message || "Failed to approve submission" }
   }
 }
 
@@ -565,8 +594,12 @@ export async function rejectSubmission(submissionId: string, adminUserId: string
 }
 
 // Publish submission content to main site
-async function publishSubmissionContent(submissionId: string) {
+async function publishSubmissionContent(
+  submissionId: string,
+): Promise<{ success: boolean; error?: string; movieId?: string; seriesId?: string }> {
   try {
+    console.log("[publishSubmissionContent] Starting for:", submissionId)
+
     const [submission] = await db
       .select()
       .from(contentSubmissions)
@@ -574,11 +607,10 @@ async function publishSubmissionContent(submissionId: string) {
       .limit(1)
 
     if (!submission) {
-      console.error("[publishSubmissionContent] Submission not found:", submissionId)
-      throw new Error("Submission not found")
+      return { success: false, error: "Submission not found" }
     }
 
-    console.log("[v0] Publishing submission:", submission.type, submission.title)
+    console.log("[publishSubmissionContent] Publishing:", submission.type, submission.title)
 
     if (submission.type === "movie") {
       // Generate unique slug
@@ -587,30 +619,40 @@ async function publishSubmissionContent(submissionId: string) {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")
 
-      // Check for existing slug and make unique if needed
       let slug = baseSlug
       let counter = 1
+
+      // Check for existing slug
       while (true) {
-        const existing = await db.query.movies.findFirst({
-          where: eq(movies.slug, slug),
-        })
+        const [existing] = await db.select({ id: movies.id }).from(movies).where(eq(movies.slug, slug)).limit(1)
+
         if (!existing) break
         slug = `${baseSlug}-${counter}`
         counter++
+        if (counter > 100) {
+          return { success: false, error: "Could not generate unique slug" }
+        }
       }
 
+      // Check for existing title and make unique
       let finalTitle = submission.title
       let titleCounter = 1
       while (true) {
-        const existingTitle = await db.query.movies.findFirst({
-          where: eq(movies.title, finalTitle),
-        })
+        const [existingTitle] = await db
+          .select({ id: movies.id })
+          .from(movies)
+          .where(eq(movies.title, finalTitle))
+          .limit(1)
+
         if (!existingTitle) break
         finalTitle = `${submission.title} (${titleCounter})`
         titleCounter++
+        if (titleCounter > 100) {
+          return { success: false, error: "Could not generate unique title" }
+        }
       }
 
-      console.log("[v0] Creating movie with title:", finalTitle, "slug:", slug)
+      console.log("[publishSubmissionContent] Creating movie:", finalTitle, slug)
 
       const [movie] = await db
         .insert(movies)
@@ -629,7 +671,7 @@ async function publishSubmissionContent(submissionId: string) {
         })
         .returning()
 
-      console.log("[v0] Movie created successfully:", movie.id, movie.title)
+      console.log("[publishSubmissionContent] Movie created:", movie.id)
 
       await db
         .update(contentSubmissions)
@@ -646,34 +688,42 @@ async function publishSubmissionContent(submissionId: string) {
 
       let slug = baseSlug
       let counter = 1
+
       while (true) {
-        const existing = await db.query.series.findFirst({
-          where: eq(series.slug, slug),
-        })
+        const [existing] = await db.select({ id: series.id }).from(series).where(eq(series.slug, slug)).limit(1)
+
         if (!existing) break
         slug = `${baseSlug}-${counter}`
         counter++
+        if (counter > 100) {
+          return { success: false, error: "Could not generate unique slug" }
+        }
       }
 
       let finalTitle = submission.title
       let titleCounter = 1
       while (true) {
-        const existingTitle = await db.query.series.findFirst({
-          where: eq(series.title, finalTitle),
-        })
+        const [existingTitle] = await db
+          .select({ id: series.id })
+          .from(series)
+          .where(eq(series.title, finalTitle))
+          .limit(1)
+
         if (!existingTitle) break
         finalTitle = `${submission.title} (${titleCounter})`
         titleCounter++
+        if (titleCounter > 100) {
+          return { success: false, error: "Could not generate unique title" }
+        }
       }
 
-      console.log("[v0] Creating series with title:", finalTitle, "slug:", slug)
+      console.log("[publishSubmissionContent] Creating series:", finalTitle, slug)
 
-      // Parse series data
       let seriesData: any = {}
       try {
         seriesData = submission.seriesData ? JSON.parse(submission.seriesData) : {}
       } catch (e) {
-        console.error("[v0] Error parsing series data:", e)
+        console.error("[publishSubmissionContent] Error parsing series data:", e)
       }
 
       const [newSeries] = await db
@@ -695,7 +745,7 @@ async function publishSubmissionContent(submissionId: string) {
         })
         .returning()
 
-      console.log("[v0] Series created successfully:", newSeries.id, newSeries.title)
+      console.log("[publishSubmissionContent] Series created:", newSeries.id)
 
       // Get submission episodes
       const subEpisodes = await db
@@ -704,45 +754,47 @@ async function publishSubmissionContent(submissionId: string) {
         .where(eq(submissionEpisodes.submissionId, submissionId))
         .orderBy(submissionEpisodes.seasonNumber, submissionEpisodes.episodeNumber)
 
-      console.log("[v0] Found episodes:", subEpisodes.length)
+      console.log("[publishSubmissionContent] Found episodes:", subEpisodes.length)
 
-      // Group episodes by season
-      const seasonMap = new Map<number, typeof subEpisodes>()
-      for (const ep of subEpisodes) {
-        if (!seasonMap.has(ep.seasonNumber)) {
-          seasonMap.set(ep.seasonNumber, [])
+      if (subEpisodes.length > 0) {
+        // Group episodes by season
+        const seasonMap = new Map<number, typeof subEpisodes>()
+        for (const ep of subEpisodes) {
+          if (!seasonMap.has(ep.seasonNumber)) {
+            seasonMap.set(ep.seasonNumber, [])
+          }
+          seasonMap.get(ep.seasonNumber)!.push(ep)
         }
-        seasonMap.get(ep.seasonNumber)!.push(ep)
-      }
 
-      // Create seasons and episodes
-      for (const [seasonNum, eps] of seasonMap) {
-        const [season] = await db
-          .insert(seasons)
-          .values({
-            seriesId: newSeries.id,
-            seasonNumber: seasonNum,
-            totalEpisodes: eps.length,
-          })
-          .returning()
+        // Create seasons and episodes
+        for (const [seasonNum, eps] of seasonMap) {
+          const [season] = await db
+            .insert(seasons)
+            .values({
+              seriesId: newSeries.id,
+              seasonNumber: seasonNum,
+              totalEpisodes: eps.length,
+            })
+            .returning()
 
-        console.log("[v0] Season created:", season.id, "Season", seasonNum)
+          console.log("[publishSubmissionContent] Season created:", season.id, "Season", seasonNum)
 
-        for (const ep of eps) {
-          await db.insert(episodes).values({
-            seasonId: season.id,
-            episodeNumber: ep.episodeNumber,
-            title: ep.title || `Episode ${ep.episodeNumber}`,
-            description: ep.description || "",
-            videoUrl: ep.videoUrl,
-            thumbnailUrl: ep.thumbnailUrl || submission.thumbnailUrl || "",
-            duration: ep.duration || 0,
-          })
+          for (const ep of eps) {
+            await db.insert(episodes).values({
+              seasonId: season.id,
+              episodeNumber: ep.episodeNumber,
+              title: ep.title || `Episode ${ep.episodeNumber}`,
+              description: ep.description || "",
+              videoUrl: ep.videoUrl,
+              thumbnailUrl: ep.thumbnailUrl || submission.thumbnailUrl || "",
+              duration: ep.duration || 0,
+            })
+          }
         }
-      }
 
-      // Update total episodes count
-      await db.update(series).set({ totalEpisodes: subEpisodes.length }).where(eq(series.id, newSeries.id))
+        // Update total episodes count
+        await db.update(series).set({ totalEpisodes: subEpisodes.length }).where(eq(series.id, newSeries.id))
+      }
 
       await db
         .update(contentSubmissions)
@@ -752,11 +804,10 @@ async function publishSubmissionContent(submissionId: string) {
       return { success: true, seriesId: newSeries.id }
     }
 
-    console.log("[v0] Content published successfully")
-    return { success: true }
-  } catch (error) {
+    return { success: false, error: "Unknown content type" }
+  } catch (error: any) {
     console.error("[publishSubmissionContent] Error:", error)
-    throw error
+    return { success: false, error: error.message || "Failed to publish content" }
   }
 }
 

@@ -184,19 +184,27 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
     formData.append("title", episodeTitle || title)
 
     try {
+      console.log("[v0] Uploading video:", file.name, file.size)
+
       const response = await fetch("/api/upload/video", {
         method: "POST",
         body: formData,
       })
 
       const result = await response.json()
+      console.log("[v0] Video upload response:", result)
 
       if (!result.success) {
         throw new Error(result.error || "Video upload failed")
       }
 
+      if (result.warning) {
+        toast.warning(result.warning)
+      }
+
       return result.embedUrl
     } catch (error: any) {
+      console.error("[v0] Video upload error:", error)
       toast.error(error.message || "Failed to upload video")
       return null
     }
@@ -207,19 +215,27 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
     formData.append("thumbnail", file)
 
     try {
+      console.log("[v0] Uploading thumbnail:", file.name, file.size)
+
       const response = await fetch("/api/upload/thumbnail", {
         method: "POST",
         body: formData,
       })
 
       const result = await response.json()
+      console.log("[v0] Thumbnail upload response:", result)
 
       if (!result.success) {
         throw new Error(result.error || "Thumbnail upload failed")
       }
 
+      if (result.warning) {
+        toast.warning(result.warning)
+      }
+
       return result.thumbnailUrl
     } catch (error: any) {
+      console.error("[v0] Thumbnail upload error:", error)
       toast.error(error.message || "Failed to upload thumbnail")
       return null
     }
@@ -276,6 +292,42 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
       return
     }
 
+    // Check thumbnail requirement
+    if (uploadMode === "url" && !thumbnailUrl) {
+      toast.error("Thumbnail URL is required")
+      return
+    }
+    if (uploadMode === "file" && !selectedThumbnailFile) {
+      toast.error("Please select a thumbnail image")
+      return
+    }
+
+    // Check video requirement for movies
+    if (contentType === "movie") {
+      if (uploadMode === "url" && !videoUrl) {
+        toast.error("Video URL is required for movies")
+        return
+      }
+      if (uploadMode === "file" && !selectedVideoFile) {
+        toast.error("Please select a video file")
+        return
+      }
+    }
+
+    // Check episodes for series
+    if (contentType === "series") {
+      const missingEpisodes = episodes.filter((ep) => {
+        if (uploadMode === "url") return !ep.videoUrl
+        return !ep.videoFile && !ep.videoUrl
+      })
+      if (missingEpisodes.length > 0) {
+        toast.error(
+          `Please provide video for all episodes. Missing: Episode ${episodes.findIndex((ep) => (uploadMode === "url" ? !ep.videoUrl : !ep.videoFile && !ep.videoUrl)) + 1}`,
+        )
+        return
+      }
+    }
+
     setLoading(true)
     setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: true })
 
@@ -286,38 +338,44 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
       // Upload thumbnail if in file mode
       if (uploadMode === "file" && selectedThumbnailFile) {
         toast.info("Uploading thumbnail...")
-        setUploadProgress((prev) => ({ ...prev, thumbnail: 50 }))
+        setUploadProgress((prev) => ({ ...prev, thumbnail: 30 }))
+
         const uploadedThumbnailUrl = await uploadThumbnailFile(selectedThumbnailFile)
         if (!uploadedThumbnailUrl) {
-          throw new Error("Thumbnail upload failed")
+          throw new Error("Thumbnail upload failed. Please try again.")
         }
         finalThumbnailUrl = uploadedThumbnailUrl
         setUploadProgress((prev) => ({ ...prev, thumbnail: 100 }))
+        toast.success("Thumbnail uploaded!")
       }
 
       // For movies, upload video file
       if (contentType === "movie" && uploadMode === "file" && selectedVideoFile) {
-        toast.info("Uploading video to VOE...")
-        setUploadProgress((prev) => ({ ...prev, video: 50 }))
+        toast.info("Uploading video... This may take a while for large files.")
+        setUploadProgress((prev) => ({ ...prev, video: 30 }))
+
         const uploadedVideoUrl = await uploadVideoFile(selectedVideoFile)
         if (!uploadedVideoUrl) {
-          throw new Error("Video upload failed")
+          throw new Error("Video upload failed. Please try again.")
         }
         finalVideoUrl = uploadedVideoUrl
         setUploadProgress((prev) => ({ ...prev, video: 100 }))
+        toast.success("Video uploaded!")
       }
 
+      // For series, upload episode videos
       const finalEpisodes = [...episodes]
-      if (contentType === "series" && uploadMode === "file") {
+      if (contentType === "series") {
         for (let i = 0; i < episodes.length; i++) {
           const ep = episodes[i]
-          if (ep.videoFile) {
+          if (uploadMode === "file" && ep.videoFile) {
             toast.info(`Uploading Episode ${i + 1} video...`)
             setUploadProgress((prev) => ({
               ...prev,
               currentEpisode: i,
-              episodeUploads: { ...prev.episodeUploads, [i]: 50 },
+              episodeUploads: { ...prev.episodeUploads, [i]: 30 },
             }))
+
             const uploadedUrl = await uploadVideoFile(
               ep.videoFile,
               `${title} - S${ep.seasonNumber}E${ep.episodeNumber}`,
@@ -330,11 +388,12 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
               ...prev,
               episodeUploads: { ...prev.episodeUploads, [i]: 100 },
             }))
+            toast.success(`Episode ${i + 1} uploaded!`)
           }
         }
       }
 
-      // Validate required fields
+      // Final validation
       if (contentType === "movie" && !finalVideoUrl) {
         throw new Error("Video URL is required for movies")
       }
@@ -351,6 +410,8 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
       }
 
       // Submit content
+      console.log("[v0] Submitting content:", { type: contentType, title, genre, year })
+
       const result = await submitContent({
         type: contentType,
         title,
@@ -373,7 +434,7 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
             ? finalEpisodes.map((ep) => ({
                 seasonNumber: ep.seasonNumber,
                 episodeNumber: ep.episodeNumber,
-                title: ep.title,
+                title: ep.title || `Episode ${ep.episodeNumber}`,
                 description: ep.description,
                 videoUrl: ep.videoUrl,
                 thumbnailUrl: ep.thumbnailUrl,
@@ -381,6 +442,8 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
               }))
             : undefined,
       })
+
+      console.log("[v0] Submit result:", result)
 
       if (result.success) {
         toast.success(result.autoApproved ? "Content published successfully!" : "Content submitted for review!")
@@ -412,6 +475,7 @@ export function CreatorUploadForm({ dailyTracking, onUploadComplete }: CreatorUp
         throw new Error(result.error || "Failed to submit content")
       }
     } catch (error: any) {
+      console.error("[v0] Submit error:", error)
       toast.error(error.message || "Submission failed")
     } finally {
       setLoading(false)

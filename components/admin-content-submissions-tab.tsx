@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Film, Tv, Clock, CheckCircle, XCircle, Eye, Search, Loader, Play, ImageIcon } from "lucide-react"
+import { Film, Tv, Clock, CheckCircle, XCircle, Eye, Search, Loader, Play, ImageIcon, RefreshCw } from "lucide-react"
 import {
   getContentSubmissions,
   approveSubmission,
@@ -42,6 +42,9 @@ export function AdminContentSubmissionsTab() {
         getCreatorStats(),
       ])
 
+      console.log("[v0] Submissions loaded:", submissionsRes)
+      console.log("[v0] Stats loaded:", statsRes)
+
       if (submissionsRes.success) setSubmissions(submissionsRes.submissions || [])
       if (statsRes.success) setStats(statsRes.stats)
     } catch (error) {
@@ -61,49 +64,54 @@ export function AdminContentSubmissionsTab() {
 
       if (result.success) {
         toast.success("Content approved and published!")
-        fetchData()
+        await fetchData() // Refresh the list
       } else {
         toast.error(result.error || "Failed to approve")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("[v0] Approve error:", error)
-      toast.error("An error occurred while approving")
+      toast.error(error.message || "An error occurred while approving")
+    } finally {
+      setLoadingItems((prev) => {
+        const next = new Set(prev)
+        next.delete(submissionId)
+        return next
+      })
     }
-
-    setLoadingItems((prev) => {
-      const next = new Set(prev)
-      next.delete(submissionId)
-      return next
-    })
   }
 
   const handleReject = async () => {
-    if (!selectedSubmission || !rejectReason) return
+    if (!selectedSubmission || !rejectReason.trim()) {
+      toast.error("Please enter a rejection reason")
+      return
+    }
 
     setLoadingItems((prev) => new Set(prev).add(selectedSubmission.id))
 
     try {
+      console.log("[v0] Rejecting submission:", selectedSubmission.id)
       const result = await rejectSubmission(selectedSubmission.id, "admin", rejectReason)
+      console.log("[v0] Reject result:", result)
 
       if (result.success) {
         toast.success("Content rejected")
         setShowRejectModal(false)
         setRejectReason("")
         setSelectedSubmission(null)
-        fetchData()
+        await fetchData()
       } else {
         toast.error(result.error || "Failed to reject")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("[v0] Reject error:", error)
-      toast.error("An error occurred while rejecting")
+      toast.error(error.message || "An error occurred while rejecting")
+    } finally {
+      setLoadingItems((prev) => {
+        const next = new Set(prev)
+        next.delete(selectedSubmission?.id)
+        return next
+      })
     }
-
-    setLoadingItems((prev) => {
-      const next = new Set(prev)
-      next.delete(selectedSubmission.id)
-      return next
-    })
   }
 
   const handleBulkApprove = async () => {
@@ -124,9 +132,10 @@ export function AdminContentSubmissionsTab() {
           failCount++
           errors.push(result.error || "Unknown error")
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("[v0] Bulk approve error for", id, error)
         failCount++
+        errors.push(error.message || "Unknown error")
       }
     }
 
@@ -136,13 +145,11 @@ export function AdminContentSubmissionsTab() {
       toast.success(`Approved ${successCount} submission${successCount > 1 ? "s" : ""}`)
     }
     if (failCount > 0) {
-      toast.error(
-        `Failed to approve ${failCount} submission${failCount > 1 ? "s" : ""}: ${errors[0] || "Unknown error"}`,
-      )
+      toast.error(`Failed to approve ${failCount}: ${errors[0]}`)
     }
 
     setSelectedItems(new Set())
-    fetchData()
+    await fetchData()
   }
 
   const toggleSelectItem = (id: string) => {
@@ -201,23 +208,33 @@ export function AdminContentSubmissionsTab() {
         </div>
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 mb-6">
+      {/* Sub-tabs and Refresh */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSubTab("pending")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              subTab === "pending" ? "bg-[#00FFFF] text-[#0B0C10]" : "bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            Pending Review
+          </button>
+          <button
+            onClick={() => setSubTab("all")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              subTab === "all" ? "bg-[#00FFFF] text-[#0B0C10]" : "bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            All Submissions
+          </button>
+        </div>
         <button
-          onClick={() => setSubTab("pending")}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
-            subTab === "pending" ? "bg-[#00FFFF] text-[#0B0C10]" : "bg-white/5 text-white/70 hover:bg-white/10"
-          }`}
+          onClick={fetchData}
+          disabled={loading}
+          className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition disabled:opacity-50"
+          title="Refresh"
         >
-          Pending Review
-        </button>
-        <button
-          onClick={() => setSubTab("all")}
-          className={`px-4 py-2 rounded-lg font-medium transition ${
-            subTab === "all" ? "bg-[#00FFFF] text-[#0B0C10]" : "bg-white/5 text-white/70 hover:bg-white/10"
-          }`}
-        >
-          All Submissions
+          <RefreshCw className={`w-5 h-5 text-white ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
