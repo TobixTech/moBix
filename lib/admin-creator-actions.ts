@@ -575,7 +575,7 @@ async function publishSubmissionContent(submissionId: string) {
 
     if (!submission) {
       console.error("[publishSubmissionContent] Submission not found:", submissionId)
-      return
+      throw new Error("Submission not found")
     }
 
     console.log("[v0] Publishing submission:", submission.type, submission.title)
@@ -599,10 +599,23 @@ async function publishSubmissionContent(submissionId: string) {
         counter++
       }
 
+      let finalTitle = submission.title
+      let titleCounter = 1
+      while (true) {
+        const existingTitle = await db.query.movies.findFirst({
+          where: eq(movies.title, finalTitle),
+        })
+        if (!existingTitle) break
+        finalTitle = `${submission.title} (${titleCounter})`
+        titleCounter++
+      }
+
+      console.log("[v0] Creating movie with title:", finalTitle, "slug:", slug)
+
       const [movie] = await db
         .insert(movies)
         .values({
-          title: submission.title,
+          title: finalTitle,
           slug,
           description: submission.description || "",
           genre: submission.genre || "Other",
@@ -616,12 +629,14 @@ async function publishSubmissionContent(submissionId: string) {
         })
         .returning()
 
-      console.log("[v0] Movie created:", movie.id, movie.title)
+      console.log("[v0] Movie created successfully:", movie.id, movie.title)
 
       await db
         .update(contentSubmissions)
         .set({ publishedMovieId: movie.id })
         .where(eq(contentSubmissions.id, submissionId))
+
+      return { success: true, movieId: movie.id }
     } else if (submission.type === "series") {
       // Generate unique slug
       const baseSlug = submission.title
@@ -640,6 +655,19 @@ async function publishSubmissionContent(submissionId: string) {
         counter++
       }
 
+      let finalTitle = submission.title
+      let titleCounter = 1
+      while (true) {
+        const existingTitle = await db.query.series.findFirst({
+          where: eq(series.title, finalTitle),
+        })
+        if (!existingTitle) break
+        finalTitle = `${submission.title} (${titleCounter})`
+        titleCounter++
+      }
+
+      console.log("[v0] Creating series with title:", finalTitle, "slug:", slug)
+
       // Parse series data
       let seriesData: any = {}
       try {
@@ -651,7 +679,7 @@ async function publishSubmissionContent(submissionId: string) {
       const [newSeries] = await db
         .insert(series)
         .values({
-          title: submission.title,
+          title: finalTitle,
           slug,
           description: submission.description || "",
           genre: submission.genre || "Other",
@@ -667,7 +695,7 @@ async function publishSubmissionContent(submissionId: string) {
         })
         .returning()
 
-      console.log("[v0] Series created:", newSeries.id, newSeries.title)
+      console.log("[v0] Series created successfully:", newSeries.id, newSeries.title)
 
       // Get submission episodes
       const subEpisodes = await db
@@ -720,9 +748,12 @@ async function publishSubmissionContent(submissionId: string) {
         .update(contentSubmissions)
         .set({ publishedSeriesId: newSeries.id })
         .where(eq(contentSubmissions.id, submissionId))
+
+      return { success: true, seriesId: newSeries.id }
     }
 
     console.log("[v0] Content published successfully")
+    return { success: true }
   } catch (error) {
     console.error("[publishSubmissionContent] Error:", error)
     throw error

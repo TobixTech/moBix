@@ -26,7 +26,8 @@ export function AdminContentSubmissionsTab() {
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null)
   const [rejectReason, setRejectReason] = useState("")
-  const [actionLoading, setActionLoading] = useState(false)
+  const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -35,59 +36,111 @@ export function AdminContentSubmissionsTab() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [submissionsRes, statsRes] = await Promise.all([
-      getContentSubmissions(subTab === "pending" ? "pending" : undefined),
-      getCreatorStats(),
-    ])
+    try {
+      const [submissionsRes, statsRes] = await Promise.all([
+        getContentSubmissions(subTab === "pending" ? "pending" : undefined),
+        getCreatorStats(),
+      ])
 
-    if (submissionsRes.success) setSubmissions(submissionsRes.submissions || [])
-    if (statsRes.success) setStats(statsRes.stats)
+      if (submissionsRes.success) setSubmissions(submissionsRes.submissions || [])
+      if (statsRes.success) setStats(statsRes.stats)
+    } catch (error) {
+      console.error("[v0] Error fetching data:", error)
+      toast.error("Failed to load submissions")
+    }
     setLoading(false)
   }
 
   const handleApprove = async (submissionId: string) => {
-    setActionLoading(true)
-    const result = await approveSubmission(submissionId, "admin")
-    setActionLoading(false)
+    setLoadingItems((prev) => new Set(prev).add(submissionId))
 
-    if (result.success) {
-      toast.success("Content approved and published!")
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to approve")
+    try {
+      console.log("[v0] Approving submission:", submissionId)
+      const result = await approveSubmission(submissionId, "admin")
+      console.log("[v0] Approve result:", result)
+
+      if (result.success) {
+        toast.success("Content approved and published!")
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to approve")
+      }
+    } catch (error) {
+      console.error("[v0] Approve error:", error)
+      toast.error("An error occurred while approving")
     }
+
+    setLoadingItems((prev) => {
+      const next = new Set(prev)
+      next.delete(submissionId)
+      return next
+    })
   }
 
   const handleReject = async () => {
     if (!selectedSubmission || !rejectReason) return
 
-    setActionLoading(true)
-    const result = await rejectSubmission(selectedSubmission.id, "admin", rejectReason)
-    setActionLoading(false)
+    setLoadingItems((prev) => new Set(prev).add(selectedSubmission.id))
 
-    if (result.success) {
-      toast.success("Content rejected")
-      setShowRejectModal(false)
-      setRejectReason("")
-      setSelectedSubmission(null)
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to reject")
+    try {
+      const result = await rejectSubmission(selectedSubmission.id, "admin", rejectReason)
+
+      if (result.success) {
+        toast.success("Content rejected")
+        setShowRejectModal(false)
+        setRejectReason("")
+        setSelectedSubmission(null)
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to reject")
+      }
+    } catch (error) {
+      console.error("[v0] Reject error:", error)
+      toast.error("An error occurred while rejecting")
     }
+
+    setLoadingItems((prev) => {
+      const next = new Set(prev)
+      next.delete(selectedSubmission.id)
+      return next
+    })
   }
 
   const handleBulkApprove = async () => {
     if (selectedItems.size === 0) return
 
-    setActionLoading(true)
+    setBulkLoading(true)
     let successCount = 0
-    for (const id of selectedItems) {
-      const result = await approveSubmission(id, "admin")
-      if (result.success) successCount++
-    }
-    setActionLoading(false)
+    let failCount = 0
+    const errors: string[] = []
 
-    toast.success(`Approved ${successCount} submissions`)
+    for (const id of selectedItems) {
+      try {
+        console.log("[v0] Bulk approving:", id)
+        const result = await approveSubmission(id, "admin")
+        if (result.success) {
+          successCount++
+        } else {
+          failCount++
+          errors.push(result.error || "Unknown error")
+        }
+      } catch (error) {
+        console.error("[v0] Bulk approve error for", id, error)
+        failCount++
+      }
+    }
+
+    setBulkLoading(false)
+
+    if (successCount > 0) {
+      toast.success(`Approved ${successCount} submission${successCount > 1 ? "s" : ""}`)
+    }
+    if (failCount > 0) {
+      toast.error(
+        `Failed to approve ${failCount} submission${failCount > 1 ? "s" : ""}: ${errors[0] || "Unknown error"}`,
+      )
+    }
+
     setSelectedItems(new Set())
     fetchData()
   }
@@ -200,11 +253,11 @@ export function AdminContentSubmissionsTab() {
           <span className="text-white font-medium">{selectedItems.size} selected</span>
           <button
             onClick={handleBulkApprove}
-            disabled={actionLoading}
+            disabled={bulkLoading}
             className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition flex items-center gap-2 disabled:opacity-50"
           >
-            {actionLoading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Approve All
+            {bulkLoading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Approve All Selected
           </button>
           <button onClick={() => setSelectedItems(new Set())} className="text-white/70 hover:text-white transition">
             Clear Selection
@@ -224,109 +277,120 @@ export function AdminContentSubmissionsTab() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {filteredSubmissions.map((submission) => (
-            <div
-              key={submission.id}
-              className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row gap-4"
-            >
-              {/* Checkbox for pending items */}
-              {subTab === "pending" && (
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.has(submission.id)}
-                    onChange={() => toggleSelectItem(submission.id)}
-                    className="w-5 h-5 rounded border-white/20 bg-white/5 text-[#00FFFF] focus:ring-[#00FFFF]/50"
-                  />
-                </div>
-              )}
+          {filteredSubmissions.map((submission) => {
+            const isLoading = loadingItems.has(submission.id)
 
-              {/* Thumbnail */}
-              <div className="relative w-full sm:w-32 h-20 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
-                {submission.thumbnailUrl ? (
-                  <img
-                    src={submission.thumbnailUrl || "/placeholder.svg"}
-                    alt={submission.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <ImageIcon className="w-8 h-8 text-white/20" />
+            return (
+              <div
+                key={submission.id}
+                className={`bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row gap-4 ${isLoading ? "opacity-70" : ""}`}
+              >
+                {/* Checkbox for pending items */}
+                {subTab === "pending" && (
+                  <div className="flex items-start">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(submission.id)}
+                      onChange={() => toggleSelectItem(submission.id)}
+                      disabled={isLoading}
+                      className="w-5 h-5 rounded border-white/20 bg-white/5 text-[#00FFFF] focus:ring-[#00FFFF]/50"
+                    />
                   </div>
                 )}
-                <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/70 rounded text-xs text-white">
-                  {submission.type === "movie" ? (
-                    <Film className="w-3 h-3 inline mr-1" />
+
+                {/* Thumbnail */}
+                <div className="relative w-full sm:w-32 h-20 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
+                  {submission.thumbnailUrl ? (
+                    <img
+                      src={submission.thumbnailUrl || "/placeholder.svg"}
+                      alt={submission.title}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <Tv className="w-3 h-3 inline mr-1" />
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-white/20" />
+                    </div>
                   )}
-                  {submission.type}
+                  <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/70 rounded text-xs text-white">
+                    {submission.type === "movie" ? (
+                      <Film className="w-3 h-3 inline mr-1" />
+                    ) : (
+                      <Tv className="w-3 h-3 inline mr-1" />
+                    )}
+                    {submission.type}
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-bold truncate">{submission.title}</h3>
+                  <p className="text-white/60 text-sm truncate">{submission.description}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-white/50">
+                    <span className="px-2 py-0.5 bg-white/10 rounded">{submission.genre}</span>
+                    <span>by {submission.creator?.email || "Unknown"}</span>
+                    <span>{new Date(submission.submittedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Status Badge */}
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      submission.status === "pending"
+                        ? "bg-amber-500/20 text-amber-400"
+                        : submission.status === "approved"
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-red-500/20 text-red-400"
+                    }`}
+                  >
+                    {submission.status}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedSubmission(submission)
+                      setShowPreviewModal(true)
+                    }}
+                    disabled={isLoading}
+                    className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition disabled:opacity-50"
+                    title="Preview"
+                  >
+                    <Play className="w-4 h-4 text-white" />
+                  </button>
+                  {submission.status === "pending" && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(submission.id)}
+                        disabled={isLoading}
+                        className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition disabled:opacity-50 flex items-center justify-center min-w-[36px]"
+                        title="Approve & Publish"
+                      >
+                        {isLoading ? (
+                          <Loader className="w-4 h-4 text-green-400 animate-spin" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedSubmission(submission)
+                          setShowRejectModal(true)
+                        }}
+                        disabled={isLoading}
+                        className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition disabled:opacity-50"
+                        title="Reject"
+                      >
+                        <XCircle className="w-4 h-4 text-red-400" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-
-              {/* Details */}
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white font-bold truncate">{submission.title}</h3>
-                <p className="text-white/60 text-sm truncate">{submission.description}</p>
-                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-white/50">
-                  <span className="px-2 py-0.5 bg-white/10 rounded">{submission.genre}</span>
-                  <span>by {submission.creator?.email || "Unknown"}</span>
-                  <span>{new Date(submission.submittedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              {/* Status Badge */}
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    submission.status === "pending"
-                      ? "bg-amber-500/20 text-amber-400"
-                      : submission.status === "approved"
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {submission.status}
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedSubmission(submission)
-                    setShowPreviewModal(true)
-                  }}
-                  className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition"
-                  title="Preview"
-                >
-                  <Play className="w-4 h-4 text-white" />
-                </button>
-                {submission.status === "pending" && (
-                  <>
-                    <button
-                      onClick={() => handleApprove(submission.id)}
-                      disabled={actionLoading}
-                      className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition"
-                      title="Approve"
-                    >
-                      <CheckCircle className="w-4 h-4 text-green-400" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedSubmission(submission)
-                        setShowRejectModal(true)
-                      }}
-                      className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition"
-                      title="Reject"
-                    >
-                      <XCircle className="w-4 h-4 text-red-400" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -359,10 +423,14 @@ export function AdminContentSubmissionsTab() {
               </button>
               <button
                 onClick={handleReject}
-                disabled={!rejectReason || actionLoading}
+                disabled={!rejectReason || loadingItems.has(selectedSubmission?.id)}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition flex items-center gap-2 disabled:opacity-50"
               >
-                {actionLoading ? <Loader className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                {loadingItems.has(selectedSubmission?.id) ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <XCircle className="w-4 h-4" />
+                )}
                 Reject
               </button>
             </div>
