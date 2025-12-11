@@ -12,6 +12,7 @@ import {
   getAllGenres,
   getContinueWatching,
   checkUserPremiumStatus,
+  getAdSettings,
 } from "@/lib/server-actions"
 import { getTrendingSeries, getRecentSeries } from "@/lib/series-actions"
 import PromotionModalWrapper from "@/components/promotion-modal-wrapper"
@@ -30,13 +31,14 @@ export default async function AuthenticatedHomePage() {
     isPremiumUser = premiumStatus.isPremium
   }
 
-  const [trending, recent, allGenres, continueWatching, trendingSeries, recentSeries] = await Promise.all([
+  const [trending, recent, allGenres, continueWatching, trendingSeries, recentSeries, adSettings] = await Promise.all([
     getTrendingMovies(),
     getPublicMovies(),
     getAllGenres(),
     getContinueWatching(),
     getTrendingSeries(10),
     getRecentSeries(10),
+    getAdSettings(),
   ])
 
   // Fetch movies for each genre in parallel
@@ -49,6 +51,9 @@ export default async function AuthenticatedHomePage() {
 
   // Filter out genres with no movies
   const genresWithMovies = genreMovies.filter((g) => g.movies.length > 0)
+
+  const inlineAdCode = adSettings?.verticalAdCode || ""
+  const showInlineAds = !isPremiumUser && adSettings?.homepageEnabled && !!inlineAdCode
 
   return (
     <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
@@ -63,24 +68,54 @@ export default async function AuthenticatedHomePage() {
         {/* Trending Section */}
         {trending.length > 0 && (
           <div>
-            <MovieCarousel title="Trending Now" movies={trending} showSeeMore={false} />
+            <MovieCarousel
+              title="Trending Now"
+              movies={trending}
+              showSeeMore={false}
+              showInlineAds={showInlineAds}
+              inlineAdCode={inlineAdCode}
+              adInterval={2}
+            />
           </div>
         )}
 
         {/* Trending Series Section */}
-        {trendingSeries.length > 0 && <SeriesCarousel title="Popular TV Series" series={trendingSeries} />}
+        {trendingSeries.length > 0 && (
+          <SeriesCarousel
+            title="Popular TV Series"
+            series={trendingSeries}
+            showInlineAds={showInlineAds}
+            inlineAdCode={inlineAdCode}
+            adInterval={2}
+          />
+        )}
 
         {!isPremiumUser && <AdBanner type="horizontal" placement="homepage" />}
 
         {/* Recently Added Section */}
         {recent.length > 0 && (
           <div>
-            <MovieCarousel title="Recently Added" movies={recent} showSeeMore={false} />
+            <MovieCarousel
+              title="Recently Added"
+              movies={recent}
+              showSeeMore={false}
+              showInlineAds={showInlineAds}
+              inlineAdCode={inlineAdCode}
+              adInterval={2}
+            />
           </div>
         )}
 
         {/* New Series Section */}
-        {recentSeries.length > 0 && <SeriesCarousel title="New TV Series" series={recentSeries} />}
+        {recentSeries.length > 0 && (
+          <SeriesCarousel
+            title="New TV Series"
+            series={recentSeries}
+            showInlineAds={showInlineAds}
+            inlineAdCode={inlineAdCode}
+            adInterval={2}
+          />
+        )}
 
         {/* Genre Sections with strategic ad placement */}
         {genresWithMovies.map((genreData, index) => (
@@ -90,6 +125,9 @@ export default async function AuthenticatedHomePage() {
               movies={genreData.movies}
               genre={genreData.genre}
               showSeeMore={true}
+              showInlineAds={showInlineAds}
+              inlineAdCode={inlineAdCode}
+              adInterval={2}
             />
             {!isPremiumUser && (index + 1) % 2 === 0 && index < genresWithMovies.length - 1 && (
               <AdBanner type="horizontal" placement="homepage" className="mt-8" />

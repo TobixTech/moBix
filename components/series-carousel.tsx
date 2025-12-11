@@ -4,6 +4,7 @@ import { useRef } from "react"
 import { ChevronLeft, ChevronRight, Tv } from "lucide-react"
 import Link from "next/link"
 import SeriesCard from "./series-card"
+import NativeAdCard from "./native-ad-card"
 
 interface Series {
   id: string
@@ -22,10 +23,19 @@ interface SeriesCarouselProps {
   title: string
   series: Series[]
   showSeeMore?: boolean
-  showAds?: boolean
+  showInlineAds?: boolean
+  inlineAdCode?: string
+  adInterval?: number
 }
 
-export default function SeriesCarousel({ title, series, showSeeMore = true }: SeriesCarouselProps) {
+export default function SeriesCarousel({
+  title,
+  series,
+  showSeeMore = true,
+  showInlineAds = false,
+  inlineAdCode,
+  adInterval = 2,
+}: SeriesCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const scroll = (direction: "left" | "right") => {
@@ -39,6 +49,23 @@ export default function SeriesCarousel({ title, series, showSeeMore = true }: Se
   }
 
   if (series.length === 0) return null
+
+  const buildCarouselItems = () => {
+    const items: { type: "series" | "ad"; data?: Series; index: number }[] = []
+
+    series.forEach((item, index) => {
+      items.push({ type: "series", data: item, index })
+
+      // Insert ad after every N series (if ads enabled)
+      if (showInlineAds && inlineAdCode && (index + 1) % adInterval === 0 && index < series.length - 1) {
+        items.push({ type: "ad", index: index + 0.5 })
+      }
+    })
+
+    return items
+  }
+
+  const carouselItems = buildCarouselItems()
 
   return (
     <div className="relative group">
@@ -67,9 +94,12 @@ export default function SeriesCarousel({ title, series, showSeeMore = true }: Se
         </button>
 
         <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide pb-4 scroll-smooth">
-          {series.map((item) => (
-            <div key={item.id} className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
-              <SeriesCard series={item} />
+          {carouselItems.map((item, idx) => (
+            <div
+              key={item.type === "series" ? item.data!.id : `ad-${idx}`}
+              className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
+            >
+              {item.type === "series" ? <SeriesCard series={item.data!} /> : <NativeAdCard adCode={inlineAdCode} />}
             </div>
           ))}
         </div>

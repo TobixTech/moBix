@@ -31,7 +31,7 @@ export default function MovieCarousel({
   showSeeMore = true,
   showInlineAds = false,
   inlineAdCode,
-  adInterval = 4, // Default: ad every 4 movies
+  adInterval = 2, // Default: ad every 2 movies
 }: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
   const [movies, setMovies] = useState<Movie[]>(initialMovies || [])

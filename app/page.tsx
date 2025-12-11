@@ -5,7 +5,7 @@ import SeriesCarousel from "@/components/series-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
 import ErrorMessage from "@/components/error-message"
-import { getMoviesByGenre, getFeaturedMovie, getTrendingMovies } from "@/lib/server-actions"
+import { getMoviesByGenre, getFeaturedMovie, getTrendingMovies, getAdSettings } from "@/lib/server-actions"
 import { getTrendingSeries, getRecentSeries } from "@/lib/series-actions"
 import { Suspense } from "react"
 import LoadingSpinner from "@/components/loading-spinner"
@@ -22,6 +22,7 @@ async function HomepageContent() {
       nollywoodMovies,
       trendingSeries,
       recentSeries,
+      adSettings,
     ] = await Promise.all([
       getFeaturedMovie(),
       getTrendingMovies(),
@@ -32,7 +33,11 @@ async function HomepageContent() {
       getMoviesByGenre("Nollywood"),
       getTrendingSeries(10),
       getRecentSeries(10),
+      getAdSettings(),
     ])
+
+    const inlineAdCode = adSettings?.verticalAdCode || ""
+    const showInlineAds = adSettings?.homepageEnabled && !!inlineAdCode
 
     return (
       <>
@@ -41,33 +46,76 @@ async function HomepageContent() {
         <div className="px-4 md:px-8 py-8 space-y-10">
           {trendingMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Trending Now" movies={trendingMovies} />
+              <MovieCarousel
+                title="Trending Now"
+                movies={trendingMovies}
+                showInlineAds={showInlineAds}
+                inlineAdCode={inlineAdCode}
+                adInterval={2}
+              />
             </div>
           )}
 
-          {trendingSeries.length > 0 && <SeriesCarousel title="Popular TV Series" series={trendingSeries} />}
+          {trendingSeries.length > 0 && (
+            <SeriesCarousel
+              title="Popular TV Series"
+              series={trendingSeries}
+              showInlineAds={showInlineAds}
+              inlineAdCode={inlineAdCode}
+              adInterval={2}
+            />
+          )}
 
           <AdBanner type="horizontal" placement="homepage" className="my-6" />
 
           {actionMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Action" movies={actionMovies} genre="Action" />
+              <MovieCarousel
+                title="Action"
+                movies={actionMovies}
+                genre="Action"
+                showInlineAds={showInlineAds}
+                inlineAdCode={inlineAdCode}
+                adInterval={2}
+              />
             </div>
           )}
 
-          {recentSeries.length > 0 && <SeriesCarousel title="New TV Series" series={recentSeries} />}
+          {recentSeries.length > 0 && (
+            <SeriesCarousel
+              title="New TV Series"
+              series={recentSeries}
+              showInlineAds={showInlineAds}
+              inlineAdCode={inlineAdCode}
+              adInterval={2}
+            />
+          )}
 
           <AdBanner type="horizontal" placement="homepage" className="my-6" />
 
           {dramaMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Drama" movies={dramaMovies} genre="Drama" />
+              <MovieCarousel
+                title="Drama"
+                movies={dramaMovies}
+                genre="Drama"
+                showInlineAds={showInlineAds}
+                inlineAdCode={inlineAdCode}
+                adInterval={2}
+              />
             </div>
           )}
 
           {sciFiMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Sci-Fi" movies={sciFiMovies} genre="Sci-Fi" />
+              <MovieCarousel
+                title="Sci-Fi"
+                movies={sciFiMovies}
+                genre="Sci-Fi"
+                showInlineAds={showInlineAds}
+                inlineAdCode={inlineAdCode}
+                adInterval={2}
+              />
             </div>
           )}
 
@@ -75,13 +123,27 @@ async function HomepageContent() {
 
           {comedyMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Comedy" movies={comedyMovies} genre="Comedy" />
+              <MovieCarousel
+                title="Comedy"
+                movies={comedyMovies}
+                genre="Comedy"
+                showInlineAds={showInlineAds}
+                inlineAdCode={inlineAdCode}
+                adInterval={2}
+              />
             </div>
           )}
 
           {nollywoodMovies.length > 0 && (
             <div>
-              <MovieCarousel title="Nollywood" movies={nollywoodMovies} genre="Nollywood" />
+              <MovieCarousel
+                title="Nollywood"
+                movies={nollywoodMovies}
+                genre="Nollywood"
+                showInlineAds={showInlineAds}
+                inlineAdCode={inlineAdCode}
+                adInterval={2}
+              />
             </div>
           )}
 
