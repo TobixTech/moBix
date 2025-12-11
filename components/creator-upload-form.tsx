@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Loader2, Upload, Plus, Film, Tv, Check, X, LinkIcon, FileVideo, ImageIcon } from "lucide-react"
 import { toast } from "sonner"
+import { upload } from "@vercel/blob/client"
 import { submitContent, addEpisodesToSubmission, getSubmissionEpisodes } from "@/lib/creator-actions"
 
 interface Episode {
@@ -143,76 +144,73 @@ export function CreatorUploadForm({
     }
   }
 
-  // Upload file to server
   const uploadFile = async (
     file: File,
     type: "video" | "thumbnail",
     setStatus: React.Dispatch<React.SetStateAction<UploadStatus>>,
   ): Promise<string | null> => {
-    setStatus({ status: "uploading", progress: 10, resultUrl: null, error: null })
+    setStatus({ status: "uploading", progress: 5, resultUrl: null, error: null })
 
     try {
-      const formData = new FormData()
-      formData.append(type, file) // "video" or "thumbnail"
-      formData.append("title", title || file.name)
+      // File size check - 1GB for videos, 50MB for thumbnails
+      const maxSize = type === "video" ? 1 * 1024 * 1024 * 1024 : 50 * 1024 * 1024
+      if (file.size > maxSize) {
+        throw new Error(`File too large. Max size: ${type === "video" ? "1GB" : "50MB"}`)
+      }
 
-      const endpoint = type === "video" ? "/api/upload/video" : "/api/upload/thumbnail"
+      // Step 1: Upload directly to Vercel Blob from client (bypasses 60s API timeout)
+      setStatus((prev) => ({ ...prev, progress: 10, status: "uploading" }))
 
-      setStatus((prev) => ({ ...prev, progress: 30 }))
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload/blob-token",
+        onUploadProgress: (progress) => {
+          // Progress goes from 0-100
+          const uploadProgress = Math.round(progress.percentage * 0.7) // 0-70% for upload
+          setStatus((prev) => ({ ...prev, progress: uploadProgress }))
+        },
+      })
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000) // 5 minute timeout
+      console.log("[v0] Blob upload complete:", blob.url)
+      setStatus((prev) => ({ ...prev, progress: 75, status: "processing" }))
 
-      let response: Response
+      // Step 2: For videos, try to transfer to VOE for streaming
+      // For thumbnails, try to transfer to Publitio for CDN
+      const processEndpoint = type === "video" ? "/api/upload/process-video" : "/api/upload/process-thumbnail"
+
       try {
-        response = await fetch(endpoint, {
+        const processResponse = await fetch(processEndpoint, {
           method: "POST",
-          body: formData,
-          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blobUrl: blob.url,
+            filename: file.name,
+            title: title || file.name,
+          }),
         })
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId)
-        if (fetchError.name === "AbortError") {
-          throw new Error("Upload timed out. Please try a smaller file or check your connection.")
+
+        setStatus((prev) => ({ ...prev, progress: 90 }))
+
+        if (processResponse.ok) {
+          const processResult = await processResponse.json()
+          if (processResult.success) {
+            const finalUrl = processResult.embedUrl || processResult.cdnUrl || blob.url
+            setStatus({ status: "success", progress: 100, resultUrl: finalUrl, error: null })
+            return finalUrl
+          }
         }
-        throw new Error(`Network error: ${fetchError.message}`)
-      }
-      clearTimeout(timeoutId)
-
-      setStatus((prev) => ({ ...prev, progress: 70, status: "processing" }))
-
-      const contentType = response.headers.get("content-type")
-      let result: any
-
-      if (contentType && contentType.includes("application/json")) {
-        result = await response.json()
-      } else {
-        const textResponse = await response.text()
-        console.error(`[v0] Non-JSON response from ${endpoint}:`, textResponse)
-
-        if (
-          textResponse.toLowerCase().includes("entity too large") ||
-          textResponse.toLowerCase().includes("too large")
-        ) {
-          throw new Error("File is too large. Please try a smaller file (max 500MB recommended).")
-        } else if (textResponse.toLowerCase().includes("timeout")) {
-          throw new Error("Upload timed out. Please try again with a smaller file.")
-        } else {
-          throw new Error(textResponse || "Upload failed - server returned an invalid response")
-        }
+      } catch (processError) {
+        console.log("[v0] Processing to VOE/Publitio failed, using Blob URL:", processError)
       }
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Upload failed")
-      }
-
-      const finalUrl = type === "video" ? result.embedUrl : result.thumbnailUrl || result.cdnUrl
-      setStatus({ status: "success", progress: 100, resultUrl: finalUrl, error: null })
-      return finalUrl
+      // Fallback: Use Blob URL directly (still works for streaming)
+      setStatus({ status: "success", progress: 100, resultUrl: blob.url, error: null })
+      return blob.url
     } catch (error: any) {
       console.error(`[v0] ${type} upload error:`, error)
-      setStatus({ status: "error", progress: 0, resultUrl: null, error: error.message })
-      toast.error(`Upload failed: ${error.message}`)
+      const errorMessage = error.message || "Upload failed"
+      setStatus({ status: "error", progress: 0, resultUrl: null, error: errorMessage })
+      toast.error(`Upload failed: ${errorMessage}`)
       return null
     }
   }
@@ -225,12 +223,6 @@ export function CreatorUploadForm({
     // Validate file type
     if (!file.type.startsWith("video/")) {
       toast.error("Please select a valid video file")
-      return
-    }
-
-    // Validate file size (max 5GB)
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      toast.error("Video file must be less than 5GB")
       return
     }
 
@@ -252,12 +244,6 @@ export function CreatorUploadForm({
       return
     }
 
-    // Validate file size (max 15MB)
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("Thumbnail must be less than 15MB")
-      return
-    }
-
     const url = await uploadFile(file, "thumbnail", setThumbnailUpload)
     if (url) {
       setThumbnailUrl(url)
@@ -270,64 +256,61 @@ export function CreatorUploadForm({
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Check file size - recommend max 500MB for episodes
-    if (file.size > 500 * 1024 * 1024) {
-      toast.error("Episode videos should be under 500MB for reliable uploads")
-    }
-
     setEpisodes((prev) =>
-      prev.map((ep, i) => (i === index ? { ...ep, uploadStatus: "uploading", uploadProgress: 10 } : ep)),
+      prev.map((ep, i) => (i === index ? { ...ep, uploadStatus: "uploading", uploadProgress: 5 } : ep)),
     )
 
     try {
-      const formData = new FormData()
-      formData.append("video", file)
-      formData.append("title", episodes[index].title || `Episode ${episodes[index].episodeNumber}`)
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload/blob-token",
+        onUploadProgress: (progress) => {
+          // Progress goes from 0-100
+          const uploadProgress = Math.round(progress.percentage * 0.7) // 0-70% for upload
+          setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress } : ep)))
+        },
+      })
 
-      setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 30 } : ep)))
+      console.log("[v0] Blob upload complete:", blob.url)
+      setEpisodes((prev) =>
+        prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 75, status: "processing" } : ep)),
+      )
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000) // 5 minute timeout
+      const processEndpoint = "/api/upload/process-video"
 
-      let response: Response
       try {
-        response = await fetch("/api/upload/video", {
+        const processResponse = await fetch(processEndpoint, {
           method: "POST",
-          body: formData,
-          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blobUrl: blob.url,
+            filename: file.name,
+            title: episodes[index].title || `Episode ${episodes[index].episodeNumber}`,
+          }),
         })
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId)
-        if (fetchError.name === "AbortError") {
-          throw new Error("Upload timed out. Please try a smaller file.")
+
+        setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 90 } : ep)))
+
+        if (processResponse.ok) {
+          const processResult = await processResponse.json()
+          if (processResult.success) {
+            const finalUrl = processResult.embedUrl || processResult.cdnUrl || blob.url
+            setEpisodes((prev) =>
+              prev.map((ep, i) =>
+                i === index ? { ...ep, videoUrl: finalUrl, uploadStatus: "success", uploadProgress: 100 } : ep,
+              ),
+            )
+            toast.success(`Episode ${episodes[index].episodeNumber} video uploaded!`)
+            return
+          }
         }
-        throw new Error(`Network error: ${fetchError.message}`)
-      }
-      clearTimeout(timeoutId)
-
-      setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 70 } : ep)))
-
-      const contentType = response.headers.get("content-type")
-      let result: any
-
-      if (contentType && contentType.includes("application/json")) {
-        result = await response.json()
-      } else {
-        const textResponse = await response.text()
-        console.error("[v0] Non-JSON response:", textResponse)
-        if (textResponse.toLowerCase().includes("too large")) {
-          throw new Error("File is too large. Please try a smaller file.")
-        }
-        throw new Error(textResponse || "Upload failed")
-      }
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Upload failed")
+      } catch (processError) {
+        console.log("[v0] Processing to VOE failed, using Blob URL:", processError)
       }
 
       setEpisodes((prev) =>
         prev.map((ep, i) =>
-          i === index ? { ...ep, videoUrl: result.embedUrl, uploadStatus: "success", uploadProgress: 100 } : ep,
+          i === index ? { ...ep, uploadStatus: "success", uploadProgress: 100, videoUrl: blob.url } : ep,
         ),
       )
       toast.success(`Episode ${episodes[index].episodeNumber} video uploaded!`)
@@ -710,7 +693,7 @@ export function CreatorUploadForm({
                   <div className="flex flex-col items-center gap-2">
                     <ImageIcon className="w-8 h-8 text-white/40" />
                     <span className="text-white/60">Click to upload thumbnail</span>
-                    <span className="text-xs text-white/40">JPG, PNG, WebP (max 15MB)</span>
+                    <span className="text-xs text-white/40">JPG, PNG, WebP (max 50MB)</span>
                   </div>
                 )}
               </div>
@@ -767,7 +750,7 @@ export function CreatorUploadForm({
                     <div className="flex flex-col items-center gap-2">
                       <FileVideo className="w-8 h-8 text-white/40" />
                       <span className="text-white/60">Click to upload video</span>
-                      <span className="text-xs text-white/40">MP4, WebM, MKV (max 5GB)</span>
+                      <span className="text-xs text-white/40">MP4, WebM, MKV (max 1GB)</span>
                     </div>
                   )}
                 </div>

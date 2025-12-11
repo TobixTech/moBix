@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { blobUrl, title } = body
+    const { blobUrl, title, filename } = body
 
     if (!blobUrl) {
       return NextResponse.json({ success: false, error: "No blob URL provided" }, { status: 400 })
@@ -52,50 +52,76 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Try VOE remote URL upload
-      const voeParams = new URLSearchParams({
-        key: VOE_API_KEY,
-        url: blobUrl,
-        title: title || "Uploaded Video",
+      console.log("[ProcessVideo] Downloading file from Blob...")
+      const fileResponse = await fetch(blobUrl)
+
+      if (!fileResponse.ok) {
+        throw new Error("Failed to download from Blob")
+      }
+
+      const fileBlob = await fileResponse.blob()
+      console.log("[ProcessVideo] Downloaded file, size:", fileBlob.size)
+
+      // Step 1: Get VOE upload server
+      const serverResponse = await fetch(`https://voe.sx/api/upload/server?key=${VOE_API_KEY}`)
+      const serverData = await serverResponse.json()
+
+      if (serverData.status !== 200 || !serverData.result) {
+        throw new Error("Failed to get VOE upload server")
+      }
+
+      const uploadUrl = serverData.result
+      console.log("[ProcessVideo] Got VOE upload server:", uploadUrl)
+
+      // Step 2: Upload file directly to VOE
+      const formData = new FormData()
+      formData.append("key", VOE_API_KEY)
+      formData.append("file", fileBlob, filename || "video.mp4")
+
+      console.log("[ProcessVideo] Uploading to VOE...")
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData,
       })
 
-      console.log("[ProcessVideo] Calling VOE API...")
-      const voeResponse = await fetch(`https://voe.sx/api/upload/url?${voeParams.toString()}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      })
+      const uploadText = await uploadResponse.text()
+      console.log("[ProcessVideo] VOE upload response:", uploadText)
 
-      if (voeResponse.ok) {
-        const voeResult = await voeResponse.json()
-        console.log("[ProcessVideo] VOE response:", JSON.stringify(voeResult))
+      let uploadResult
+      try {
+        uploadResult = JSON.parse(uploadText)
+      } catch {
+        // VOE sometimes returns HTML on error
+        console.log("[ProcessVideo] VOE returned non-JSON, using Blob URL")
+        return NextResponse.json({
+          success: true,
+          embedUrl: blobUrl,
+          storageType: "blob",
+          warning: "VOE upload failed, using backup storage",
+        })
+      }
 
-        if (voeResult.status === 200 && voeResult.result) {
-          const fileCode = voeResult.result.filecode || voeResult.result.file_code
+      if (uploadResult.status === 200 && uploadResult.result) {
+        const fileCode = uploadResult.result.filecode || uploadResult.result.file_code
 
-          if (fileCode) {
-            const embedUrl = `https://voe.sx/e/${fileCode}`
-            console.log("[ProcessVideo] VOE success! Embed URL:", embedUrl)
+        if (fileCode) {
+          const embedUrl = `https://voe.sx/e/${fileCode}`
+          console.log("[ProcessVideo] VOE success! Embed URL:", embedUrl)
 
-            // Clean up Blob file
-            try {
-              await del(blobUrl)
-              console.log("[ProcessVideo] Cleaned up Blob file")
-            } catch (delError) {
-              console.log("[ProcessVideo] Could not delete Blob (non-critical)")
-            }
+          // Clean up Blob file in background
+          del(blobUrl).catch(() => {})
 
-            return NextResponse.json({
-              success: true,
-              embedUrl: embedUrl,
-              fileCode: fileCode,
-              storageType: "voe",
-            })
-          }
+          return NextResponse.json({
+            success: true,
+            embedUrl: embedUrl,
+            fileCode: fileCode,
+            storageType: "voe",
+          })
         }
       }
 
-      // VOE failed, use blob URL
-      console.log("[ProcessVideo] VOE failed, using Blob URL")
+      // VOE upload failed, use blob URL
+      console.log("[ProcessVideo] VOE upload failed, using Blob URL")
       return NextResponse.json({
         success: true,
         embedUrl: blobUrl,
