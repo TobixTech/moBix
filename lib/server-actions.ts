@@ -22,6 +22,9 @@ import {
   series, // Import series table for analytics and reports
   seriesReports, // Import seriesReports table for reports
   siteSettings, // Import siteSettings table
+  contentSubmissions, // Import contentSubmissions
+  creatorAnalytics, // Import creatorAnalytics
+  submissionEpisodes, // Import submissionEpisodes
 } from "@/lib/db/schema"
 import { eq, desc, and, ilike, sql, count, not, or, inArray, sum, gt, lt } from "drizzle-orm"
 import { currentUser, auth } from "@clerk/nextjs/server"
@@ -527,6 +530,41 @@ export async function updateMovie(
 
 export async function deleteMovie(id: string) {
   try {
+    // 1. Find any content submission linked to this movie
+    const submission = await db.query.contentSubmissions.findFirst({
+      where: eq(contentSubmissions.publishedMovieId, id),
+    })
+
+    // 2. Delete creator analytics for this submission
+    if (submission) {
+      await db.delete(creatorAnalytics).where(eq(creatorAnalytics.submissionId, submission.id))
+
+      // 3. Delete submission episodes (if any)
+      await db.delete(submissionEpisodes).where(eq(submissionEpisodes.submissionId, submission.id))
+
+      // 4. Delete the content submission itself
+      await db.delete(contentSubmissions).where(eq(contentSubmissions.id, submission.id))
+    }
+
+    // 5. Delete notifications related to this movie
+    await db.delete(notifications).where(eq(notifications.movieId, id))
+
+    // 6. Delete content reports for this movie
+    await db.delete(contentReports).where(eq(contentReports.movieId, id))
+
+    // 7. Delete ratings for this movie
+    await db.delete(ratings).where(eq(ratings.movieId, id))
+
+    // 8. Delete feedback for this movie
+    await db.delete(feedback).where(eq(feedback.movieId, id))
+
+    // The following are auto-deleted via cascade in schema:
+    // - likes (onDelete: cascade)
+    // - comments (onDelete: cascade)
+    // - watchHistory (onDelete: cascade)
+    // - watchlist (onDelete: cascade)
+
+    // 9. Finally delete the movie itself
     await db.delete(movies).where(eq(movies.id, id))
 
     revalidatePath("/")
@@ -534,6 +572,7 @@ export async function deleteMovie(id: string) {
     revalidatePath("/browse")
     revalidatePath("/movies")
     revalidatePath("/admin/dashboard")
+    revalidatePath("/creator") // Added revalidation for creator path
 
     return { success: true }
   } catch (error: any) {

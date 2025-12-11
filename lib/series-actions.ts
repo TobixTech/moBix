@@ -13,9 +13,13 @@ import {
   users,
   seriesReports,
   notifications,
+  contentSubmissions,
+  creatorAnalytics,
+  submissionEpisodes,
 } from "@/lib/db/schema"
 import { eq, desc, and, sql, ilike, or } from "drizzle-orm"
 import { auth } from "@clerk/nextjs/server"
+import { revalidatePath } from "next/cache"
 
 export async function toggleSeriesLike(seriesId: string) {
   try {
@@ -497,7 +501,45 @@ export async function updateSeries(
 
 export async function deleteSeries(id: string) {
   try {
+    // 1. Find any content submission linked to this series
+    const submission = await db.query.contentSubmissions.findFirst({
+      where: eq(contentSubmissions.publishedSeriesId, id),
+    })
+
+    // 2. Delete creator analytics for this submission
+    if (submission) {
+      await db.delete(creatorAnalytics).where(eq(creatorAnalytics.submissionId, submission.id))
+
+      // 3. Delete submission episodes
+      await db.delete(submissionEpisodes).where(eq(submissionEpisodes.submissionId, submission.id))
+
+      // 4. Delete the content submission itself
+      await db.delete(contentSubmissions).where(eq(contentSubmissions.id, submission.id))
+    }
+
+    // 5. Delete series reports
+    await db.delete(seriesReports).where(eq(seriesReports.seriesId, id))
+
+    // 6. Delete series ratings
+    await db.delete(seriesRatings).where(eq(seriesRatings.seriesId, id))
+
+    // The following are auto-deleted via cascade in schema:
+    // - seasons (and their episodes) (onDelete: cascade)
+    // - seriesWatchHistory (onDelete: cascade)
+    // - seriesWatchlist (onDelete: cascade)
+    // - seriesLikes (onDelete: cascade)
+    // - seriesComments (onDelete: cascade)
+
+    // 7. Finally delete the series itself
     await db.delete(series).where(eq(series.id, id))
+
+    revalidatePath("/")
+    revalidatePath("/home")
+    revalidatePath("/browse")
+    revalidatePath("/series")
+    revalidatePath("/admin/dashboard")
+    revalidatePath("/creator")
+
     return { success: true }
   } catch (error) {
     console.error("Error deleting series:", error)
