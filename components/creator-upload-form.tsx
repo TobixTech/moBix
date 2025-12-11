@@ -15,6 +15,7 @@ import {
   ImagePlusIcon as ImageLucide,
   LinkIcon,
   ArrowLeft,
+  X,
 } from "lucide-react"
 import { submitContent, addEpisodesToSubmission, getSubmissionDetails } from "@/lib/creator-actions"
 import { toast } from "sonner"
@@ -34,6 +35,14 @@ interface CreatorUploadFormProps {
 type ContentType = "movie" | "series"
 type UploadMode = "url" | "file"
 
+interface FileUploadStatus {
+  file: File | null
+  status: "idle" | "uploading" | "success" | "error"
+  progress: number
+  resultUrl: string | null
+  error: string | null
+}
+
 interface Episode {
   seasonNumber: number
   episodeNumber: number
@@ -43,7 +52,8 @@ interface Episode {
   thumbnailUrl: string
   duration: number
   videoFile?: File | null
-  isExisting?: boolean // Track existing episodes
+  videoUploadStatus?: FileUploadStatus // Track upload status per episode
+  isExisting?: boolean
 }
 
 interface UploadProgress {
@@ -51,7 +61,7 @@ interface UploadProgress {
   thumbnail: number
   episodeUploads: { [key: number]: number }
   isUploading: boolean
-  currentStep: string // Track upload progress
+  currentStep: string
   currentEpisode?: number
 }
 
@@ -97,7 +107,22 @@ export function CreatorUploadForm({
   const thumbnailInputRef = useRef<HTMLInputElement>(null)
   const episodeVideoRefs = useRef<{ [key: number]: HTMLInputElement | null }>({})
 
-  // Selected files
+  const [videoUploadStatus, setVideoUploadStatus] = useState<FileUploadStatus>({
+    file: null,
+    status: "idle",
+    progress: 0,
+    resultUrl: null,
+    error: null,
+  })
+  const [thumbnailUploadStatus, setThumbnailUploadStatus] = useState<FileUploadStatus>({
+    file: null,
+    status: "idle",
+    progress: 0,
+    resultUrl: null,
+    error: null,
+  })
+
+  // Selected files (kept for backward compatibility)
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null)
   const [selectedThumbnailFile, setSelectedThumbnailFile] = useState<File | null>(null)
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("")
@@ -124,6 +149,7 @@ export function CreatorUploadForm({
       thumbnailUrl: "",
       duration: 0,
       videoFile: null,
+      videoUploadStatus: { file: null, status: "idle", progress: 0, resultUrl: null, error: null },
     },
   ])
   const [existingEpisodes, setExistingEpisodes] = useState<Episode[]>([])
@@ -142,7 +168,6 @@ export function CreatorUploadForm({
       setTotalSeasons(seriesData.totalSeasons || 1)
       setSeriesStatus(seriesData.status || "ongoing")
 
-      // Load existing episodes
       loadExistingEpisodes(editingSubmission.id)
     }
   }, [editingSubmission])
@@ -158,7 +183,6 @@ export function CreatorUploadForm({
         }))
         setExistingEpisodes(existing)
 
-        // Calculate next episode number
         const maxEpisode = existing.reduce((max: number, ep: any) => Math.max(max, ep.episodeNumber), 0)
         const maxSeason = existing.reduce((max: number, ep: any) => Math.max(max, ep.seasonNumber), 1)
 
@@ -172,6 +196,7 @@ export function CreatorUploadForm({
             thumbnailUrl: "",
             duration: 0,
             videoFile: null,
+            videoUploadStatus: { file: null, status: "idle", progress: 0, resultUrl: null, error: null },
           },
         ])
       }
@@ -183,75 +208,14 @@ export function CreatorUploadForm({
 
   const canUpload = dailyTracking.uploadsToday < dailyTracking.uploadLimit
 
-  // Handle file selection
-  const handleVideoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
-      if (!file.name.match(allowedExtensions)) {
-        toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
-        return
-      }
-      if (file.size > 10 * 1024 * 1024 * 1024) {
-        toast.error("File too large. Maximum size is 10GB")
-        return
-      }
-      setSelectedVideoFile(file)
-      toast.success(`Video selected: ${file.name}`)
-    }
-  }
-
-  const handleThumbnailFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const allowedTypes = ["image/jpeg", "image/png", "image/webp"]
-      if (!allowedTypes.includes(file.type)) {
-        toast.error("Invalid file type. Allowed: jpg, png, webp")
-        return
-      }
-      if (file.size > 15 * 1024 * 1024) {
-        toast.error("File too large. Maximum size is 15MB")
-        return
-      }
-      setSelectedThumbnailFile(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setThumbnailPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleEpisodeVideoFileSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
-      if (!file.name.match(allowedExtensions)) {
-        toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
-        return
-      }
-      if (file.size > 10 * 1024 * 1024 * 1024) {
-        toast.error("File too large. Maximum size is 10GB")
-        return
-      }
-      const updated = [...episodes]
-      updated[index] = { ...updated[index], videoFile: file }
-      setEpisodes(updated)
-      toast.success(`Episode ${index + 1} video selected: ${file.name}`)
-    }
-  }
-
-  // Upload file to API
   const uploadVideoFile = async (file: File, episodeTitle?: string): Promise<string | null> => {
     const formData = new FormData()
     formData.append("video", file)
-    formData.append("title", episodeTitle || title)
+    formData.append("title", episodeTitle || title || file.name)
 
     try {
-      console.log("[v0] Starting video upload:", file.name, "Size:", (file.size / 1024 / 1024).toFixed(2) + "MB")
-
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000) // 5 minute timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000)
 
       const response = await fetch("/api/upload/video", {
         method: "POST",
@@ -263,30 +227,21 @@ export function CreatorUploadForm({
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("[v0] Video upload HTTP error:", response.status, errorText)
-        throw new Error(`Upload failed with status ${response.status}`)
+        throw new Error(`Upload failed: ${errorText}`)
       }
 
       const result = await response.json()
-      console.log("[v0] Video upload response:", result)
 
       if (!result.success) {
         throw new Error(result.error || "Video upload failed")
       }
 
-      if (result.warning) {
-        toast.warning(result.warning)
-      }
-
       return result.embedUrl
     } catch (error: any) {
-      console.error("[v0] Video upload error:", error)
       if (error.name === "AbortError") {
-        toast.error("Upload timed out. Try a smaller file or use URL mode.")
-      } else {
-        toast.error(error.message || "Failed to upload video")
+        throw new Error("Upload timed out")
       }
-      return null
+      throw error
     }
   }
 
@@ -295,10 +250,8 @@ export function CreatorUploadForm({
     formData.append("thumbnail", file)
 
     try {
-      console.log("[v0] Starting thumbnail upload:", file.name, "Size:", (file.size / 1024).toFixed(2) + "KB")
-
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60 * 1000) // 1 minute timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60 * 1000)
 
       const response = await fetch("/api/upload/thumbnail", {
         method: "POST",
@@ -310,31 +263,296 @@ export function CreatorUploadForm({
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("[v0] Thumbnail upload HTTP error:", response.status, errorText)
-        throw new Error(`Upload failed with status ${response.status}`)
+        throw new Error(`Upload failed: ${errorText}`)
       }
 
       const result = await response.json()
-      console.log("[v0] Thumbnail upload response:", result)
 
       if (!result.success) {
         throw new Error(result.error || "Thumbnail upload failed")
       }
 
-      if (result.warning) {
-        toast.warning(result.warning)
-      }
-
       return result.thumbnailUrl
     } catch (error: any) {
-      console.error("[v0] Thumbnail upload error:", error)
       if (error.name === "AbortError") {
-        toast.error("Upload timed out. Try a smaller file.")
-      } else {
-        toast.error(error.message || "Failed to upload thumbnail")
+        throw new Error("Upload timed out")
       }
-      return null
+      throw error
     }
+  }
+
+  const handleVideoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
+    if (!file.name.match(allowedExtensions)) {
+      toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
+      return
+    }
+    if (file.size > 10 * 1024 * 1024 * 1024) {
+      toast.error("File too large. Maximum size is 10GB")
+      return
+    }
+
+    setSelectedVideoFile(file)
+    setVideoUploadStatus({
+      file,
+      status: "uploading",
+      progress: 10,
+      resultUrl: null,
+      error: null,
+    })
+
+    toast.info(`Uploading video: ${file.name}...`)
+
+    // Simulate progress updates
+    const progressInterval = setInterval(() => {
+      setVideoUploadStatus((prev) => ({
+        ...prev,
+        progress: Math.min(prev.progress + 5, 90),
+      }))
+    }, 500)
+
+    try {
+      const resultUrl = await uploadVideoFile(file)
+      clearInterval(progressInterval)
+
+      if (resultUrl) {
+        setVideoUploadStatus({
+          file,
+          status: "success",
+          progress: 100,
+          resultUrl,
+          error: null,
+        })
+        setVideoUrl(resultUrl) // Store the URL for form submission
+        toast.success("Video uploaded successfully!")
+      } else {
+        throw new Error("Failed to get video URL")
+      }
+    } catch (error: any) {
+      clearInterval(progressInterval)
+      setVideoUploadStatus({
+        file,
+        status: "error",
+        progress: 0,
+        resultUrl: null,
+        error: error.message,
+      })
+      toast.error(error.message || "Video upload failed")
+    }
+  }
+
+  const handleThumbnailFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"]
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Allowed: jpg, png, webp")
+      return
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("File too large. Maximum size is 15MB")
+      return
+    }
+
+    setSelectedThumbnailFile(file)
+
+    // Show preview
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setThumbnailPreview(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    setThumbnailUploadStatus({
+      file,
+      status: "uploading",
+      progress: 20,
+      resultUrl: null,
+      error: null,
+    })
+
+    toast.info(`Uploading thumbnail: ${file.name}...`)
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setThumbnailUploadStatus((prev) => ({
+        ...prev,
+        progress: Math.min(prev.progress + 10, 90),
+      }))
+    }, 300)
+
+    try {
+      const resultUrl = await uploadThumbnailFile(file)
+      clearInterval(progressInterval)
+
+      if (resultUrl) {
+        setThumbnailUploadStatus({
+          file,
+          status: "success",
+          progress: 100,
+          resultUrl,
+          error: null,
+        })
+        setThumbnailUrl(resultUrl) // Store the URL for form submission
+        toast.success("Thumbnail uploaded successfully!")
+      } else {
+        throw new Error("Failed to get thumbnail URL")
+      }
+    } catch (error: any) {
+      clearInterval(progressInterval)
+      setThumbnailUploadStatus({
+        file,
+        status: "error",
+        progress: 0,
+        resultUrl: null,
+        error: error.message,
+      })
+      toast.error(error.message || "Thumbnail upload failed")
+    }
+  }
+
+  const handleEpisodeVideoFileSelect = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
+    if (!file.name.match(allowedExtensions)) {
+      toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
+      return
+    }
+    if (file.size > 10 * 1024 * 1024 * 1024) {
+      toast.error("File too large. Maximum size is 10GB")
+      return
+    }
+
+    // Update episode with file and uploading status
+    const updated = [...episodes]
+    updated[index] = {
+      ...updated[index],
+      videoFile: file,
+      videoUploadStatus: {
+        file,
+        status: "uploading",
+        progress: 10,
+        resultUrl: null,
+        error: null,
+      },
+    }
+    setEpisodes(updated)
+
+    toast.info(`Uploading Episode ${updated[index].episodeNumber} video...`)
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setEpisodes((prev) => {
+        const newEpisodes = [...prev]
+        if (newEpisodes[index]?.videoUploadStatus) {
+          newEpisodes[index] = {
+            ...newEpisodes[index],
+            videoUploadStatus: {
+              ...newEpisodes[index].videoUploadStatus!,
+              progress: Math.min((newEpisodes[index].videoUploadStatus?.progress || 0) + 5, 90),
+            },
+          }
+        }
+        return newEpisodes
+      })
+    }, 500)
+
+    try {
+      const ep = updated[index]
+      const resultUrl = await uploadVideoFile(file, `${title || "Series"} - S${ep.seasonNumber}E${ep.episodeNumber}`)
+      clearInterval(progressInterval)
+
+      if (resultUrl) {
+        setEpisodes((prev) => {
+          const newEpisodes = [...prev]
+          newEpisodes[index] = {
+            ...newEpisodes[index],
+            videoUrl: resultUrl,
+            videoUploadStatus: {
+              file,
+              status: "success",
+              progress: 100,
+              resultUrl,
+              error: null,
+            },
+          }
+          return newEpisodes
+        })
+        toast.success(`Episode ${ep.episodeNumber} video uploaded!`)
+      } else {
+        throw new Error("Failed to get video URL")
+      }
+    } catch (error: any) {
+      clearInterval(progressInterval)
+      setEpisodes((prev) => {
+        const newEpisodes = [...prev]
+        newEpisodes[index] = {
+          ...newEpisodes[index],
+          videoUploadStatus: {
+            file,
+            status: "error",
+            progress: 0,
+            resultUrl: null,
+            error: error.message,
+          },
+        }
+        return newEpisodes
+      })
+      toast.error(`Episode ${updated[index].episodeNumber} upload failed: ${error.message}`)
+    }
+  }
+
+  const clearVideoUpload = () => {
+    setSelectedVideoFile(null)
+    setVideoUrl("")
+    setVideoUploadStatus({
+      file: null,
+      status: "idle",
+      progress: 0,
+      resultUrl: null,
+      error: null,
+    })
+    if (videoInputRef.current) videoInputRef.current.value = ""
+  }
+
+  const clearThumbnailUpload = () => {
+    setSelectedThumbnailFile(null)
+    setThumbnailUrl("")
+    setThumbnailPreview("")
+    setThumbnailUploadStatus({
+      file: null,
+      status: "idle",
+      progress: 0,
+      resultUrl: null,
+      error: null,
+    })
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = ""
+  }
+
+  const clearEpisodeVideoUpload = (index: number) => {
+    setEpisodes((prev) => {
+      const newEpisodes = [...prev]
+      newEpisodes[index] = {
+        ...newEpisodes[index],
+        videoFile: null,
+        videoUrl: "",
+        videoUploadStatus: {
+          file: null,
+          status: "idle",
+          progress: 0,
+          resultUrl: null,
+          error: null,
+        },
+      }
+      return newEpisodes
+    })
+    if (episodeVideoRefs.current[index]) episodeVideoRefs.current[index]!.value = ""
   }
 
   const addEpisode = () => {
@@ -350,6 +568,7 @@ export function CreatorUploadForm({
         thumbnailUrl: "",
         duration: 0,
         videoFile: null,
+        videoUploadStatus: { file: null, status: "idle", progress: 0, resultUrl: null, error: null },
       },
     ])
   }
@@ -377,6 +596,8 @@ export function CreatorUploadForm({
     setSelectedVideoFile(null)
     setSelectedThumbnailFile(null)
     setThumbnailPreview("")
+    setVideoUploadStatus({ file: null, status: "idle", progress: 0, resultUrl: null, error: null })
+    setThumbnailUploadStatus({ file: null, status: "idle", progress: 0, resultUrl: null, error: null })
     setTotalSeasons(1)
     setSeriesStatus("ongoing")
     setEpisodes([
@@ -389,11 +610,45 @@ export function CreatorUploadForm({
         thumbnailUrl: "",
         duration: 0,
         videoFile: null,
+        videoUploadStatus: { file: null, status: "idle", progress: 0, resultUrl: null, error: null },
       },
     ])
     setExistingEpisodes([])
     if (videoInputRef.current) videoInputRef.current.value = ""
     if (thumbnailInputRef.current) thumbnailInputRef.current.value = ""
+  }
+
+  const areUploadsComplete = () => {
+    if (uploadMode === "url") return true
+
+    // Check thumbnail
+    if (!thumbnailUrl && thumbnailUploadStatus.status !== "success") {
+      return false
+    }
+
+    // For movies, check video
+    if (contentType === "movie") {
+      if (!videoUrl && videoUploadStatus.status !== "success") {
+        return false
+      }
+    }
+
+    // For series, check all episode videos
+    if (contentType === "series") {
+      for (const ep of episodes) {
+        if (!ep.videoUrl && ep.videoUploadStatus?.status !== "success") {
+          return false
+        }
+      }
+    }
+
+    return true
+  }
+
+  const isAnyUploadInProgress = () => {
+    if (videoUploadStatus.status === "uploading") return true
+    if (thumbnailUploadStatus.status === "uploading") return true
+    return episodes.some((ep) => ep.videoUploadStatus?.status === "uploading")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -423,128 +678,45 @@ export function CreatorUploadForm({
       return
     }
 
+    const finalVideoUrl = videoUrl || videoUploadStatus.resultUrl || ""
+    const finalThumbnailUrl = thumbnailUrl || thumbnailUploadStatus.resultUrl || ""
+
     // Check thumbnail requirement
-    if (uploadMode === "url" && !thumbnailUrl) {
-      toast.error("Thumbnail URL is required")
-      return
-    }
-    if (uploadMode === "file" && !selectedThumbnailFile) {
-      toast.error("Please select a thumbnail image")
+    if (!finalThumbnailUrl) {
+      toast.error("Please upload a thumbnail first")
       return
     }
 
     // Check video requirement for movies
-    if (contentType === "movie") {
-      if (uploadMode === "url" && !videoUrl) {
-        toast.error("Video URL is required for movies")
-        return
-      }
-      if (uploadMode === "file" && !selectedVideoFile) {
-        toast.error("Please select a video file")
-        return
-      }
+    if (contentType === "movie" && !finalVideoUrl) {
+      toast.error("Please upload a video first")
+      return
     }
 
     // Check episodes for series
     if (contentType === "series") {
-      const missingEpisodes = episodes.filter((ep) => {
-        if (uploadMode === "url") return !ep.videoUrl
-        return !ep.videoFile && !ep.videoUrl
-      })
+      const missingEpisodes = episodes.filter((ep) => !ep.videoUrl && !ep.videoUploadStatus?.resultUrl)
       if (missingEpisodes.length > 0) {
-        toast.error(
-          `Please provide video for all episodes. Missing: Episode ${episodes.findIndex((ep) => (uploadMode === "url" ? !ep.videoUrl : !ep.videoFile && !ep.videoUrl)) + 1}`,
-        )
+        toast.error(`Please upload video for all episodes. Missing: Episode ${missingEpisodes[0].episodeNumber}`)
         return
       }
     }
 
     setLoading(true)
-    setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: true, currentStep: "Starting..." })
-
-    let finalVideoUrl = videoUrl
-    let finalThumbnailUrl = thumbnailUrl
 
     try {
-      // Upload thumbnail if in file mode
-      if (uploadMode === "file" && selectedThumbnailFile) {
-        setUploadProgress((prev) => ({ ...prev, currentStep: "Uploading thumbnail...", thumbnail: 10 }))
-        toast.info("Uploading thumbnail...")
-
-        const uploadedThumbnailUrl = await uploadThumbnailFile(selectedThumbnailFile)
-        if (!uploadedThumbnailUrl) {
-          throw new Error("Thumbnail upload failed. Please try again.")
-        }
-        finalThumbnailUrl = uploadedThumbnailUrl
-        setUploadProgress((prev) => ({ ...prev, thumbnail: 100, currentStep: "Thumbnail uploaded!" }))
-        toast.success("Thumbnail uploaded!")
-      }
-
-      // For movies, upload video file
-      if (contentType === "movie" && uploadMode === "file" && selectedVideoFile) {
-        setUploadProgress((prev) => ({ ...prev, currentStep: "Uploading video (this may take a while)...", video: 10 }))
-        toast.info("Uploading video... This may take a while for large files.")
-
-        const uploadedVideoUrl = await uploadVideoFile(selectedVideoFile)
-        if (!uploadedVideoUrl) {
-          throw new Error("Video upload failed. Please try again or use URL mode.")
-        }
-        finalVideoUrl = uploadedVideoUrl
-        setUploadProgress((prev) => ({ ...prev, video: 100, currentStep: "Video uploaded!" }))
-        toast.success("Video uploaded!")
-      }
-
-      // For series, upload episode videos
-      const finalEpisodes = [...episodes]
-      if (contentType === "series") {
-        for (let i = 0; i < episodes.length; i++) {
-          const ep = episodes[i]
-          if (uploadMode === "file" && ep.videoFile) {
-            setUploadProgress((prev) => ({
-              ...prev,
-              currentStep: `Uploading Episode ${i + 1}...`,
-              currentEpisode: i,
-              episodeUploads: { ...prev.episodeUploads, [i]: 10 },
-            }))
-            toast.info(`Uploading Episode ${i + 1} video...`)
-
-            const uploadedUrl = await uploadVideoFile(
-              ep.videoFile,
-              `${title} - S${ep.seasonNumber}E${ep.episodeNumber}`,
-            )
-            if (!uploadedUrl) {
-              throw new Error(`Episode ${i + 1} video upload failed`)
-            }
-            finalEpisodes[i] = { ...finalEpisodes[i], videoUrl: uploadedUrl }
-            setUploadProgress((prev) => ({
-              ...prev,
-              episodeUploads: { ...prev.episodeUploads, [i]: 100 },
-            }))
-            toast.success(`Episode ${i + 1} uploaded!`)
-          }
-        }
-      }
-
-      // Final validation
-      if (contentType === "movie" && !finalVideoUrl) {
-        throw new Error("Video URL is required for movies")
-      }
-      if (!finalThumbnailUrl) {
-        throw new Error("Thumbnail is required")
-      }
-      if (contentType === "series") {
-        const missingVideos = finalEpisodes.filter((ep) => !ep.videoUrl)
-        if (missingVideos.length > 0) {
-          throw new Error(
-            `Video URL required for all episodes. Missing: Episode ${finalEpisodes.findIndex((ep) => !ep.videoUrl) + 1}`,
-          )
-        }
-      }
+      // Build final episodes with uploaded URLs
+      const finalEpisodes = episodes.map((ep) => ({
+        seasonNumber: ep.seasonNumber,
+        episodeNumber: ep.episodeNumber,
+        title: ep.title || `Episode ${ep.episodeNumber}`,
+        description: ep.description,
+        videoUrl: ep.videoUrl || ep.videoUploadStatus?.resultUrl || "",
+        thumbnailUrl: ep.thumbnailUrl,
+        duration: ep.duration,
+      }))
 
       // Submit content
-      setUploadProgress((prev) => ({ ...prev, currentStep: "Submitting content..." }))
-      console.log("[v0] Submitting content:", { type: contentType, title, genre, year })
-
       const result = await submitContent({
         type: contentType,
         title,
@@ -562,116 +734,59 @@ export function CreatorUploadForm({
                 status: seriesStatus,
               }
             : undefined,
-        episodes:
-          contentType === "series"
-            ? finalEpisodes.map((ep) => ({
-                seasonNumber: ep.seasonNumber,
-                episodeNumber: ep.episodeNumber,
-                title: ep.title || `Episode ${ep.episodeNumber}`,
-                description: ep.description,
-                videoUrl: ep.videoUrl,
-                thumbnailUrl: ep.thumbnailUrl,
-                duration: ep.duration,
-              }))
-            : undefined,
+        episodes: contentType === "series" ? finalEpisodes : undefined,
       })
-
-      console.log("[v0] Submit result:", result)
 
       if (result.success) {
         toast.success(result.autoApproved ? "Content published successfully!" : "Content submitted for review!")
-        // Reset form
         resetForm()
         onUploadComplete()
       } else {
         throw new Error(result.error || "Failed to submit content")
       }
     } catch (error: any) {
-      console.error("[v0] Submit error:", error)
       toast.error(error.message || "Submission failed")
     } finally {
       setLoading(false)
-      setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: false, currentStep: "" })
     }
   }
 
   const handleAddEpisodes = async () => {
-    // Validate new episodes
-    const validEpisodes = episodes.filter((ep) => ep.videoUrl || ep.videoFile)
+    const validEpisodes = episodes.filter((ep) => ep.videoUrl || ep.videoUploadStatus?.resultUrl)
     if (validEpisodes.length === 0) {
       toast.error("Please add at least one episode with a video")
       return
     }
 
     setLoading(true)
-    setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: true, currentStep: "Starting..." })
 
     try {
-      const finalEpisodes = [...validEpisodes]
-
-      // Upload video files for episodes
-      for (let i = 0; i < finalEpisodes.length; i++) {
-        const ep = finalEpisodes[i]
-        if (ep.videoFile) {
-          setUploadProgress((prev) => ({
-            ...prev,
-            currentStep: `Uploading Episode ${ep.episodeNumber}...`,
-            currentEpisode: i,
-            episodeUploads: { ...prev.episodeUploads, [i]: 10 },
-          }))
-          toast.info(`Uploading Episode ${ep.episodeNumber}...`)
-
-          const uploadedUrl = await uploadVideoFile(ep.videoFile, `${title} - S${ep.seasonNumber}E${ep.episodeNumber}`)
-          if (!uploadedUrl) {
-            throw new Error(`Episode ${ep.episodeNumber} upload failed`)
-          }
-          finalEpisodes[i] = { ...finalEpisodes[i], videoUrl: uploadedUrl }
-          setUploadProgress((prev) => ({
-            ...prev,
-            episodeUploads: { ...prev.episodeUploads, [i]: 100 },
-          }))
-          toast.success(`Episode ${ep.episodeNumber} uploaded!`)
-        }
-      }
-
-      setUploadProgress((prev) => ({ ...prev, currentStep: "Adding episodes..." }))
-
-      // Submit new episodes
       const result = await addEpisodesToSubmission({
         submissionId: editingSubmission.id,
-        episodes: finalEpisodes.map((ep) => ({
+        episodes: validEpisodes.map((ep) => ({
           seasonNumber: ep.seasonNumber,
           episodeNumber: ep.episodeNumber,
           title: ep.title || `Episode ${ep.episodeNumber}`,
           description: ep.description,
-          videoUrl: ep.videoUrl,
-          thumbnailUrl: ep.thumbnailUrl, // Keep this in case it's needed for future features
-          duration: ep.duration, // Keep this in case it's needed for future features
+          videoUrl: ep.videoUrl || ep.videoUploadStatus?.resultUrl || "",
+          thumbnailUrl: ep.thumbnailUrl,
+          duration: ep.duration,
         })),
       })
 
       if (result.success) {
         toast.success("Episodes added successfully!")
-        onCancelEdit?.() // Close the edit view
-        onUploadComplete() // Refresh parent component
+        onCancelEdit?.()
+        onUploadComplete()
       } else {
         throw new Error(result.error || "Failed to add episodes")
       }
     } catch (error: any) {
-      console.error("[v0] Add episodes error:", error)
       toast.error(error.message || "Failed to add episodes")
     } finally {
       setLoading(false)
-      setUploadProgress({ video: 0, thumbnail: 0, episodeUploads: {}, isUploading: false, currentStep: "" })
     }
   }
-
-  // This is the part that changed from the original code block.
-  // The changes include using a UI framework (like shadcn/ui) for a cleaner look and feel.
-  // It also improves the upload progress feedback and adds a dedicated section for adding episodes.
-
-  // Removed the original return statement and replaced it with the new UI structure.
-  // The logic remains largely the same, but the presentation is different.
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B"
@@ -680,8 +795,49 @@ export function CreatorUploadForm({
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB"
   }
 
-  // Removed the original return statement and replaced it with the new UI structure.
-  // The logic remains largely the same, but the presentation is different.
+  const renderUploadStatus = (status: FileUploadStatus, onClear: () => void) => {
+    if (status.status === "idle") return null
+
+    return (
+      <div className="mt-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {status.status === "uploading" && (
+              <>
+                <Loader className="h-4 w-4 animate-spin text-primary" />
+                <span className="text-sm">Uploading... {status.progress}%</span>
+              </>
+            )}
+            {status.status === "success" && (
+              <>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span className="text-sm text-green-500">Upload complete!</span>
+              </>
+            )}
+            {status.status === "error" && (
+              <>
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <span className="text-sm text-red-500">{status.error || "Upload failed"}</span>
+              </>
+            )}
+          </div>
+          {(status.status === "success" || status.status === "error") && (
+            <button type="button" onClick={onClear} className="rounded p-1 hover:bg-muted">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {status.status === "uploading" && (
+          <div className="mt-2 h-2 rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${status.progress}%` }} />
+          </div>
+        )}
+        {status.status === "success" && status.resultUrl && (
+          <div className="mt-1 truncate text-xs text-muted-foreground">{status.resultUrl}</div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -731,55 +887,6 @@ export function CreatorUploadForm({
             <h3 className="font-medium">Adding episodes to: {editingSubmission.title}</h3>
             <p className="text-sm text-muted-foreground">Existing episodes: {existingEpisodes.length}</p>
           </div>
-        </div>
-      )}
-
-      {/* Upload Progress Display */}
-      {uploadProgress.isUploading && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-          <div className="flex items-center gap-3">
-            <Loader className="h-5 w-5 animate-spin text-primary" />
-            <span className="font-medium">{uploadProgress.currentStep}</span>
-          </div>
-          {uploadProgress.thumbnail > 0 && uploadProgress.thumbnail < 100 && (
-            <div className="mt-2">
-              <div className="text-sm text-muted-foreground">Thumbnail: {uploadProgress.thumbnail}%</div>
-              <div className="mt-1 h-2 rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${uploadProgress.thumbnail}%` }}
-                />
-              </div>
-            </div>
-          )}
-          {uploadProgress.video > 0 && uploadProgress.video < 100 && (
-            <div className="mt-2">
-              <div className="text-sm text-muted-foreground">Video: {uploadProgress.video}%</div>
-              <div className="mt-1 h-2 rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${uploadProgress.video}%` }}
-                />
-              </div>
-            </div>
-          )}
-          {/* Display progress for individual episode uploads */}
-          {uploadProgress.currentEpisode !== undefined &&
-            uploadProgress.episodeUploads[uploadProgress.currentEpisode] !== undefined &&
-            uploadProgress.episodeUploads[uploadProgress.currentEpisode] < 100 && (
-              <div className="mt-2">
-                <div className="text-sm text-muted-foreground">
-                  Episode {uploadProgress.currentEpisode + 1}:{" "}
-                  {uploadProgress.episodeUploads[uploadProgress.currentEpisode]}%
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${uploadProgress.episodeUploads[uploadProgress.currentEpisode]}%` }}
-                  />
-                </div>
-              </div>
-            )}
         </div>
       )}
 
@@ -917,7 +1024,7 @@ export function CreatorUploadForm({
           )}
         </div>
 
-        {/* Thumbnail Section - only for new submissions */}
+        {/* Thumbnail Section */}
         {!editingSubmission && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Thumbnail</label>
@@ -938,16 +1045,23 @@ export function CreatorUploadForm({
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleThumbnailFileSelect}
                   className="hidden"
+                  disabled={thumbnailUploadStatus.status === "uploading"}
                 />
                 <button
                   type="button"
                   onClick={() => thumbnailInputRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-primary hover:bg-muted/50"
+                  disabled={thumbnailUploadStatus.status === "uploading"}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-primary hover:bg-muted/50 disabled:opacity-50"
                 >
-                  {selectedThumbnailFile ? (
+                  {thumbnailUploadStatus.status === "uploading" ? (
+                    <div className="flex items-center gap-2">
+                      <Loader className="h-5 w-5 animate-spin text-primary" />
+                      <span>Uploading thumbnail...</span>
+                    </div>
+                  ) : thumbnailUploadStatus.status === "success" ? (
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-5 w-5 text-green-500" />
-                      <span>{selectedThumbnailFile.name}</span>
+                      <span className="text-green-500">Thumbnail uploaded!</span>
                     </div>
                   ) : (
                     <>
@@ -958,6 +1072,7 @@ export function CreatorUploadForm({
                     </>
                   )}
                 </button>
+                {renderUploadStatus(thumbnailUploadStatus, clearThumbnailUpload)}
                 {thumbnailPreview && (
                   <img
                     src={thumbnailPreview || "/placeholder.svg"}
@@ -991,19 +1106,24 @@ export function CreatorUploadForm({
                   accept="video/mp4,video/webm,video/x-matroska,.mkv,.avi,.mov"
                   onChange={handleVideoFileSelect}
                   className="hidden"
+                  disabled={videoUploadStatus.status === "uploading"}
                 />
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-primary hover:bg-muted/50"
+                  disabled={videoUploadStatus.status === "uploading"}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-primary hover:bg-muted/50 disabled:opacity-50"
                 >
-                  {selectedVideoFile ? (
+                  {videoUploadStatus.status === "uploading" ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader className="h-8 w-8 animate-spin text-primary" />
+                      <span>Uploading video... {videoUploadStatus.progress}%</span>
+                      <span className="text-sm text-muted-foreground">Please wait, this may take a while</span>
+                    </div>
+                  ) : videoUploadStatus.status === "success" ? (
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-5 w-5 text-green-500" />
-                      <span>{selectedVideoFile.name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        ({(selectedVideoFile.size / 1024 / 1024).toFixed(1)} MB)
-                      </span>
+                      <span className="text-green-500">Video uploaded successfully!</span>
                     </div>
                   ) : (
                     <>
@@ -1015,6 +1135,7 @@ export function CreatorUploadForm({
                     </>
                   )}
                 </button>
+                {renderUploadStatus(videoUploadStatus, clearVideoUpload)}
               </div>
             )}
           </div>
@@ -1035,7 +1156,7 @@ export function CreatorUploadForm({
               </button>
             </div>
 
-            {/* Existing Episodes (Read-only) */}
+            {/* Existing Episodes */}
             {existingEpisodes.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">Existing Episodes</h4>
@@ -1118,16 +1239,23 @@ export function CreatorUploadForm({
                           accept="video/mp4,video/webm,video/x-matroska,.mkv,.avi,.mov"
                           onChange={(e) => handleEpisodeVideoFileSelect(index, e)}
                           className="hidden"
+                          disabled={episode.videoUploadStatus?.status === "uploading"}
                         />
                         <button
                           type="button"
                           onClick={() => episodeVideoRefs.current[index]?.click()}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-4 text-sm transition-colors hover:border-primary hover:bg-muted/50"
+                          disabled={episode.videoUploadStatus?.status === "uploading"}
+                          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-4 text-sm transition-colors hover:border-primary hover:bg-muted/50 disabled:opacity-50"
                         >
-                          {episode.videoFile ? (
+                          {episode.videoUploadStatus?.status === "uploading" ? (
+                            <div className="flex items-center gap-2">
+                              <Loader className="h-4 w-4 animate-spin text-primary" />
+                              <span>Uploading... {episode.videoUploadStatus.progress}%</span>
+                            </div>
+                          ) : episode.videoUploadStatus?.status === "success" ? (
                             <div className="flex items-center gap-2">
                               <CheckCircle className="h-4 w-4 text-green-500" />
-                              <span className="truncate">{episode.videoFile.name}</span>
+                              <span className="text-green-500">Video uploaded!</span>
                             </div>
                           ) : episode.videoUrl ? (
                             <div className="flex items-center gap-2">
@@ -1137,11 +1265,13 @@ export function CreatorUploadForm({
                           ) : (
                             <>
                               <FileVideo className="h-5 w-5 text-muted-foreground" />
-                              <span className="text-muted-foreground">Select video or enter URL below</span>
+                              <span className="text-muted-foreground">Click to upload video</span>
                             </>
                           )}
                         </button>
-                        {!episode.videoFile && (
+                        {episode.videoUploadStatus &&
+                          renderUploadStatus(episode.videoUploadStatus, () => clearEpisodeVideoUpload(index))}
+                        {!episode.videoFile && !episode.videoUploadStatus?.resultUrl && (
                           <input
                             type="url"
                             value={episode.videoUrl}
@@ -1162,19 +1292,24 @@ export function CreatorUploadForm({
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading || !canUpload}
-          className={`flex w-full items-center justify-center gap-2 rounded-lg py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 ${
+          disabled={loading || !canUpload || isAnyUploadInProgress()}
+          className={`flex w-full items-center justify-center gap-2 rounded-lg py-3 font-medium text-primary-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             editingSubmission
               ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50"
               : contentType === "movie"
-                ? "bg-primary hover:shadow-lg hover:shadow-primary/50"
+                ? "bg-primary hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/50"
                 : "bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/50"
           }`}
         >
           {loading ? (
             <>
               <Loader className="h-5 w-5 animate-spin" />
-              {uploadProgress.currentStep || "Processing..."}
+              Submitting...
+            </>
+          ) : isAnyUploadInProgress() ? (
+            <>
+              <Loader className="h-5 w-5 animate-spin" />
+              Waiting for uploads...
             </>
           ) : editingSubmission ? (
             <>
@@ -1188,8 +1323,6 @@ export function CreatorUploadForm({
             </>
           )}
         </button>
-
-        {/* API Keys Notice - Removed as it's not part of the updates */}
       </form>
     </div>
   )
