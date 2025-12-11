@@ -137,15 +137,16 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
 
         <div
           id={`carousel-${title}`}
-          className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
+          className="flex gap-3 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
           style={{ scrollBehavior: "smooth" }}
         >
           {moviesWithAds.map((item, index) => (
             <motion.div
               key={"isAd" in item ? item.id : item.id}
+              className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: index * 0.05 }}
+              transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
               viewport={{ once: true }}
             >
               {"isAd" in item ? <NativeAdCard adCode={adSettings?.horizontalAdCode} /> : <MovieCard movie={item} />}
