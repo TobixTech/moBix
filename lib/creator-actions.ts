@@ -727,6 +727,57 @@ export async function getSubmissionDetails(submissionId: string) {
   }
 }
 
+export async function getSubmissionEpisodes(submissionId: number) {
+  try {
+    const clerkUser = await currentUser()
+    if (!clerkUser) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkUser.id),
+    })
+
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Verify ownership
+    const submission = await db.query.contentSubmissions.findFirst({
+      where: eq(contentSubmissions.id, submissionId),
+    })
+
+    if (!submission) {
+      return { success: false, error: "Submission not found" }
+    }
+
+    // Get creator profile
+    const creator = await db.query.creatorProfiles.findFirst({
+      where: eq(creatorProfiles.userId, user.id),
+    })
+
+    if (!creator || submission.creatorId !== creator.id) {
+      return { success: false, error: "Not authorized" }
+    }
+
+    // Get episodes
+    const episodesList = await db
+      .select()
+      .from(submissionEpisodes)
+      .where(eq(submissionEpisodes.submissionId, submissionId))
+      .orderBy(submissionEpisodes.seasonNumber, submissionEpisodes.episodeNumber)
+
+    return {
+      success: true,
+      episodes: episodesList,
+    }
+  } catch (error: any) {
+    console.error("Error fetching submission episodes:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Add episodes to submission
 export async function addEpisodesToSubmission(
   submissionId: string,
   newEpisodes: Array<{
