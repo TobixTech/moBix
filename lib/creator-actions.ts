@@ -743,6 +743,7 @@ export async function getSubmissionDetails(submissionId: string) {
   }
 }
 
+// Get submission episodes
 export async function getSubmissionEpisodes(submissionId: number) {
   try {
     const clerkUser = await currentUser()
@@ -795,13 +796,14 @@ export async function getSubmissionEpisodes(submissionId: number) {
 
 // Add episodes to submission
 export async function addEpisodesToSubmission(
-  submissionId: string,
+  submissionId: number,
   newEpisodes: Array<{
     seasonNumber: number
     episodeNumber: number
     title: string
     description?: string
     videoUrl: string
+    duration?: string
   }>,
 ) {
   try {
@@ -824,7 +826,7 @@ export async function addEpisodesToSubmission(
     const [submission] = await db
       .select()
       .from(contentSubmissions)
-      .where(and(eq(contentSubmissions.id, submissionId), eq(contentSubmissions.creatorId, profile.id)))
+      .where(and(eq(contentSubmissions.id, submissionId.toString()), eq(contentSubmissions.creatorId, profile.id)))
       .limit(1)
 
     if (!submission) {
@@ -835,10 +837,10 @@ export async function addEpisodesToSubmission(
       return { success: false, error: "Can only add episodes to series" }
     }
 
-    // Insert new episodes
+    // Insert new episodes to submission
     for (const ep of newEpisodes) {
       await db.insert(submissionEpisodes).values({
-        submissionId,
+        submissionId: submissionId.toString(),
         seasonNumber: ep.seasonNumber,
         episodeNumber: ep.episodeNumber,
         title: ep.title,
@@ -847,7 +849,7 @@ export async function addEpisodesToSubmission(
       })
     }
 
-    // Update series data
+    // Update series data in submission
     const existingData = submission.seriesData
       ? JSON.parse(submission.seriesData)
       : { totalSeasons: 1, totalEpisodes: 0 }
@@ -863,7 +865,34 @@ export async function addEpisodesToSubmission(
           status: "ongoing",
         }),
       })
-      .where(eq(contentSubmissions.id, submissionId))
+      .where(eq(contentSubmissions.id, submissionId.toString()))
+
+    if (submission.publishedSeriesId) {
+      for (const ep of newEpisodes) {
+        await db.insert(episodes).values({
+          seriesId: submission.publishedSeriesId,
+          seasonNumber: ep.seasonNumber,
+          episodeNumber: ep.episodeNumber,
+          title: ep.title,
+          description: ep.description || "",
+          videoUrl: ep.videoUrl,
+          duration: ep.duration || "0",
+        })
+      }
+
+      // Update the series total episodes and seasons
+      const [currentSeries] = await db.select().from(series).where(eq(series.id, submission.publishedSeriesId)).limit(1)
+
+      if (currentSeries) {
+        await db
+          .update(series)
+          .set({
+            totalSeasons: Math.max(currentSeries.totalSeasons || 1, maxSeason),
+            totalEpisodes: (currentSeries.totalEpisodes || 0) + newEpisodes.length,
+          })
+          .where(eq(series.id, submission.publishedSeriesId))
+      }
+    }
 
     // Update daily tracking
     const today = new Date()
@@ -890,6 +919,8 @@ export async function addEpisodesToSubmission(
     }
 
     revalidatePath("/creator")
+    revalidatePath("/series")
+    revalidatePath(`/series/${submission.publishedSeriesId}`)
     return { success: true }
   } catch (error) {
     console.error("Error adding episodes:", error)
@@ -943,7 +974,30 @@ export async function updateSubmission(
 
     await db.update(contentSubmissions).set(updateData).where(eq(contentSubmissions.id, submissionId))
 
+    if (submission.publishedMovieId) {
+      const movieUpdateData: any = {}
+      if (data.title !== undefined) movieUpdateData.title = data.title
+      if (data.description !== undefined) movieUpdateData.description = data.description
+      if (data.genre !== undefined) movieUpdateData.genre = data.genre
+      if (data.year !== undefined) movieUpdateData.year = data.year
+
+      await db.update(movies).set(movieUpdateData).where(eq(movies.id, submission.publishedMovieId))
+    }
+
+    if (submission.publishedSeriesId) {
+      const seriesUpdateData: any = {}
+      if (data.title !== undefined) seriesUpdateData.title = data.title
+      if (data.description !== undefined) seriesUpdateData.description = data.description
+      if (data.genre !== undefined) seriesUpdateData.genre = data.genre
+      if (data.year !== undefined) seriesUpdateData.year = data.year
+
+      await db.update(series).set(seriesUpdateData).where(eq(series.id, submission.publishedSeriesId))
+    }
+
     revalidatePath("/creator")
+    revalidatePath("/movies")
+    revalidatePath("/series")
+    revalidatePath("/")
     return { success: true }
   } catch (error) {
     console.error("Error updating submission:", error)

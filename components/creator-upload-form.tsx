@@ -47,6 +47,8 @@ interface CreatorUploadFormProps {
     genre: string
     seasonNumber?: number
     totalEpisodes?: number
+    totalSeasons?: number
+    publishedSeriesId?: string | null
   } | null
   onCancelEdit?: () => void
 }
@@ -111,6 +113,8 @@ export function CreatorUploadForm({
 
   // Series fields
   const [seasonNumber, setSeasonNumber] = useState(editingSubmission?.seasonNumber?.toString() || "1")
+  const [availableSeasons, setAvailableSeasons] = useState<number[]>([1])
+  const [isAddingNewSeason, setIsAddingNewSeason] = useState(false)
   const [episodes, setEpisodes] = useState<Episode[]>([
     { episodeNumber: 1, seasonNumber: 1, title: "", videoUrl: "", duration: "", uploadStatus: "idle" },
   ])
@@ -130,11 +134,22 @@ export function CreatorUploadForm({
     const result = await getSubmissionEpisodes(editingSubmission.id)
     if (result.success && result.episodes) {
       setExistingEpisodes(result.episodes)
-      const maxEpisode = Math.max(...result.episodes.map((e: any) => e.episodeNumber), 0)
+
+      // Get unique seasons from existing episodes
+      const seasons = [...new Set(result.episodes.map((e: any) => e.seasonNumber))].sort((a, b) => a - b)
+      if (seasons.length > 0) {
+        setAvailableSeasons(seasons as number[])
+      }
+
+      // Get max episode for current season
+      const currentSeasonEps = result.episodes.filter((e: any) => e.seasonNumber === Number(seasonNumber))
+      const maxEpisode =
+        currentSeasonEps.length > 0 ? Math.max(...currentSeasonEps.map((e: any) => e.episodeNumber)) : 0
+
       setEpisodes([
         {
           episodeNumber: maxEpisode + 1,
-          seasonNumber: editingSubmission.seasonNumber || 1,
+          seasonNumber: Number(seasonNumber),
           title: "",
           videoUrl: "",
           duration: "",
@@ -522,6 +537,43 @@ export function CreatorUploadForm({
     thumbnailUpload.status === "processing" ||
     episodes.some((ep) => ep.uploadStatus === "uploading")
 
+  const handleSeasonChange = (newSeason: string) => {
+    setSeasonNumber(newSeason)
+    setIsAddingNewSeason(false)
+
+    // Find max episode for this season from existing episodes
+    const seasonEps = existingEpisodes.filter((e: any) => e.seasonNumber === Number(newSeason))
+    const maxEpisode = seasonEps.length > 0 ? Math.max(...seasonEps.map((e: any) => e.episodeNumber)) : 0
+
+    setEpisodes([
+      {
+        episodeNumber: maxEpisode + 1,
+        seasonNumber: Number(newSeason),
+        title: "",
+        videoUrl: "",
+        duration: "",
+        uploadStatus: "idle",
+      },
+    ])
+  }
+
+  const handleAddNewSeason = () => {
+    const newSeasonNum = availableSeasons.length > 0 ? Math.max(...availableSeasons) + 1 : 1
+    setAvailableSeasons([...availableSeasons, newSeasonNum])
+    setSeasonNumber(newSeasonNum.toString())
+    setIsAddingNewSeason(true)
+    setEpisodes([
+      {
+        episodeNumber: 1,
+        seasonNumber: newSeasonNum,
+        title: "",
+        videoUrl: "",
+        duration: "",
+        uploadStatus: "idle",
+      },
+    ])
+  }
+
   return (
     <Card className="bg-[#1A1B23] border-[#2A2B33]">
       <CardHeader>
@@ -653,6 +705,52 @@ export function CreatorUploadForm({
           </>
         )}
 
+        {/* Series Season Management - only when editing */}
+        {editingSubmission && contentType === "series" && (
+          <div className="space-y-4 p-4 bg-[#0B0C10] rounded-lg border border-[#2A2B33]">
+            <div className="flex items-center justify-between">
+              <Label className="text-white text-lg">Season Management</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddNewSeason}
+                className="border-cyan-500 text-cyan-500 hover:bg-cyan-500/10 bg-transparent"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add New Season
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {availableSeasons.map((s) => (
+                <Button
+                  key={s}
+                  type="button"
+                  variant={Number(seasonNumber) === s ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleSeasonChange(s.toString())}
+                  className={
+                    Number(seasonNumber) === s
+                      ? "bg-cyan-600 text-white"
+                      : "border-[#2A2B33] text-white/70 hover:text-white"
+                  }
+                >
+                  Season {s}
+                  {Number(seasonNumber) === s && isAddingNewSeason && " (New)"}
+                </Button>
+              ))}
+            </div>
+
+            {existingEpisodes.filter((e) => e.seasonNumber === Number(seasonNumber)).length > 0 && (
+              <div className="text-sm text-white/60">
+                Existing episodes in Season {seasonNumber}:{" "}
+                {existingEpisodes.filter((e) => e.seasonNumber === Number(seasonNumber)).length}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Thumbnail Upload */}
         <div className="space-y-2">
           <Label className="text-white">Thumbnail *</Label>
@@ -773,13 +871,27 @@ export function CreatorUploadForm({
             {!editingSubmission && (
               <div className="space-y-2">
                 <Label className="text-white">Season Number</Label>
-                <Input
-                  type="number"
-                  value={seasonNumber}
-                  onChange={(e) => setSeasonNumber(e.target.value)}
-                  min="1"
-                  className="bg-[#0B0C10] border-[#2A2B33] text-white w-32"
-                />
+                <Select value={seasonNumber} onValueChange={handleSeasonChange}>
+                  <SelectTrigger className="bg-[#0B0C10] border-[#2A2B33] text-white">
+                    <SelectValue placeholder="Select season" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A1B23] border-[#2A2B33]">
+                    {availableSeasons.map((season) => (
+                      <SelectItem key={season} value={season.toString()} className="text-white hover:bg-[#2A2B33]">
+                        Season {season}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddNewSeason}
+                  className="w-full border-dashed border-[#2A2B33] text-white/60 hover:text-white hover:border-[#00FFFF] bg-transparent"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add New Season
+                </Button>
               </div>
             )}
 
@@ -809,7 +921,7 @@ export function CreatorUploadForm({
                   <div key={index} className="p-4 bg-[#0B0C10] rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
                       <Badge className="bg-[#00FFFF]/20 text-[#00FFFF]">
-                        S{seasonNumber}E{episode.episodeNumber}
+                        S{episode.seasonNumber}E{episode.episodeNumber}
                       </Badge>
                       {episodes.length > 1 && (
                         <Button
@@ -896,7 +1008,6 @@ export function CreatorUploadForm({
                     )}
                   </div>
                 ))}
-
                 <Button
                   type="button"
                   variant="outline"
@@ -907,6 +1018,29 @@ export function CreatorUploadForm({
                   Add Episode
                 </Button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Existing Episodes Display */}
+        {editingSubmission && existingEpisodes.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-white">Existing Episodes (Season {seasonNumber})</Label>
+            <div className="max-h-40 overflow-y-auto space-y-2 p-3 bg-[#0B0C10] rounded-lg border border-[#2A2B33]">
+              {existingEpisodes
+                .filter((ep) => ep.seasonNumber === Number(seasonNumber))
+                .sort((a, b) => a.episodeNumber - b.episodeNumber)
+                .map((ep) => (
+                  <div key={ep.id} className="flex items-center gap-2 text-sm text-white/70 p-2 bg-[#1A1B23] rounded">
+                    <Check className="w-4 h-4 text-green-500" />
+                    <span>
+                      S{ep.seasonNumber}E{ep.episodeNumber}: {ep.title}
+                    </span>
+                  </div>
+                ))}
+              {existingEpisodes.filter((ep) => ep.seasonNumber === Number(seasonNumber)).length === 0 && (
+                <div className="text-sm text-white/50 text-center py-2">No episodes in this season yet</div>
+              )}
             </div>
           </div>
         )}
