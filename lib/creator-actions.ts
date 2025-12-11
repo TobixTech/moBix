@@ -56,7 +56,7 @@ export async function getCreatorStatus() {
     }
 
     const settings = await getCreatorSettingsWithDefaults()
-    const isCreatorSystemEnabled = settings.isCreatorSystemEnabled !== false
+    const isCreatorSystemEnabled = settings.isCreatorSystemEnabled ?? true
 
     // Check if user has a creator profile (approved)
     const [profile] = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, user.id)).limit(1)
@@ -82,7 +82,7 @@ export async function getCreatorStatus() {
         success: true,
         isCreator: true,
         status: "approved",
-        isCreatorSystemEnabled, // Now included for approved creators
+        isCreatorSystemEnabled, // Always include for consistency
         profile: {
           ...profile,
           uploadsToday: dailyTrack?.uploadsToday || 0,
@@ -121,7 +121,7 @@ export async function getCreatorStatus() {
     }
   } catch (error) {
     console.error("Error getting creator status:", error)
-    return { success: false, error: "Failed to get creator status" }
+    return { success: false, error: "Failed to get creator status", isCreatorSystemEnabled: true }
   }
 }
 
@@ -724,5 +724,108 @@ export async function getSubmissionDetails(submissionId: string) {
   } catch (error) {
     console.error("Error getting submission:", error)
     return { success: false, error: "Failed to load submission" }
+  }
+}
+
+export async function addEpisodesToSubmission(
+  submissionId: string,
+  newEpisodes: Array<{
+    seasonNumber: number
+    episodeNumber: number
+    title: string
+    description?: string
+    videoUrl: string
+  }>,
+) {
+  try {
+    const clerkUser = await currentUser()
+    if (!clerkUser) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.clerkId, clerkUser.id)).limit(1)
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    const [profile] = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, user.id)).limit(1)
+    if (!profile) {
+      return { success: false, error: "Not a creator" }
+    }
+
+    // Verify submission belongs to this creator
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(and(eq(contentSubmissions.id, submissionId), eq(contentSubmissions.creatorId, profile.id)))
+      .limit(1)
+
+    if (!submission) {
+      return { success: false, error: "Submission not found" }
+    }
+
+    if (submission.type !== "series") {
+      return { success: false, error: "Can only add episodes to series" }
+    }
+
+    // Insert new episodes
+    for (const ep of newEpisodes) {
+      await db.insert(submissionEpisodes).values({
+        submissionId,
+        seasonNumber: ep.seasonNumber,
+        episodeNumber: ep.episodeNumber,
+        title: ep.title,
+        description: ep.description || "",
+        videoUrl: ep.videoUrl,
+      })
+    }
+
+    // Update series data
+    const existingData = submission.seriesData
+      ? JSON.parse(submission.seriesData)
+      : { totalSeasons: 1, totalEpisodes: 0 }
+    const maxSeason = Math.max(existingData.totalSeasons, ...newEpisodes.map((e) => e.seasonNumber))
+    const newTotalEpisodes = existingData.totalEpisodes + newEpisodes.length
+
+    await db
+      .update(contentSubmissions)
+      .set({
+        seriesData: JSON.stringify({
+          totalSeasons: maxSeason,
+          totalEpisodes: newTotalEpisodes,
+          status: "ongoing",
+        }),
+      })
+      .where(eq(contentSubmissions.id, submissionId))
+
+    // Update daily tracking
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const [dailyTrack] = await db
+      .select()
+      .from(dailyUploadTracking)
+      .where(and(eq(dailyUploadTracking.creatorId, profile.id), gte(dailyUploadTracking.date, today)))
+      .limit(1)
+
+    if (dailyTrack) {
+      await db
+        .update(dailyUploadTracking)
+        .set({ uploadsToday: dailyTrack.uploadsToday + newEpisodes.length })
+        .where(eq(dailyUploadTracking.id, dailyTrack.id))
+    } else {
+      await db.insert(dailyUploadTracking).values({
+        creatorId: profile.id,
+        date: today,
+        uploadsToday: newEpisodes.length,
+        storageUsedTodayGb: "0",
+      })
+    }
+
+    revalidatePath("/creator")
+    return { success: true }
+  } catch (error) {
+    console.error("Error adding episodes:", error)
+    return { success: false, error: "Failed to add episodes" }
   }
 }

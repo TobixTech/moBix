@@ -16,6 +16,8 @@ import {
   Loader,
   RefreshCw,
   TrendingUp,
+  Edit,
+  Plus,
 } from "lucide-react"
 import { getCreatorDashboardData, getCreatorNotifications } from "@/lib/creator-actions"
 import { CreatorUploadForm } from "@/components/creator-upload-form"
@@ -35,6 +37,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [contentFilter, setContentFilter] = useState<"all" | "pending" | "approved" | "rejected">("all")
+  const [editingSubmission, setEditingSubmission] = useState<any>(null)
 
   useEffect(() => {
     fetchDashboardData()
@@ -42,13 +45,20 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
 
   const fetchDashboardData = async () => {
     setLoading(true)
-    const [dashResult, notifResult] = await Promise.all([getCreatorDashboardData(), getCreatorNotifications()])
+    try {
+      const [dashResult, notifResult] = await Promise.all([getCreatorDashboardData(), getCreatorNotifications()])
 
-    if (dashResult.success) {
-      setDashboardData(dashResult)
-    }
-    if (notifResult.success) {
-      setNotifications(notifResult.notifications || [])
+      console.log("[v0] Dashboard data:", dashResult)
+      console.log("[v0] Notifications:", notifResult)
+
+      if (dashResult.success) {
+        setDashboardData(dashResult)
+      }
+      if (notifResult.success) {
+        setNotifications(notifResult.notifications || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching dashboard data:", error)
     }
     setLoading(false)
     setRefreshing(false)
@@ -59,8 +69,17 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
     fetchDashboardData()
   }
 
+  const handleEditSeries = (submission: any) => {
+    setEditingSubmission(submission)
+    setActiveTab("upload")
+  }
+
+  const handleCancelEdit = () => {
+    setEditingSubmission(null)
+  }
+
   const tabs = [
-    { id: "upload", label: "Upload", icon: Upload },
+    { id: "upload", label: editingSubmission ? "Edit Series" : "Upload", icon: editingSubmission ? Edit : Upload },
     { id: "content", label: "My Content", icon: Film },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "earnings", label: "Earnings", icon: DollarSign },
@@ -85,27 +104,28 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
 
   return (
     <div className="pt-24 px-4 md:px-8 pb-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
-            Creator Studio
-            {profile?.status === "suspended" && (
-              <span className="px-2 py-1 bg-red-500/20 text-red-400 text-sm rounded-full">Suspended</span>
-            )}
-          </h1>
-          <p className="text-white/60 mt-1">Manage your content and track performance</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <CreatorNotificationBell notifications={notifications} onRefresh={fetchDashboardData} />
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg text-white hover:bg-[#2A2B33] transition disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-            <span className="hidden md:inline">Refresh</span>
-          </button>
+      {/* Header - Fixed mobile layout for notification bell */}
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3 flex-wrap">
+              Creator Studio
+              {profile?.status === "suspended" && (
+                <span className="px-2 py-1 bg-red-500/20 text-red-400 text-sm rounded-full">Suspended</span>
+              )}
+            </h1>
+            <p className="text-white/60 mt-1">Manage your content and track performance</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <CreatorNotificationBell notifications={notifications} onRefresh={fetchDashboardData} />
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 bg-[#1A1B23] border border-[#2A2B33] rounded-lg text-white hover:bg-[#2A2B33] transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -186,7 +206,10 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as CreatorTab)}
+            onClick={() => {
+              if (tab.id !== "upload") setEditingSubmission(null)
+              setActiveTab(tab.id as CreatorTab)
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition ${
               activeTab === tab.id
                 ? "bg-[#00FFFF] text-[#0B0C10] font-medium"
@@ -203,18 +226,23 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
       {activeTab === "upload" && (
         <CreatorUploadForm
           dailyTracking={{
-            uploadsToday: profile?.uploadsToday || 0,
-            storageUsedToday: Number(profile?.storageUsedToday) || 0,
-            uploadLimit: profile?.dailyUploadLimit || 4,
-            storageLimit: Number(profile?.dailyStorageLimitGb) || 8,
+            uploadsToday: dashboardData?.dailyTracking?.uploadsToday || 0,
+            storageUsedToday: Number(dashboardData?.dailyTracking?.storageUsedToday) || 0,
+            uploadLimit: dashboardData?.dailyTracking?.uploadLimit || 4,
+            storageLimit: Number(dashboardData?.dailyTracking?.storageLimit) || 8,
           }}
-          onUploadComplete={handleRefresh}
+          onUploadComplete={() => {
+            handleRefresh()
+            setEditingSubmission(null)
+          }}
+          editingSubmission={editingSubmission}
+          onCancelEdit={handleCancelEdit}
         />
       )}
 
       {/* My Content Tab */}
       {activeTab === "content" && (
-        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-xl p-6">
+        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-xl p-4 md:p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <h2 className="text-xl font-bold text-white">My Content</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
@@ -222,7 +250,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                 <button
                   key={filter}
                   onClick={() => setContentFilter(filter as any)}
-                  className={`px-3 py-1.5 rounded-lg text-sm capitalize transition ${
+                  className={`px-3 py-1.5 rounded-lg text-sm capitalize transition whitespace-nowrap ${
                     contentFilter === filter
                       ? "bg-[#00FFFF]/20 text-[#00FFFF] border border-[#00FFFF]/30"
                       : "bg-[#0B0C10] text-white/70 hover:bg-[#2A2B33]"
@@ -297,11 +325,11 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                       <div className="flex items-center gap-4 text-white/60">
                         <span className="flex items-center gap-1">
                           <Eye className="w-4 h-4" />
-                          {submission.viewsCount}
+                          {submission.viewsCount || 0}
                         </span>
                         <span className="flex items-center gap-1">
                           <Heart className="w-4 h-4" />
-                          {submission.likesCount}
+                          {submission.likesCount || 0}
                         </span>
                       </div>
                       <span className="text-white/40 text-xs">
@@ -313,6 +341,16 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                         Reason: {submission.rejectionReason}
                       </div>
                     )}
+                    {submission.type === "series" &&
+                      (submission.status === "pending" || submission.status === "approved") && (
+                        <button
+                          onClick={() => handleEditSeries(submission)}
+                          className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Episodes
+                        </button>
+                      )}
                   </div>
                 </div>
               ))}
@@ -323,7 +361,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
 
       {/* Analytics Tab */}
       {activeTab === "analytics" && (
-        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-xl p-6">
+        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-xl p-4 md:p-6">
           <h2 className="text-xl font-bold text-white mb-6">Analytics</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -333,7 +371,8 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                 Total Watch Time
               </div>
               <p className="text-2xl font-bold text-white">
-                {dashboardData?.analytics?.reduce((sum: number, a: any) => sum + (a.watchTime || 0), 0) || 0} min
+                {dashboardData?.analytics?.reduce((sum: number, a: any) => sum + (Number(a.watchTime) || 0), 0) || 0}{" "}
+                min
               </p>
             </div>
             <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
@@ -342,7 +381,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                 Views (30 days)
               </div>
               <p className="text-2xl font-bold text-white">
-                {dashboardData?.analytics?.reduce((sum: number, a: any) => sum + (a.views || 0), 0) || 0}
+                {dashboardData?.analytics?.reduce((sum: number, a: any) => sum + (Number(a.views) || 0), 0) || 0}
               </p>
             </div>
             <div className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg p-4">
@@ -351,7 +390,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                 Likes (30 days)
               </div>
               <p className="text-2xl font-bold text-white">
-                {dashboardData?.analytics?.reduce((sum: number, a: any) => sum + (a.likes || 0), 0) || 0}
+                {dashboardData?.analytics?.reduce((sum: number, a: any) => sum + (Number(a.likes) || 0), 0) || 0}
               </p>
             </div>
           </div>
@@ -360,8 +399,8 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
           <h3 className="text-white font-bold mb-4">Top Performing Content</h3>
           {dashboardData?.submissions?.length > 0 ? (
             <div className="space-y-3">
-              {dashboardData.submissions
-                .sort((a: any, b: any) => b.viewsCount - a.viewsCount)
+              {[...dashboardData.submissions]
+                .sort((a: any, b: any) => (b.viewsCount || 0) - (a.viewsCount || 0))
                 .slice(0, 5)
                 .map((submission: any, index: number) => (
                   <div
@@ -379,7 +418,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                       <p className="text-white/50 text-sm">{submission.type}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-white font-bold">{submission.viewsCount}</p>
+                      <p className="text-white font-bold">{submission.viewsCount || 0}</p>
                       <p className="text-white/50 text-xs">views</p>
                     </div>
                   </div>

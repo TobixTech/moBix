@@ -24,6 +24,7 @@ export default function CreatorPage() {
 
   const fetchCreatorStatus = async () => {
     const result = await getCreatorStatus()
+    console.log("[v0] Creator status result:", result)
     setCreatorStatus(result)
     setLoading(false)
   }
@@ -63,7 +64,19 @@ export default function CreatorPage() {
     )
   }
 
-  if (!creatorStatus?.isCreatorSystemEnabled) {
+  // Approved creators should always have access to their dashboard
+  if (creatorStatus?.isCreator && creatorStatus?.status === "approved") {
+    return (
+      <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
+        <Navbar />
+        <CreatorDashboard profile={creatorStatus.profile} onRefresh={fetchCreatorStatus} />
+        <Footer />
+        <MobileBottomNav />
+      </main>
+    )
+  }
+
+  if (creatorStatus?.isCreatorSystemEnabled === false) {
     return (
       <main className="min-h-screen bg-[#0B0C10]">
         <Navbar />
@@ -78,18 +91,6 @@ export default function CreatorPage() {
             Go Home
           </Link>
         </div>
-        <Footer />
-        <MobileBottomNav />
-      </main>
-    )
-  }
-
-  // Show creator dashboard for approved creators
-  if (creatorStatus?.isCreator && creatorStatus?.status === "approved") {
-    return (
-      <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
-        <Navbar />
-        <CreatorDashboard profile={creatorStatus.profile} onRefresh={fetchCreatorStatus} />
         <Footer />
         <MobileBottomNav />
       </main>
