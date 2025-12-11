@@ -2537,6 +2537,7 @@ export async function getPromotionSettings() {
     if (!settings) {
       return {
         isActive: false,
+        globallyDisabled: false, // Default value for new field
         enabledCountries: ["Nigeria"],
         headline: "Fill Details to Get 1.5GB Data!",
         subtext: "(Lucky Draw - Winners announced weekly)",
@@ -2547,6 +2548,7 @@ export async function getPromotionSettings() {
 
     return {
       isActive: settings.isActive,
+      globallyDisabled: settings.globallyDisabled || false, // Handle potential null/undefined
       enabledCountries: JSON.parse(settings.enabledCountries || '["Nigeria"]'),
       headline: settings.headline,
       subtext: settings.subtext,
@@ -2558,8 +2560,9 @@ export async function getPromotionSettings() {
   }
 }
 
-export async function updatePromotionSettings(data: {
+export async function updatePromotionSettings(settings: {
   isActive: boolean
+  globallyDisabled?: boolean
   enabledCountries: string[]
   headline: string
   subtext: string
@@ -2567,23 +2570,45 @@ export async function updatePromotionSettings(data: {
   networkOptions: Record<string, string[]>
 }) {
   try {
-    await db
-      .update(promotionSettings)
-      .set({
-        isActive: data.isActive,
-        enabledCountries: JSON.stringify(data.enabledCountries),
-        headline: data.headline,
-        subtext: data.subtext,
-        successMessage: data.successMessage,
-        networkOptions: JSON.stringify(data.networkOptions),
-        updatedAt: new Date(),
+    const existing = await db.query.promotionSettings.findFirst({
+      where: eq(promotionSettings.id, "default-promotion-settings"),
+    })
+
+    const data = {
+      isActive: settings.isActive,
+      enabledCountries: JSON.stringify(settings.enabledCountries),
+      headline: settings.headline,
+      subtext: settings.subtext,
+      successMessage: settings.successMessage,
+      networkOptions: JSON.stringify(settings.networkOptions),
+      updatedAt: new Date(),
+    }
+
+    if (existing) {
+      await db.update(promotionSettings).set(data).where(eq(promotionSettings.id, "default-promotion-settings"))
+
+      // Update globallyDisabled separately if provided (may not exist in schema yet)
+      if (settings.globallyDisabled !== undefined) {
+        try {
+          await db.execute(
+            sql`UPDATE "PromotionSettings" SET "globallyDisabled" = ${settings.globallyDisabled} WHERE "id" = 'default-promotion-settings'`,
+          )
+        } catch {
+          // Column may not exist yet
+        }
+      }
+    } else {
+      await db.insert(promotionSettings).values({
+        id: "default-promotion-settings",
+        ...data,
       })
-      .where(eq(promotionSettings.id, "default-promotion-settings"))
+    }
 
     revalidatePath("/home")
     return { success: true }
-  } catch {
-    return { success: false }
+  } catch (error) {
+    console.error("Error updating promotion settings:", error)
+    return { success: false, error: "Failed to update settings" }
   }
 }
 

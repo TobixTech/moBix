@@ -253,6 +253,16 @@ interface ContentSubmission {
   }
 }
 
+// Add promotion-related interfaces
+interface PromotionSettings {
+  isActive: boolean
+  globallyDisabled: boolean // Added
+  headline: string
+  subtext: string
+  successMessage: string
+  enabledCountries: string[]
+}
+
 export default function AdminDashboard() {
   const [pinVerified, setPinVerified] = useState(false)
   const [pinInput, setPinInput] = useState("")
@@ -286,7 +296,7 @@ export default function AdminDashboard() {
 
   // Add new state for promotions
   const [promotionEntries, setPromotionEntries] = useState<any[]>([])
-  const [promotionSettings, setPromotionSettings] = useState<any>(null)
+  const [promotionSettings, setPromotionSettings] = useState<PromotionSettings | null>(null) // Updated type
   const [ipBlacklist, setIpBlacklist] = useState<any[]>([])
   const [promotionTab, setPromotionTab] = useState<"entries" | "settings" | "blacklist">("entries")
   const [promoCountryFilter, setPromoCountryFilter] = useState("")
@@ -595,7 +605,15 @@ export default function AdminDashboard() {
           getIpBlacklist(),
         ])
         setPromotionEntries(entries)
-        setPromotionSettings(settings)
+        // Initialize promotionSettings with fetched data or default values
+        setPromotionSettings({
+          isActive: settings.isActive ?? true,
+          globallyDisabled: settings.globallyDisabled ?? false, // Initialize globallyDisabled
+          headline: settings.headline || "",
+          subtext: settings.subtext || "",
+          successMessage: settings.successMessage || "",
+          enabledCountries: settings.enabledCountries || [],
+        })
         setIpBlacklist(blacklist)
       } catch (error) {
         console.error("Error fetching promotion data:", error)
@@ -2934,11 +2952,48 @@ export default function AdminDashboard() {
               {/* Settings Tab */}
               {promotionTab === "settings" && promotionSettings && (
                 <div className="space-y-6 max-w-2xl">
+                  <div className="flex items-center justify-between p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <div>
+                      <h4 className="text-white font-medium">Globally Disable Promotions</h4>
+                      <p className="text-white/50 text-sm">
+                        Turn OFF to completely hide promotion modal everywhere on the site
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setPromotionSettings({
+                          ...promotionSettings,
+                          globallyDisabled: !promotionSettings.globallyDisabled,
+                        })
+                      }
+                      className={`w-14 h-8 rounded-full transition-all ${
+                        promotionSettings.globallyDisabled ? "bg-red-500" : "bg-green-500"
+                      }`}
+                    >
+                      <div
+                        className={`w-6 h-6 bg-white rounded-full transition-all ${
+                          promotionSettings.globallyDisabled ? "translate-x-7" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {promotionSettings.globallyDisabled && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                      <p className="text-red-400 text-sm text-center">
+                        Promotion modal is currently DISABLED globally. No users will see it regardless of other
+                        settings.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Enable/Disable Toggle */}
-                  <div className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl">
+                  <div
+                    className={`flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl ${promotionSettings.globallyDisabled ? "opacity-50 pointer-events-none" : ""}`}
+                  >
                     <div>
                       <h4 className="text-white font-medium">Promotion Active</h4>
-                      <p className="text-white/50 text-sm">Show promotion modal to users</p>
+                      <p className="text-white/50 text-sm">Show promotion modal to users in enabled countries</p>
                     </div>
                     <button
                       onClick={() =>

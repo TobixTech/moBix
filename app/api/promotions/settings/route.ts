@@ -14,6 +14,7 @@ export async function GET() {
     if (!settings) {
       return NextResponse.json({
         isActive: false,
+        globallyDisabled: false,
         enabledCountries: ["Nigeria"],
         headline: "Fill Details to Get 1.5GB Data!",
         subtext: "(Lucky Draw - Winners announced weekly)",
@@ -26,6 +27,7 @@ export async function GET() {
 
     return NextResponse.json({
       isActive: settings.isActive,
+      globallyDisabled: (settings as any).globallyDisabled ?? false,
       enabledCountries: JSON.parse(settings.enabledCountries || '["Nigeria"]'),
       headline: settings.headline,
       subtext: settings.subtext,
@@ -36,6 +38,7 @@ export async function GET() {
     console.error("Error fetching promotion settings:", error)
     return NextResponse.json({
       isActive: false,
+      globallyDisabled: false,
       enabledCountries: [],
       headline: "",
       subtext: "",

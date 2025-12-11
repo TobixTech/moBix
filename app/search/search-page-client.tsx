@@ -36,13 +36,15 @@ const MAX_HISTORY_ITEMS = 10
 export default function SearchPageClient({
   initialResults,
   initialQuery,
+  initialSeriesResults,
 }: {
   initialResults: Movie[]
   initialQuery: string
+  initialSeriesResults?: Series[]
 }) {
   const [query, setQuery] = useState(initialQuery)
   const [movieResults, setMovieResults] = useState<Movie[]>(initialResults)
-  const [seriesResults, setSeriesResults] = useState<Series[]>([])
+  const [seriesResults, setSeriesResults] = useState<Series[]>(initialSeriesResults || [])
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState<"all" | "movies" | "series">("all")
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
@@ -95,13 +97,16 @@ export default function SearchPageClient({
       setIsSearching(true)
       try {
         const results = await searchContent(searchQuery)
-        setMovieResults(results.movies || [])
-        setSeriesResults(results.series || [])
-        if ((results.movies?.length || 0) > 0 || (results.series?.length || 0) > 0) {
+        console.log("[v0] Search results:", results)
+        setMovieResults(results?.movies || [])
+        setSeriesResults(results?.series || [])
+        if ((results?.movies?.length || 0) > 0 || (results?.series?.length || 0) > 0) {
           saveToHistory(searchQuery)
         }
       } catch (error) {
-        console.error("Search failed:", error)
+        console.error("[v0] Search failed:", error)
+        setMovieResults([])
+        setSeriesResults([])
       } finally {
         setIsSearching(false)
       }
@@ -110,6 +115,14 @@ export default function SearchPageClient({
   )
 
   useEffect(() => {
+    if (initialQuery && !initialResults?.length && !initialSeriesResults?.length) {
+      performSearch(initialQuery)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!query) return
+
     const timer = setTimeout(() => {
       performSearch(query)
     }, 300)

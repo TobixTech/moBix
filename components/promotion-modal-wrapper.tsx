@@ -6,6 +6,7 @@ import PromotionModal from "@/components/promotion-modal"
 
 interface PromotionSettings {
   isActive: boolean
+  globallyDisabled: boolean
   enabledCountries: string[]
   headline: string
   subtext: string
@@ -45,6 +46,11 @@ export function PromotionModalWrapper() {
         const settingsRes = await fetch("/api/promotions/settings", { cache: "no-store" })
         const settingsData = await settingsRes.json()
         setSettings(settingsData)
+
+        if (settingsData.globallyDisabled) {
+          setIsReady(true)
+          return
+        }
 
         // Get user country
         let country = ""
@@ -156,7 +162,11 @@ export function PromotionModalWrapper() {
     }
   }
 
-  if (!isReady || !settings || !userCountry) {
+  if (!isReady || !settings || settings.globallyDisabled) {
+    return null
+  }
+
+  if (!userCountry) {
     return null
   }
 

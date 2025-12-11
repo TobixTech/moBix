@@ -28,7 +28,11 @@ export default async function SearchPage({
         <AdBanner type="horizontal" placement="homepage" className="mb-6" />
 
         <Suspense fallback={<div className="text-white">Loading...</div>}>
-          <SearchPageClient initialResults={results.movies || []} initialQuery={query} />
+          <SearchPageClient
+            initialResults={results.movies || []}
+            initialQuery={query}
+            initialSeriesResults={results.series || []}
+          />
         </Suspense>
 
         <AdBanner type="horizontal" placement="homepage" className="mt-8" />
