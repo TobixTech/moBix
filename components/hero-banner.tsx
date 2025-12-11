@@ -1,135 +1,282 @@
 "use client"
 
-import { Play, Info } from "lucide-react"
-import { motion } from "framer-motion"
-import { useState } from "react"
+import { Play, Info, ChevronLeft, ChevronRight, Film, Tv } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 
-interface Movie {
+interface ContentItem {
   id: string
   slug?: string
   title: string
   description: string
   posterUrl: string
+  type: "movie" | "series"
+  genre?: string
+  year?: number | string
+  rating?: number
 }
 
 interface HeroBannerProps {
-  movie: Movie | null
+  movies?: ContentItem[]
+  series?: ContentItem[]
 }
 
-export default function HeroBanner({ movie }: HeroBannerProps) {
-  const [isLoading, setIsLoading] = useState(true)
+export default function HeroBanner({ movies = [], series = [] }: HeroBannerProps) {
+  const allContent: ContentItem[] = [
+    ...movies.slice(0, 5).map((m) => ({ ...m, type: "movie" as const })),
+    ...series.slice(0, 5).map((s) => ({ ...s, type: "series" as const })),
+  ]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 5)
 
-  const displayMovie = movie || {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isPaused, setIsPaused] = useState(false)
+
+  const currentContent = allContent[currentIndex] || {
     id: "",
     title: "Welcome to moBix",
     description: "Discover thousands of movies and shows. Stream your favorites anytime, anywhere.",
     posterUrl: "/cinematic-hero-banner.jpg",
+    type: "movie" as const,
   }
 
-  const movieUrl = movie ? `/movie/${movie.slug || movie.id}` : ""
+  const contentUrl =
+    currentContent.type === "series"
+      ? `/series/${currentContent.slug || currentContent.id}`
+      : `/movie/${currentContent.slug || currentContent.id}`
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-        delayChildren: 0.3,
-      },
-    },
-  }
+  useEffect(() => {
+    if (allContent.length <= 1 || isPaused) return
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.8, ease: "easeOut" },
-    },
-  }
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % allContent.length)
+    }, 6000)
+
+    return () => clearInterval(interval)
+  }, [allContent.length, isPaused])
+
+  const goToPrevious = useCallback(() => {
+    setCurrentIndex((prev) => (prev - 1 + allContent.length) % allContent.length)
+  }, [allContent.length])
+
+  const goToNext = useCallback(() => {
+    setCurrentIndex((prev) => (prev + 1) % allContent.length)
+  }, [allContent.length])
+
+  const goToSlide = useCallback((index: number) => {
+    setCurrentIndex(index)
+  }, [])
 
   return (
-    <div className="relative w-full h-[500px] md:h-[600px] mt-16 overflow-hidden">
-      {isLoading && (
-        <div className="absolute inset-0 bg-gradient-to-r from-[#1A1B23] via-[#2A2B33] to-[#1A1B23] animate-pulse" />
+    <div
+      className="relative w-full h-[550px] md:h-[650px] lg:h-[700px] mt-16 overflow-hidden"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
+      {/* Background Image with Transition */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentIndex}
+          className="absolute inset-0"
+          initial={{ opacity: 0, scale: 1.1 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.8 }}
+        >
+          {isLoading && (
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0B0C10] via-[#1A1B23] to-[#0B0C10] animate-pulse" />
+          )}
+          <img
+            src={currentContent.posterUrl || "/placeholder.svg?height=700&width=1400&query=cinematic movie poster"}
+            alt={currentContent.title}
+            className="w-full h-full object-cover"
+            loading="eager"
+            onLoad={() => setIsLoading(false)}
+          />
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Gradient Overlays */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#0B0C10] via-[#0B0C10]/70 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0C10] via-transparent to-[#0B0C10]/30" />
+
+      {/* Animated Accent Glow */}
+      <motion.div
+        className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-[#00FFFF] rounded-full mix-blend-screen filter blur-[150px] opacity-[0.07]"
+        animate={{
+          x: [0, 50, 0],
+          y: [0, 30, 0],
+          scale: [1, 1.1, 1],
+        }}
+        transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+      />
+
+      {/* Content */}
+      <div className="absolute inset-0 flex flex-col justify-center px-6 md:px-12 lg:px-20">
+        <div className="max-w-3xl">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+            >
+              {/* Content Type Badge */}
+              <motion.div
+                className="flex items-center gap-2 mb-4"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#00FFFF]/10 border border-[#00FFFF]/30 rounded-full text-[#00FFFF] text-xs font-medium backdrop-blur-sm">
+                  {currentContent.type === "series" ? (
+                    <>
+                      <Tv className="w-3 h-3" />
+                      TV Series
+                    </>
+                  ) : (
+                    <>
+                      <Film className="w-3 h-3" />
+                      Movie
+                    </>
+                  )}
+                </span>
+                {currentContent.genre && (
+                  <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-white/70 text-xs backdrop-blur-sm">
+                    {currentContent.genre}
+                  </span>
+                )}
+                {currentContent.year && (
+                  <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-white/70 text-xs backdrop-blur-sm">
+                    {currentContent.year}
+                  </span>
+                )}
+              </motion.div>
+
+              {/* Title */}
+              <motion.h1
+                className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white mb-4 leading-tight text-balance"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                {currentContent.title}
+              </motion.h1>
+
+              {/* Description */}
+              <motion.p
+                className="text-base md:text-lg lg:text-xl text-white/70 mb-8 line-clamp-3 max-w-2xl leading-relaxed"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                {currentContent.description}
+              </motion.p>
+
+              {/* Buttons */}
+              <motion.div
+                className="flex flex-wrap gap-3 md:gap-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                {currentContent.id && (
+                  <>
+                    <Link href={contentUrl}>
+                      <motion.button
+                        className="group flex items-center gap-2 px-6 md:px-8 py-3 md:py-4 bg-[#00FFFF] text-[#0B0C10] font-semibold rounded-lg transition-all duration-300 hover:shadow-[0_0_40px_rgba(0,255,255,0.4)]"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Play className="w-5 h-5 fill-current" />
+                        <span>Watch Now</span>
+                      </motion.button>
+                    </Link>
+                    <Link href={contentUrl}>
+                      <motion.button
+                        className="group flex items-center gap-2 px-6 md:px-8 py-3 md:py-4 bg-white/10 text-white font-semibold rounded-lg border border-white/20 backdrop-blur-sm transition-all duration-300 hover:bg-white/20 hover:border-[#00FFFF]/50"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Info className="w-5 h-5" />
+                        <span>More Info</span>
+                      </motion.button>
+                    </Link>
+                  </>
+                )}
+              </motion.div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Navigation Arrows */}
+      {allContent.length > 1 && (
+        <>
+          <motion.button
+            onClick={goToPrevious}
+            className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-2 md:p-3 rounded-full bg-black/30 border border-white/10 text-white/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-white hover:border-[#00FFFF]/50"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
+          </motion.button>
+          <motion.button
+            onClick={goToNext}
+            className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-2 md:p-3 rounded-full bg-black/30 border border-white/10 text-white/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-white hover:border-[#00FFFF]/50"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
+          </motion.button>
+        </>
       )}
 
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-[#0B0C10] via-[#1A1B23] to-[#0B0C10]"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-      >
-        <img
-          src={displayMovie.posterUrl || "/placeholder.svg"}
-          alt={displayMovie.title}
-          className="w-full h-full object-cover opacity-40"
-          loading="lazy"
-          onLoad={() => setIsLoading(false)}
-        />
-      </motion.div>
-
-      {/* Animated Gradient Overlay */}
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-[#0B0C10] via-transparent to-[#0B0C10]"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.2 }}
-      />
-
-      {/* Animated Accent Light */}
-      <motion.div
-        className="absolute top-0 right-0 w-96 h-96 bg-[#00FFFF] rounded-full mix-blend-screen filter blur-3xl opacity-5"
-        animate={{
-          x: [0, 30, 0],
-          y: [0, 20, 0],
-        }}
-        transition={{ duration: 6, repeat: Number.POSITIVE_INFINITY }}
-      />
-
-      <motion.div
-        className="absolute inset-0 flex flex-col justify-center px-4 md:px-12 py-8"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <div className="max-w-2xl">
-          <motion.h1 variants={itemVariants} className="text-4xl md:text-6xl font-bold text-white mb-4">
-            {displayMovie.title}
-          </motion.h1>
-          <motion.p variants={itemVariants} className="text-lg md:text-xl text-[#CCCCCC] mb-8 line-clamp-3">
-            {displayMovie.description}
-          </motion.p>
-
-          <motion.div variants={itemVariants} className="flex gap-4">
-            {movie && (
-              <Link href={movieUrl}>
-                <motion.button
-                  className="flex items-center gap-2 px-8 py-3 bg-[#00FFFF] text-[#0B0C10] font-bold rounded hover:shadow-lg hover:shadow-[#00FFFF]/50 transition"
-                  whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(0, 255, 255, 0.6)" }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Play className="w-5 h-5" />
-                  Watch Now
-                </motion.button>
-              </Link>
-            )}
-            {movie && (
-              <Link href={movieUrl}>
-                <motion.button
-                  className="flex items-center gap-2 px-8 py-3 bg-[#1A1B23] text-white border border-[#2A2B33] rounded hover:border-[#00FFFF] transition"
-                  whileHover={{ scale: 1.05, borderColor: "#00FFFF" }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Info className="w-5 h-5" />
-                  More Info
-                </motion.button>
-              </Link>
-            )}
-          </motion.div>
+      {/* Slide Indicators & Thumbnails */}
+      {allContent.length > 1 && (
+        <div className="absolute bottom-6 md:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3">
+          {allContent.map((item, index) => (
+            <motion.button
+              key={item.id || index}
+              onClick={() => goToSlide(index)}
+              className={`relative overflow-hidden rounded-md transition-all duration-300 ${
+                index === currentIndex
+                  ? "w-16 md:w-20 h-10 md:h-12 ring-2 ring-[#00FFFF] ring-offset-2 ring-offset-[#0B0C10]"
+                  : "w-10 md:w-12 h-10 md:h-12 opacity-50 hover:opacity-80"
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <img
+                src={item.posterUrl || "/placeholder.svg?height=48&width=80&query=movie thumbnail"}
+                alt={item.title}
+                className="w-full h-full object-cover"
+              />
+              {index === currentIndex && (
+                <motion.div
+                  className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 6, ease: "linear" }}
+                  key={`progress-${currentIndex}`}
+                />
+              )}
+            </motion.button>
+          ))}
         </div>
-      </motion.div>
+      )}
+
+      {/* Current Slide Number */}
+      {allContent.length > 1 && (
+        <div className="absolute bottom-6 md:bottom-10 right-6 md:right-12 flex items-center gap-2 text-white/50 text-sm font-medium">
+          <span className="text-[#00FFFF] text-lg font-bold">{String(currentIndex + 1).padStart(2, "0")}</span>
+          <span>/</span>
+          <span>{String(allContent.length).padStart(2, "0")}</span>
+        </div>
+      )}
     </div>
   )
 }

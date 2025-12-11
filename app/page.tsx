@@ -5,7 +5,7 @@ import SeriesCarousel from "@/components/series-carousel"
 import AdBanner from "@/components/ad-banner"
 import Footer from "@/components/footer"
 import ErrorMessage from "@/components/error-message"
-import { getMoviesByGenre, getFeaturedMovie, getTrendingMovies, getAdSettings } from "@/lib/server-actions"
+import { getMoviesByGenre, getTrendingMovies, getAdSettings } from "@/lib/server-actions"
 import { getTrendingSeries, getRecentSeries } from "@/lib/series-actions"
 import { Suspense } from "react"
 import LoadingSpinner from "@/components/loading-spinner"
@@ -13,7 +13,6 @@ import LoadingSpinner from "@/components/loading-spinner"
 async function HomepageContent() {
   try {
     const [
-      featuredMovie,
       trendingMovies,
       actionMovies,
       dramaMovies,
@@ -24,7 +23,6 @@ async function HomepageContent() {
       recentSeries,
       adSettings,
     ] = await Promise.all([
-      getFeaturedMovie(),
       getTrendingMovies(),
       getMoviesByGenre("Action"),
       getMoviesByGenre("Drama"),
@@ -39,9 +37,31 @@ async function HomepageContent() {
     const inlineAdCode = adSettings?.verticalAdCode || ""
     const showInlineAds = adSettings?.homepageEnabled && !!inlineAdCode
 
+    const heroMovies = trendingMovies.slice(0, 5).map((m) => ({
+      id: m.id,
+      slug: m.slug,
+      title: m.title,
+      description: m.description || "",
+      posterUrl: m.posterUrl,
+      genre: m.genre,
+      year: m.releaseYear,
+      rating: m.rating,
+    }))
+
+    const heroSeries = trendingSeries.slice(0, 5).map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      title: s.title,
+      description: s.description || "",
+      posterUrl: s.posterUrl,
+      genre: s.genre,
+      year: s.releaseYear,
+      rating: s.rating,
+    }))
+
     return (
       <>
-        <HeroBanner movie={featuredMovie} />
+        <HeroBanner movies={heroMovies} series={heroSeries} />
 
         <div className="px-4 md:px-8 py-8 space-y-10">
           {trendingMovies.length > 0 && (

@@ -55,10 +55,32 @@ export default async function AuthenticatedHomePage() {
   const inlineAdCode = adSettings?.verticalAdCode || ""
   const showInlineAds = !isPremiumUser && adSettings?.homepageEnabled && !!inlineAdCode
 
+  const heroMovies = trending.slice(0, 5).map((m) => ({
+    id: m.id,
+    slug: m.slug,
+    title: m.title,
+    description: m.description || "",
+    posterUrl: m.posterUrl,
+    genre: m.genre,
+    year: m.releaseYear,
+    rating: m.rating,
+  }))
+
+  const heroSeries = trendingSeries.slice(0, 5).map((s) => ({
+    id: s.id,
+    slug: s.slug,
+    title: s.title,
+    description: s.description || "",
+    posterUrl: s.posterUrl,
+    genre: s.genre,
+    year: s.releaseYear,
+    rating: s.rating,
+  }))
+
   return (
     <main className="min-h-screen bg-[#0B0C10] pb-20 md:pb-0">
       <Navbar showAuthButtons={false} />
-      <HeroBanner movie={trending[0] || recent[0] || null} />
+      <HeroBanner movies={heroMovies} series={heroSeries} />
 
       <div className="px-4 md:px-8 py-8 space-y-12">
         {continueWatching && continueWatching.length > 0 && <ContinueWatchingCarousel movies={continueWatching} />}
