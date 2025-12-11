@@ -2,7 +2,7 @@
 
 import { Play, Info, ChevronLeft, ChevronRight, Film, Tv } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 
 interface ContentItem {
@@ -22,6 +22,8 @@ interface HeroBannerProps {
   series?: ContentItem[]
 }
 
+const ROTATION_INTERVAL = 12000 // 12 seconds per slide
+
 export default function HeroBanner({ movies = [], series = [] }: HeroBannerProps) {
   const allContent: ContentItem[] = [
     ...movies.slice(0, 5).map((m) => ({ ...m, type: "movie" as const })),
@@ -33,6 +35,8 @@ export default function HeroBanner({ movies = [], series = [] }: HeroBannerProps
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isPaused, setIsPaused] = useState(false)
+  const [progressKey, setProgressKey] = useState(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const currentContent = allContent[currentIndex] || {
     id: "",
@@ -47,27 +51,47 @@ export default function HeroBanner({ movies = [], series = [] }: HeroBannerProps
       ? `/series/${currentContent.slug || currentContent.id}`
       : `/movie/${currentContent.slug || currentContent.id}`
 
-  useEffect(() => {
-    if (allContent.length <= 1 || isPaused) return
+  const startTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    if (allContent.length <= 1) return
 
-    const interval = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % allContent.length)
-    }, 6000)
+      setProgressKey((prev) => prev + 1)
+    }, ROTATION_INTERVAL)
+  }, [allContent.length])
 
-    return () => clearInterval(interval)
-  }, [allContent.length, isPaused])
+  useEffect(() => {
+    if (isPaused) {
+      if (timerRef.current) clearInterval(timerRef.current)
+      return
+    }
+    startTimer()
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [isPaused, startTimer])
 
   const goToPrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev - 1 + allContent.length) % allContent.length)
-  }, [allContent.length])
+    setProgressKey((prev) => prev + 1)
+    startTimer()
+  }, [allContent.length, startTimer])
 
   const goToNext = useCallback(() => {
     setCurrentIndex((prev) => (prev + 1) % allContent.length)
-  }, [allContent.length])
+    setProgressKey((prev) => prev + 1)
+    startTimer()
+  }, [allContent.length, startTimer])
 
-  const goToSlide = useCallback((index: number) => {
-    setCurrentIndex(index)
-  }, [])
+  const goToSlide = useCallback(
+    (index: number) => {
+      setCurrentIndex(index)
+      setProgressKey((prev) => prev + 1)
+      startTimer()
+    },
+    [startTimer],
+  )
 
   return (
     <div
@@ -255,14 +279,18 @@ export default function HeroBanner({ movies = [], series = [] }: HeroBannerProps
                 alt={item.title}
                 className="w-full h-full object-cover"
               />
-              {index === currentIndex && (
+              {index === currentIndex && !isPaused && (
                 <motion.div
                   className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]"
                   initial={{ width: "0%" }}
                   animate={{ width: "100%" }}
-                  transition={{ duration: 6, ease: "linear" }}
-                  key={`progress-${currentIndex}`}
+                  transition={{ duration: ROTATION_INTERVAL / 1000, ease: "linear" }}
+                  key={`progress-${progressKey}`}
                 />
+              )}
+              {/* Show static full bar when paused */}
+              {index === currentIndex && isPaused && (
+                <div className="absolute bottom-0 left-0 h-0.5 bg-[#00FFFF]/50 w-full" />
               )}
             </motion.button>
           ))}
