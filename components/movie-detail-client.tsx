@@ -93,6 +93,7 @@ export default function MovieDetailClient({
   prerollAdCodes,
   showPrerollAds,
   isPremiumUser,
+  skipDelay,
 }: MovieDetailClientProps) {
   const { isSignedIn, userId } = useAuth()
   const [isLiked, setIsLiked] = useState(initialIsLiked)
@@ -260,9 +261,9 @@ export default function MovieDetailClient({
               midrollEnabled={false}
               midrollIntervalMinutes={0}
               showPrerollAds={showPrerollAds}
-              adTimeout={0}
-              skipDelay={0}
-              rotationInterval={0}
+              adTimeout={30}
+              skipDelay={skipDelay}
+              rotationInterval={5}
               isPremium={isPremiumUser}
               onTrackWatchTime={trackWatchTime}
             />

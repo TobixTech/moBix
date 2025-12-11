@@ -34,7 +34,6 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
   }
 
   const handleTouchEnd = () => {
-    // Keep touched state briefly for visual feedback
     setTimeout(() => setIsTouched(false), 150)
   }
 
@@ -66,8 +65,9 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
         />
 
         {rating > 0 && (
-          <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded-md">
-            <StarRating rating={rating} size="sm" showValue />
+          <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-sm px-1 py-0.5 rounded flex items-center gap-0.5">
+            <StarRating rating={rating} size="xs" maxRating={1} />
+            <span className="text-white/90 text-[10px] font-medium">{rating.toFixed(1)}</span>
           </div>
         )}
 
@@ -88,7 +88,6 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
           )}
         </div>
 
-        {/* Hover/Touch Overlay with Play Button */}
         <motion.div
           className="absolute inset-0 bg-black/60 flex items-center justify-center"
           initial={{ opacity: 0 }}
@@ -105,7 +104,6 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
             <Play className="w-5 h-5 md:w-6 md:h-6 text-[#0B0C10] ml-1" fill="#0B0C10" />
           </motion.div>
 
-          {/* Like button - only on desktop hover */}
           <motion.button
             onClick={(e) => {
               e.preventDefault()

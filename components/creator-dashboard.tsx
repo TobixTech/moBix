@@ -465,14 +465,14 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
               if (tab.id !== "upload") setEditingSubmission(null)
               setActiveTab(tab.id as CreatorTab)
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition ${
+            className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg whitespace-nowrap transition flex-shrink-0 min-w-fit ${
               activeTab === tab.id
                 ? "bg-[#00FFFF] text-[#0B0C10] font-medium"
                 : "bg-[#1A1B23] text-white hover:bg-[#2A2B33]"
             }`}
           >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
+            <tab.icon className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm">{tab.label}</span>
           </button>
         ))}
       </div>

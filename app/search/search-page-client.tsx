@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, Film, Loader2, X, Tv } from "lucide-react"
+import { Search, Film, Loader2, X, Tv, Clock } from "lucide-react"
 import MovieCard from "@/components/movie-card"
 import SeriesCard from "@/components/series-card"
 import { searchContent } from "@/lib/server-actions"
@@ -25,6 +25,14 @@ interface Series {
   genre: string
 }
 
+interface SearchHistoryItem {
+  query: string
+  timestamp: number
+}
+
+const SEARCH_HISTORY_KEY = "mobix_search_history"
+const MAX_HISTORY_ITEMS = 10
+
 export default function SearchPageClient({
   initialResults,
   initialQuery,
@@ -37,26 +45,69 @@ export default function SearchPageClient({
   const [seriesResults, setSeriesResults] = useState<Series[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState<"all" | "movies" | "series">("all")
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
+  const [showHistory, setShowHistory] = useState(false)
   const router = useRouter()
 
-  const performSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setMovieResults([])
-      setSeriesResults([])
-      return
-    }
-
-    setIsSearching(true)
-    try {
-      const results = await searchContent(searchQuery)
-      setMovieResults(results.movies || [])
-      setSeriesResults(results.series || [])
-    } catch (error) {
-      console.error("Search failed:", error)
-    } finally {
-      setIsSearching(false)
+  useEffect(() => {
+    const stored = localStorage.getItem(SEARCH_HISTORY_KEY)
+    if (stored) {
+      try {
+        setSearchHistory(JSON.parse(stored))
+      } catch {
+        setSearchHistory([])
+      }
     }
   }, [])
+
+  const saveToHistory = useCallback((searchQuery: string) => {
+    if (!searchQuery.trim()) return
+
+    setSearchHistory((prev) => {
+      const filtered = prev.filter((item) => item.query.toLowerCase() !== searchQuery.toLowerCase())
+      const newHistory = [{ query: searchQuery, timestamp: Date.now() }, ...filtered].slice(0, MAX_HISTORY_ITEMS)
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory))
+      return newHistory
+    })
+  }, [])
+
+  const clearHistory = useCallback(() => {
+    setSearchHistory([])
+    localStorage.removeItem(SEARCH_HISTORY_KEY)
+  }, [])
+
+  const removeFromHistory = useCallback((queryToRemove: string) => {
+    setSearchHistory((prev) => {
+      const newHistory = prev.filter((item) => item.query !== queryToRemove)
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory))
+      return newHistory
+    })
+  }, [])
+
+  const performSearch = useCallback(
+    async (searchQuery: string) => {
+      if (!searchQuery.trim()) {
+        setMovieResults([])
+        setSeriesResults([])
+        return
+      }
+
+      setIsSearching(true)
+      try {
+        const results = await searchContent(searchQuery)
+        setMovieResults(results.movies || [])
+        setSeriesResults(results.series || [])
+        if ((results.movies?.length || 0) > 0 || (results.series?.length || 0) > 0) {
+          saveToHistory(searchQuery)
+        }
+      } catch (error) {
+        console.error("Search failed:", error)
+      } finally {
+        setIsSearching(false)
+      }
+    },
+    [saveToHistory],
+  )
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -69,6 +120,7 @@ export default function SearchPageClient({
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!query.trim()) return
+    setShowHistory(false)
     router.push(`/search?q=${encodeURIComponent(query)}`, { scroll: false })
   }
 
@@ -77,6 +129,12 @@ export default function SearchPageClient({
     setMovieResults([])
     setSeriesResults([])
     router.push("/search", { scroll: false })
+  }
+
+  const handleHistoryClick = (historyQuery: string) => {
+    setQuery(historyQuery)
+    setShowHistory(false)
+    router.push(`/search?q=${encodeURIComponent(historyQuery)}`, { scroll: false })
   }
 
   const totalResults = movieResults.length + seriesResults.length
@@ -91,6 +149,8 @@ export default function SearchPageClient({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setShowHistory(true)}
+            onBlur={() => setTimeout(() => setShowHistory(false), 200)}
             placeholder="Search movies & series..."
             className="w-full px-4 md:px-6 py-3 md:py-4 pl-12 md:pl-14 pr-12 md:pr-24 bg-[#1A1B23] border border-[#2A2B33] rounded-xl text-white placeholder-[#666666] focus:outline-none focus:border-[#00FFFF] focus:ring-2 focus:ring-[#00FFFF]/30 transition-all text-base md:text-lg"
           />
@@ -113,6 +173,51 @@ export default function SearchPageClient({
           >
             {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Search"}
           </button>
+
+          {showHistory && searchHistory.length > 0 && !query && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1B23] border border-[#2A2B33] rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-[#2A2B33]">
+                <span className="text-white/60 text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Recent Searches
+                </span>
+                <button
+                  type="button"
+                  onClick={clearHistory}
+                  className="text-white/40 hover:text-red-400 text-xs transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {searchHistory.map((item) => (
+                  <div
+                    key={item.timestamp}
+                    className="flex items-center justify-between px-4 py-3 hover:bg-white/5 cursor-pointer group"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleHistoryClick(item.query)}
+                      className="flex items-center gap-3 text-white/80 flex-1 text-left"
+                    >
+                      <Search className="w-4 h-4 text-white/40" />
+                      <span>{item.query}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeFromHistory(item.query)
+                      }}
+                      className="p-1 text-white/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </form>
 
@@ -147,7 +252,6 @@ export default function SearchPageClient({
         </div>
       )}
 
-      {/* Results count */}
       {query && (
         <p className="text-[#888888] mb-4 md:mb-6 text-sm md:text-base">
           {isSearching ? (
@@ -166,7 +270,6 @@ export default function SearchPageClient({
         </div>
       ) : totalResults > 0 ? (
         <div className="space-y-8">
-          {/* Movies Section */}
           {(activeTab === "all" || activeTab === "movies") && movieResults.length > 0 && (
             <div>
               {activeTab === "all" && (
@@ -183,7 +286,6 @@ export default function SearchPageClient({
             </div>
           )}
 
-          {/* Series Section */}
           {(activeTab === "all" || activeTab === "series") && seriesResults.length > 0 && (
             <div>
               {activeTab === "all" && (

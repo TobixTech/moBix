@@ -66,18 +66,18 @@ export default function SeriesCard({ series }: SeriesCardProps) {
         />
 
         {/* TV Badge */}
-        <div className="absolute top-2 right-2 bg-gradient-to-r from-cyan-500 to-cyan-400 backdrop-blur-sm px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-lg">
-          <Tv className="w-3 h-3 text-black" />
-          <span className="text-[10px] font-bold text-black">TV</span>
+        <div className="absolute top-1.5 right-1.5 bg-gradient-to-r from-cyan-500 to-cyan-400 backdrop-blur-sm px-1 py-0.5 rounded flex items-center gap-0.5 shadow-lg">
+          <Tv className="w-2.5 h-2.5 text-black" />
+          <span className="text-[9px] font-bold text-black">TV</span>
         </div>
 
         {rating > 0 && (
-          <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded-md">
-            <StarRating rating={rating} size="sm" showValue />
+          <div className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-sm px-1 py-0.5 rounded flex items-center gap-0.5">
+            <StarRating rating={rating} size="xs" maxRating={1} />
+            <span className="text-white/90 text-[10px] font-medium">{rating.toFixed(1)}</span>
           </div>
         )}
 
-        {/* Always visible bottom info */}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 md:p-3">
           <h3 className="text-white font-medium text-xs md:text-sm line-clamp-2">{series.title}</h3>
           <div className="flex items-center gap-1 text-[10px] md:text-xs text-white/60 mt-0.5">
@@ -97,7 +97,6 @@ export default function SeriesCard({ series }: SeriesCardProps) {
           </div>
         </div>
 
-        {/* Hover/Touch Overlay with Play Button */}
         <motion.div
           className="absolute inset-0 bg-black/60 flex items-center justify-center"
           initial={{ opacity: 0 }}

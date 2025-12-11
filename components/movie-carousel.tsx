@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import MovieCard from "./movie-card"
+import NativeAdCard from "./native-ad-card"
 
 interface Movie {
   id: string
@@ -18,9 +19,20 @@ interface MovieCarouselProps {
   movies?: Movie[]
   genre?: string
   showSeeMore?: boolean
+  showInlineAds?: boolean
+  inlineAdCode?: string
+  adInterval?: number // Show ad every N items
 }
 
-export default function MovieCarousel({ title, movies: initialMovies, genre, showSeeMore = true }: MovieCarouselProps) {
+export default function MovieCarousel({
+  title,
+  movies: initialMovies,
+  genre,
+  showSeeMore = true,
+  showInlineAds = false,
+  inlineAdCode,
+  adInterval = 4, // Default: ad every 4 movies
+}: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
   const [movies, setMovies] = useState<Movie[]>(initialMovies || [])
   const [loading, setLoading] = useState(!initialMovies)
@@ -68,6 +80,23 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
     return null
   }
 
+  const buildCarouselItems = () => {
+    const items: { type: "movie" | "ad"; data?: Movie; index: number }[] = []
+
+    movies.forEach((movie, index) => {
+      items.push({ type: "movie", data: movie, index })
+
+      // Insert ad after every N movies (if ads enabled)
+      if (showInlineAds && inlineAdCode && (index + 1) % adInterval === 0 && index < movies.length - 1) {
+        items.push({ type: "ad", index: index + 0.5 })
+      }
+    })
+
+    return items
+  }
+
+  const carouselItems = buildCarouselItems()
+
   return (
     <motion.div
       className="space-y-4"
@@ -107,16 +136,16 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
         </motion.button>
 
         <div id={`carousel-${title}`} className="flex gap-3 overflow-x-auto scroll-smooth pb-4 scrollbar-hide">
-          {movies.map((movie, index) => (
+          {carouselItems.map((item, idx) => (
             <motion.div
-              key={movie.id}
+              key={item.type === "movie" ? item.data!.id : `ad-${idx}`}
               className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
+              transition={{ duration: 0.5, delay: Math.min(idx * 0.05, 0.3) }}
               viewport={{ once: true }}
             >
-              <MovieCard movie={movie} />
+              {item.type === "movie" ? <MovieCard movie={item.data!} /> : <NativeAdCard adCode={inlineAdCode} />}
             </motion.div>
           ))}
         </div>
