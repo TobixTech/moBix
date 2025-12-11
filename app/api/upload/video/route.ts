@@ -3,7 +3,10 @@ import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
 import { creatorProfiles } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
-import { put } from "@vercel/blob"
+import { put, del } from "@vercel/blob"
+
+export const maxDuration = 300 // 5 minutes timeout
+export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,15 +30,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Your creator account is suspended" }, { status: 403 })
     }
 
-    const formData = await request.formData()
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch (e) {
+      console.error("[VideoUpload] Failed to parse form data:", e)
+      return NextResponse.json({ success: false, error: "Failed to parse upload data" }, { status: 400 })
+    }
+
     const file = formData.get("video") as File
     const title = formData.get("title") as string
 
-    if (!file) {
+    if (!file || !(file instanceof File)) {
       return NextResponse.json({ success: false, error: "No video file provided" }, { status: 400 })
     }
 
-    console.log("[VideoUpload] File received:", file.name, file.size)
+    console.log("[VideoUpload] File received:", file.name, "Size:", file.size, "Type:", file.type)
 
     // Check file size (max 10GB)
     const maxSize = 10 * 1024 * 1024 * 1024
@@ -45,129 +55,159 @@ export async function POST(request: NextRequest) {
 
     // Check file type
     const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
-    if (!file.name.match(allowedExtensions)) {
+    const allowedMimeTypes = ["video/mp4", "video/webm", "video/x-matroska", "video/avi", "video/quicktime"]
+
+    if (!file.name.match(allowedExtensions) && !allowedMimeTypes.includes(file.type)) {
       return NextResponse.json(
         { success: false, error: "Invalid file type. Allowed: mp4, webm, mkv, avi, mov" },
         { status: 400 },
       )
     }
 
-    const VOE_API_KEY = process.env.VOE_API_KEY
+    console.log("[VideoUpload] Step 1: Uploading to Vercel Blob as processor...")
 
-    // If VOE is not configured, use Blob storage and return a placeholder URL
-    if (!VOE_API_KEY) {
-      console.log("[VideoUpload] VOE not configured, using Blob storage")
-
-      try {
-        // Upload to Vercel Blob
-        const blob = await put(`creator-videos/${userId}/${Date.now()}-${file.name}`, file, {
-          access: "public",
-          addRandomSuffix: true,
-        })
-
-        console.log("[VideoUpload] Uploaded to Blob:", blob.url)
-
-        return NextResponse.json({
-          success: true,
-          embedUrl: blob.url,
-          fileCode: "blob-" + Date.now(),
-          fileSize: file.size,
-          storageType: "blob",
-        })
-      } catch (blobError: any) {
-        console.error("[VideoUpload] Blob upload failed:", blobError)
-        return NextResponse.json(
-          { success: false, error: "Video upload failed. Please try again or use URL mode." },
-          { status: 500 },
-        )
-      }
-    }
-
-    // VOE API is configured - proceed with VOE upload
-    console.log("[VideoUpload] Using VOE API")
+    let blobUrl: string
+    let blobPath: string
 
     try {
-      // First, get upload server URL from VOE
-      const serverResponse = await fetch(`https://voe.sx/api/upload/server?key=${VOE_API_KEY}`)
+      const timestamp = Date.now()
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+      blobPath = `creator-videos/${userId}/${timestamp}-${safeFileName}`
 
-      if (!serverResponse.ok) {
-        console.error("[VOE] Failed to get upload server:", serverResponse.status)
-        throw new Error("Failed to connect to VOE")
-      }
-
-      const serverData = await serverResponse.json()
-      console.log("[VOE] Server response:", serverData)
-
-      if (serverData.status !== 200 || !serverData.result) {
-        throw new Error("VOE service unavailable")
-      }
-
-      const uploadUrl = serverData.result
-
-      // Upload to VOE server
-      const voeFormData = new FormData()
-      voeFormData.append("api_key", VOE_API_KEY)
-      voeFormData.append("file", file)
-      if (title) {
-        voeFormData.append("title", title)
-      }
-
-      console.log("[VideoUpload] Uploading to VOE:", uploadUrl)
-
-      const voeResponse = await fetch(uploadUrl, {
-        method: "POST",
-        body: voeFormData,
+      const blob = await put(blobPath, file, {
+        access: "public",
+        addRandomSuffix: true,
       })
 
-      if (!voeResponse.ok) {
-        const errorText = await voeResponse.text()
-        console.error("[VOE Upload Error]", errorText)
-        throw new Error("Failed to upload to VOE")
-      }
+      blobUrl = blob.url
+      console.log("[VideoUpload] Blob upload successful:", blobUrl)
+    } catch (blobError: any) {
+      console.error("[VideoUpload] Blob upload failed:", blobError)
+      return NextResponse.json({ success: false, error: "Failed to upload video. Please try again." }, { status: 500 })
+    }
 
-      const voeResult = await voeResponse.json()
-      console.log("[VOE] Upload response:", voeResult)
+    const VOE_API_KEY = process.env.VOE_API_KEY
 
-      if (voeResult.status !== 200 || !voeResult.result?.filecode) {
-        throw new Error(voeResult.msg || "VOE upload failed")
-      }
-
-      const fileCode = voeResult.result.filecode
-      const embedUrl = `https://voe.sx/e/${fileCode}`
-
-      return NextResponse.json({
-        success: true,
-        embedUrl,
-        fileCode,
-        fileSize: file.size,
-        storageType: "voe",
-      })
-    } catch (voeError: any) {
-      console.error("[VOE Error]", voeError)
-
-      // Fallback to Blob storage
-      console.log("[VideoUpload] VOE failed, falling back to Blob storage")
+    if (VOE_API_KEY) {
+      console.log("[VideoUpload] Step 2: Transferring to VOE from Blob URL...")
 
       try {
-        const blob = await put(`creator-videos/${userId}/${Date.now()}-${file.name}`, file, {
-          access: "public",
-          addRandomSuffix: true,
+        // VOE supports remote URL upload - faster than direct file upload
+        const voeParams = new URLSearchParams({
+          key: VOE_API_KEY,
+          url: blobUrl,
+          title: title || file.name.replace(/\.[^/.]+$/, ""),
         })
 
-        return NextResponse.json({
-          success: true,
-          embedUrl: blob.url,
-          fileCode: "blob-" + Date.now(),
-          fileSize: file.size,
-          storageType: "blob",
-          warning: "Video uploaded to temporary storage. VOE integration failed.",
+        console.log("[VideoUpload] Calling VOE remote upload API...")
+        const voeResponse = await fetch(`https://voe.sx/api/upload/url?${voeParams.toString()}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
         })
-      } catch (blobError) {
-        return NextResponse.json({ success: false, error: voeError.message || "Video upload failed" }, { status: 500 })
+
+        if (voeResponse.ok) {
+          const voeResult = await voeResponse.json()
+          console.log("[VideoUpload] VOE response:", voeResult)
+
+          if (voeResult.status === 200 && voeResult.result) {
+            const fileCode = voeResult.result.filecode || voeResult.result.file_code
+
+            if (fileCode) {
+              const embedUrl = `https://voe.sx/e/${fileCode}`
+              console.log("[VideoUpload] VOE success! Embed URL:", embedUrl)
+
+              try {
+                await del(blobUrl)
+                console.log("[VideoUpload] Cleaned up Blob file")
+              } catch (delError) {
+                console.log("[VideoUpload] Could not delete Blob file (non-critical):", delError)
+              }
+
+              return NextResponse.json({
+                success: true,
+                embedUrl: embedUrl,
+                fileCode: fileCode,
+                fileSize: file.size,
+                storageType: "voe",
+              })
+            }
+          }
+        }
+
+        // If VOE URL import fails, try direct file upload
+        console.log("[VideoUpload] VOE URL import failed, trying direct upload...")
+
+        // Get upload server
+        const serverResponse = await fetch(`https://voe.sx/api/upload/server?key=${VOE_API_KEY}`)
+
+        if (serverResponse.ok) {
+          const serverData = await serverResponse.json()
+
+          if (serverData.status === 200 && serverData.result) {
+            const uploadServerUrl = serverData.result
+
+            // Upload file directly
+            const voeFormData = new FormData()
+            voeFormData.append("key", VOE_API_KEY)
+            voeFormData.append("file", file)
+            if (title) voeFormData.append("title", title)
+
+            const uploadResponse = await fetch(uploadServerUrl, {
+              method: "POST",
+              body: voeFormData,
+            })
+
+            if (uploadResponse.ok) {
+              const uploadResult = await uploadResponse.json()
+
+              if (uploadResult.status === 200 && uploadResult.result) {
+                const fileCode = uploadResult.result.filecode || uploadResult.result.file_code
+
+                if (fileCode) {
+                  const embedUrl = `https://voe.sx/e/${fileCode}`
+                  console.log("[VideoUpload] VOE direct upload success! Embed URL:", embedUrl)
+
+                  // Clean up Blob
+                  try {
+                    await del(blobUrl)
+                  } catch (delError) {
+                    console.log("[VideoUpload] Could not delete Blob file:", delError)
+                  }
+
+                  return NextResponse.json({
+                    success: true,
+                    embedUrl: embedUrl,
+                    fileCode: fileCode,
+                    fileSize: file.size,
+                    storageType: "voe",
+                  })
+                }
+              }
+            }
+          }
+        }
+
+        throw new Error("VOE upload failed")
+      } catch (voeError: any) {
+        console.error("[VideoUpload] VOE transfer error:", voeError.message)
+        // Fall through to use Blob URL as final storage
       }
     }
+
+    console.log("[VideoUpload] Using Blob URL as final storage")
+
+    return NextResponse.json({
+      success: true,
+      embedUrl: blobUrl,
+      fileCode: `blob-${Date.now()}`,
+      fileSize: file.size,
+      storageType: "blob",
+      warning: VOE_API_KEY
+        ? "VOE transfer failed, video stored in backup storage"
+        : "Configure VOE_API_KEY for optimized video streaming",
+    })
   } catch (error: any) {
-    console.error("[VideoUpload] Error:", error)
+    console.error("[VideoUpload] Unexpected error:", error)
     return NextResponse.json({ success: false, error: error.message || "Upload failed" }, { status: 500 })
   }
 }

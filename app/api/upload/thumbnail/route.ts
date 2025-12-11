@@ -4,7 +4,10 @@ import { db } from "@/lib/db"
 import { creatorProfiles } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import crypto from "crypto"
-import { put } from "@vercel/blob"
+import { put, del } from "@vercel/blob"
+
+export const maxDuration = 60 // 1 minute timeout for thumbnails
+export const dynamic = "force-dynamic"
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,15 +27,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Not a creator" }, { status: 403 })
     }
 
-    const formData = await request.formData()
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch (e) {
+      console.error("[ThumbnailUpload] Failed to parse form data:", e)
+      return NextResponse.json({ success: false, error: "Failed to parse upload data" }, { status: 400 })
+    }
+
     const file = formData.get("thumbnail") as File
     const folder = (formData.get("folder") as string) || "creator-thumbnails"
 
-    if (!file) {
+    if (!file || !(file instanceof File)) {
       return NextResponse.json({ success: false, error: "No thumbnail file provided" }, { status: 400 })
     }
 
-    console.log("[ThumbnailUpload] File received:", file.name, file.size, file.type)
+    console.log("[ThumbnailUpload] File received:", file.name, "Size:", file.size, "Type:", file.type)
 
     // Check file size (max 15MB)
     const maxSize = 15 * 1024 * 1024
@@ -46,115 +56,151 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid file type. Allowed: jpg, png, webp" }, { status: 400 })
     }
 
+    console.log("[ThumbnailUpload] Step 1: Uploading to Vercel Blob as processor...")
+
+    let blobUrl: string
+
+    try {
+      const timestamp = Date.now()
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+
+      const blob = await put(`${folder}/${userId}/${timestamp}-${safeFileName}`, file, {
+        access: "public",
+        addRandomSuffix: true,
+      })
+
+      blobUrl = blob.url
+      console.log("[ThumbnailUpload] Blob upload successful:", blobUrl)
+    } catch (blobError: any) {
+      console.error("[ThumbnailUpload] Blob upload failed:", blobError)
+      return NextResponse.json(
+        { success: false, error: "Failed to upload thumbnail. Please try again." },
+        { status: 500 },
+      )
+    }
+
     const PUBLITIO_API_KEY = process.env.PUBLITIO_API_KEY
     const PUBLITIO_API_SECRET = process.env.PUBLITIO_API_SECRET
 
-    // If Publitio is not configured, use Blob storage
-    if (!PUBLITIO_API_KEY || !PUBLITIO_API_SECRET) {
-      console.log("[ThumbnailUpload] Publitio not configured, using Blob storage")
+    if (PUBLITIO_API_KEY && PUBLITIO_API_SECRET) {
+      console.log("[ThumbnailUpload] Step 2: Transferring to Publitio from Blob URL...")
 
       try {
-        const blob = await put(`${folder}/${userId}/${Date.now()}-${file.name}`, file, {
-          access: "public",
-          addRandomSuffix: true,
+        // Generate Publitio authentication
+        const timestamp = Math.floor(Date.now() / 1000)
+        const nonce = Math.random().toString(36).substring(2, 10)
+        const signature = crypto
+          .createHash("sha1")
+          .update(timestamp + nonce + PUBLITIO_API_SECRET)
+          .digest("hex")
+
+        // Publitio supports remote URL fetch
+        const publitioParams = new URLSearchParams({
+          api_key: PUBLITIO_API_KEY,
+          api_timestamp: timestamp.toString(),
+          api_nonce: nonce,
+          api_signature: signature,
+          file_url: blobUrl,
+          folder: folder,
+          public_id: `${userId}-${Date.now()}`,
+          title: file.name.replace(/\.[^/.]+$/, ""),
         })
 
-        console.log("[ThumbnailUpload] Uploaded to Blob:", blob.url)
-
-        return NextResponse.json({
-          success: true,
-          thumbnailUrl: blob.url,
-          downloadUrl: blob.url,
-          publicId: "blob-" + Date.now(),
-          fileSize: file.size,
-          storageType: "blob",
-        })
-      } catch (blobError: any) {
-        console.error("[ThumbnailUpload] Blob upload failed:", blobError)
-        return NextResponse.json(
-          { success: false, error: "Thumbnail upload failed. Please try again." },
-          { status: 500 },
-        )
-      }
-    }
-
-    // Publitio is configured - proceed with Publitio upload
-    console.log("[ThumbnailUpload] Using Publitio API")
-
-    try {
-      // Generate Publitio authentication signature
-      const timestamp = Math.floor(Date.now() / 1000)
-      const nonce = crypto.randomBytes(8).toString("hex")
-      const signature = crypto
-        .createHash("sha1")
-        .update(timestamp + nonce + PUBLITIO_API_SECRET)
-        .digest("hex")
-
-      // Upload to Publitio
-      const publitioFormData = new FormData()
-      publitioFormData.append("file", file)
-      publitioFormData.append("folder", folder)
-      publitioFormData.append("public_id", `${userId}-${Date.now()}`)
-
-      const publitioResponse = await fetch(
-        `https://api.publit.io/v1/files/create?api_key=${PUBLITIO_API_KEY}&api_timestamp=${timestamp}&api_nonce=${nonce}&api_signature=${signature}`,
-        {
+        console.log("[ThumbnailUpload] Calling Publitio remote fetch API...")
+        const publitioResponse = await fetch(`https://api.publit.io/v1/files/create?${publitioParams.toString()}`, {
           method: "POST",
-          body: publitioFormData,
-        },
-      )
+        })
 
-      if (!publitioResponse.ok) {
-        const errorText = await publitioResponse.text()
-        console.error("[Publitio Upload Error]", errorText)
-        throw new Error("Failed to upload to Publitio")
-      }
+        if (publitioResponse.ok) {
+          const publitioResult = await publitioResponse.json()
+          console.log("[ThumbnailUpload] Publitio response:", publitioResult)
 
-      const publitioResult = await publitioResponse.json()
-      console.log("[Publitio] Response:", publitioResult)
+          if (publitioResult.success && publitioResult.url_preview) {
+            console.log("[ThumbnailUpload] Publitio success! URL:", publitioResult.url_preview)
 
-      if (!publitioResult.success) {
+            try {
+              await del(blobUrl)
+              console.log("[ThumbnailUpload] Cleaned up Blob file")
+            } catch (delError) {
+              console.log("[ThumbnailUpload] Could not delete Blob file (non-critical):", delError)
+            }
+
+            return NextResponse.json({
+              success: true,
+              thumbnailUrl: publitioResult.url_preview,
+              downloadUrl: publitioResult.url_download || publitioResult.url_preview,
+              publicId: publitioResult.public_id || publitioResult.id,
+              fileSize: file.size,
+              storageType: "publitio",
+            })
+          }
+        }
+
+        // If URL fetch fails, try direct upload
+        console.log("[ThumbnailUpload] Publitio URL fetch failed, trying direct upload...")
+
+        const directFormData = new FormData()
+        directFormData.append("file", file)
+        directFormData.append("folder", folder)
+        directFormData.append("public_id", `${userId}-${Date.now()}`)
+
+        const directParams = new URLSearchParams({
+          api_key: PUBLITIO_API_KEY,
+          api_timestamp: timestamp.toString(),
+          api_nonce: nonce,
+          api_signature: signature,
+        })
+
+        const directResponse = await fetch(`https://api.publit.io/v1/files/create?${directParams.toString()}`, {
+          method: "POST",
+          body: directFormData,
+        })
+
+        if (directResponse.ok) {
+          const directResult = await directResponse.json()
+
+          if (directResult.success && directResult.url_preview) {
+            // Clean up Blob
+            try {
+              await del(blobUrl)
+            } catch (delError) {
+              console.log("[ThumbnailUpload] Could not delete Blob file:", delError)
+            }
+
+            return NextResponse.json({
+              success: true,
+              thumbnailUrl: directResult.url_preview,
+              downloadUrl: directResult.url_download || directResult.url_preview,
+              publicId: directResult.public_id || directResult.id,
+              fileSize: file.size,
+              storageType: "publitio",
+            })
+          }
+        }
+
         throw new Error("Publitio upload failed")
-      }
-
-      return NextResponse.json({
-        success: true,
-        thumbnailUrl: publitioResult.url_preview,
-        downloadUrl: publitioResult.url_download,
-        publicId: publitioResult.public_id,
-        fileSize: file.size,
-        storageType: "publitio",
-      })
-    } catch (publitioError: any) {
-      console.error("[Publitio Error]", publitioError)
-
-      // Fallback to Blob storage
-      console.log("[ThumbnailUpload] Publitio failed, falling back to Blob storage")
-
-      try {
-        const blob = await put(`${folder}/${userId}/${Date.now()}-${file.name}`, file, {
-          access: "public",
-          addRandomSuffix: true,
-        })
-
-        return NextResponse.json({
-          success: true,
-          thumbnailUrl: blob.url,
-          downloadUrl: blob.url,
-          publicId: "blob-" + Date.now(),
-          fileSize: file.size,
-          storageType: "blob",
-          warning: "Uploaded to temporary storage.",
-        })
-      } catch (blobError) {
-        return NextResponse.json(
-          { success: false, error: publitioError.message || "Thumbnail upload failed" },
-          { status: 500 },
-        )
+      } catch (publitioError: any) {
+        console.error("[ThumbnailUpload] Publitio transfer error:", publitioError.message)
+        // Fall through to use Blob URL
       }
     }
+
+    console.log("[ThumbnailUpload] Using Blob URL as final storage")
+
+    return NextResponse.json({
+      success: true,
+      thumbnailUrl: blobUrl,
+      downloadUrl: blobUrl,
+      publicId: `blob-${Date.now()}`,
+      fileSize: file.size,
+      storageType: "blob",
+      warning:
+        PUBLITIO_API_KEY && PUBLITIO_API_SECRET
+          ? "Publitio transfer failed, using backup storage"
+          : "Configure PUBLITIO_API_KEY for CDN delivery",
+    })
   } catch (error: any) {
-    console.error("[ThumbnailUpload] Error:", error)
+    console.error("[ThumbnailUpload] Unexpected error:", error)
     return NextResponse.json({ success: false, error: error.message || "Upload failed" }, { status: 500 })
   }
 }
