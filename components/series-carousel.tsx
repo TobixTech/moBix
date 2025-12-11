@@ -4,7 +4,6 @@ import { useRef } from "react"
 import { ChevronLeft, ChevronRight, Tv } from "lucide-react"
 import Link from "next/link"
 import SeriesCard from "./series-card"
-import AdBannerClient from "./ad-banner-client"
 
 interface Series {
   id: string
@@ -26,7 +25,7 @@ interface SeriesCarouselProps {
   showAds?: boolean
 }
 
-export default function SeriesCarousel({ title, series, showSeeMore = true, showAds = true }: SeriesCarouselProps) {
+export default function SeriesCarousel({ title, series, showSeeMore = true }: SeriesCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const scroll = (direction: "left" | "right") => {
@@ -41,20 +40,11 @@ export default function SeriesCarousel({ title, series, showSeeMore = true, show
 
   if (series.length === 0) return null
 
-  // Insert ads after every 2 series
-  const seriesWithAds: (Series | { isAd: true; index: number })[] = []
-  series.forEach((s, index) => {
-    seriesWithAds.push(s)
-    if (showAds && (index + 1) % 2 === 0 && index < series.length - 1) {
-      seriesWithAds.push({ isAd: true, index })
-    }
-  })
-
   return (
     <div className="relative group">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
-          <Tv className="w-6 h-6 text-[#00FFFF]" />
+          <Tv className="w-5 h-5 md:w-6 md:h-6 text-[#00FFFF]" />
           {title}
         </h2>
         {showSeeMore && (
@@ -71,41 +61,24 @@ export default function SeriesCarousel({ title, series, showSeeMore = true, show
       <div className="relative">
         <button
           onClick={() => scroll("left")}
-          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/80 hover:bg-[#00FFFF]/20 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 hover:border-[#00FFFF]/50"
+          className="absolute -left-2 md:-left-4 top-1/2 -translate-y-1/2 z-10 w-8 h-8 md:w-10 md:h-10 bg-black/80 hover:bg-[#00FFFF]/20 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 hover:border-[#00FFFF]/50"
         >
-          <ChevronLeft className="w-6 h-6" />
+          <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
         </button>
 
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1"
-          style={{ scrollSnapType: "x mandatory" }}
-        >
-          {seriesWithAds.map((item, index) => {
-            if ("isAd" in item) {
-              return (
-                <div
-                  key={`ad-${item.index}`}
-                  className="flex-shrink-0 w-[160px] h-[240px] rounded-xl overflow-hidden"
-                  style={{ scrollSnapAlign: "start" }}
-                >
-                  <AdBannerClient className="w-full h-full" />
-                </div>
-              )
-            }
-            return (
-              <div key={item.id} className="flex-shrink-0" style={{ scrollSnapAlign: "start" }}>
-                <SeriesCard series={item} />
-              </div>
-            )
-          })}
+        <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide pb-4 scroll-smooth">
+          {series.map((item) => (
+            <div key={item.id} className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]">
+              <SeriesCard series={item} />
+            </div>
+          ))}
         </div>
 
         <button
           onClick={() => scroll("right")}
-          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/80 hover:bg-[#00FFFF]/20 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 hover:border-[#00FFFF]/50"
+          className="absolute -right-2 md:-right-4 top-1/2 -translate-y-1/2 z-10 w-8 h-8 md:w-10 md:h-10 bg-black/80 hover:bg-[#00FFFF]/20 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all border border-white/10 hover:border-[#00FFFF]/50"
         >
-          <ChevronRight className="w-6 h-6" />
+          <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
         </button>
       </div>
     </div>

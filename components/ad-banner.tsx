@@ -20,7 +20,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
       })
 
       if (user?.role === "PREMIUM") {
-        return null // No ads for premium users
+        return null
       }
     } catch {
       // Continue to show ads if check fails
@@ -65,7 +65,11 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
 
   return (
     <div
-      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden ${className}`}
+      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden mx-auto ${className}`}
+      style={{
+        maxWidth: isHorizontal ? "728px" : "300px",
+        width: "100%",
+      }}
     >
       <iframe
         srcDoc={`
@@ -91,8 +95,11 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
           </body>
           </html>
         `}
-        className={`w-full ${isHorizontal ? "min-h-[90px]" : "min-h-[250px]"}`}
-        style={{ border: "none" }}
+        className="w-full"
+        style={{
+          border: "none",
+          height: isHorizontal ? "90px" : "250px",
+        }}
         scrolling="no"
         title="Advertisement"
         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"

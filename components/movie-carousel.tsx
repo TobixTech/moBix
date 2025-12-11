@@ -5,7 +5,6 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import MovieCard from "./movie-card"
-import NativeAdCard from "./native-ad-card"
 
 interface Movie {
   id: string
@@ -21,33 +20,15 @@ interface MovieCarouselProps {
   showSeeMore?: boolean
 }
 
-interface AdSettings {
-  horizontalAdCode?: string
-  homepageEnabled?: boolean
-}
-
 export default function MovieCarousel({ title, movies: initialMovies, genre, showSeeMore = true }: MovieCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
   const [movies, setMovies] = useState<Movie[]>(initialMovies || [])
   const [loading, setLoading] = useState(!initialMovies)
-  const [adSettings, setAdSettings] = useState<AdSettings | null>(null)
 
   useEffect(() => {
     if (!initialMovies) {
       setLoading(false)
     }
-
-    const fetchAdSettings = async () => {
-      try {
-        const response = await fetch("/api/ad-settings")
-        const data = await response.json()
-        setAdSettings(data)
-      } catch (error) {
-        console.error("Error fetching ad settings:", error)
-      }
-    }
-
-    fetchAdSettings()
   }, [initialMovies])
 
   const scroll = (direction: "left" | "right") => {
@@ -70,7 +51,7 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
         viewport={{ once: true }}
       >
         <motion.h2
-          className="text-2xl font-bold text-white"
+          className="text-xl md:text-2xl font-bold text-white"
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
@@ -87,16 +68,6 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
     return null
   }
 
-  const shouldShowAds = adSettings?.homepageEnabled && adSettings?.horizontalAdCode
-
-  const moviesWithAds: (Movie | { isAd: true; id: string })[] = []
-  movies.forEach((movie, index) => {
-    moviesWithAds.push(movie)
-    if (shouldShowAds && (index + 1) % 2 === 0) {
-      moviesWithAds.push({ isAd: true, id: `ad-${index}` })
-    }
-  })
-
   return (
     <motion.div
       className="space-y-4"
@@ -107,7 +78,7 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
     >
       <div className="flex items-center justify-between">
         <motion.h2
-          className="text-2xl font-bold text-white"
+          className="text-xl md:text-2xl font-bold text-white"
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
@@ -128,39 +99,35 @@ export default function MovieCarousel({ title, movies: initialMovies, genre, sho
       <div className="relative group">
         <motion.button
           onClick={() => scroll("left")}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 p-2 rounded-full transition opacity-0 group-hover:opacity-100"
+          className="absolute -left-2 md:left-0 top-1/2 -translate-y-1/2 z-10 bg-black/80 hover:bg-[#00FFFF]/20 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition opacity-0 group-hover:opacity-100 border border-white/10 hover:border-[#00FFFF]/50"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
         >
-          <ChevronLeft className="w-6 h-6 text-[#00FFFF]" />
+          <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-white" />
         </motion.button>
 
-        <div
-          id={`carousel-${title}`}
-          className="flex gap-3 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
-          style={{ scrollBehavior: "smooth" }}
-        >
-          {moviesWithAds.map((item, index) => (
+        <div id={`carousel-${title}`} className="flex gap-3 overflow-x-auto scroll-smooth pb-4 scrollbar-hide">
+          {movies.map((movie, index) => (
             <motion.div
-              key={"isAd" in item ? item.id : item.id}
+              key={movie.id}
               className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px]"
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: Math.min(index * 0.05, 0.3) }}
               viewport={{ once: true }}
             >
-              {"isAd" in item ? <NativeAdCard adCode={adSettings?.horizontalAdCode} /> : <MovieCard movie={item} />}
+              <MovieCard movie={movie} />
             </motion.div>
           ))}
         </div>
 
         <motion.button
           onClick={() => scroll("right")}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-[#00FFFF]/20 hover:bg-[#00FFFF]/40 p-2 rounded-full transition opacity-0 group-hover:opacity-100"
+          className="absolute -right-2 md:right-0 top-1/2 -translate-y-1/2 z-10 bg-black/80 hover:bg-[#00FFFF]/20 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition opacity-0 group-hover:opacity-100 border border-white/10 hover:border-[#00FFFF]/50"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
         >
-          <ChevronRight className="w-6 h-6 text-[#00FFFF]" />
+          <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-white" />
         </motion.button>
       </div>
     </motion.div>

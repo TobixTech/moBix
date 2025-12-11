@@ -42,7 +42,6 @@ export function AdBannerClient({
     fetchAdSettings()
   }, [])
 
-  // Don't show ads for premium users
   if (isPremium) {
     return null
   }
@@ -78,7 +77,11 @@ export function AdBannerClient({
 
   return (
     <div
-      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-xl overflow-hidden ${className}`}
+      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-xl overflow-hidden mx-auto ${className}`}
+      style={{
+        maxWidth: isHorizontal ? "728px" : "300px",
+        width: "100%",
+      }}
     >
       <iframe
         srcDoc={`
@@ -104,8 +107,12 @@ export function AdBannerClient({
           </body>
           </html>
         `}
-        className={`w-full ${isHorizontal ? "min-h-[90px]" : "min-h-[250px]"}`}
-        style={{ border: "none", pointerEvents: "auto" }}
+        className="w-full"
+        style={{
+          border: "none",
+          pointerEvents: "auto",
+          height: isHorizontal ? "90px" : "250px",
+        }}
         scrolling="no"
         title="Advertisement"
         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
