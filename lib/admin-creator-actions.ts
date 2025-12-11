@@ -521,7 +521,7 @@ export async function addCreatorStrike(creatorId: string, reason: string, adminU
     await db.insert(creatorStrikes).values({
       creatorId,
       reason,
-      issuedBy: adminUserId,
+      issuedBy: null,
     })
 
     // Get strike count

@@ -220,6 +220,20 @@ export async function getCreatorDashboardData() {
       .where(eq(contentSubmissions.creatorId, profile.id))
       .orderBy(desc(contentSubmissions.submittedAt))
 
+    const processedSubmissions = submissions.map((submission) => {
+      // Check if content was approved but the published movie/series was deleted
+      const wasApprovedButDeleted =
+        submission.status === "approved" &&
+        ((submission.type === "movie" && !submission.publishedMovieId) ||
+          (submission.type === "series" && !submission.publishedSeriesId))
+
+      return {
+        ...submission,
+        isDeleted: wasApprovedButDeleted,
+        displayStatus: wasApprovedButDeleted ? "deleted" : submission.status,
+      }
+    })
+
     // Get daily tracking
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -259,17 +273,18 @@ export async function getCreatorDashboardData() {
       .from(creatorStrikes)
       .where(eq(creatorStrikes.creatorId, profile.id))
 
-    // Calculate totals
-    const totalViews = submissions.reduce((sum, s) => sum + s.viewsCount, 0)
-    const totalLikes = submissions.reduce((sum, s) => sum + s.likesCount, 0)
-    const approvedCount = submissions.filter((s) => s.status === "approved").length
-    const pendingCount = submissions.filter((s) => s.status === "pending").length
-    const rejectedCount = submissions.filter((s) => s.status === "rejected").length
+    const activeSubmissions = processedSubmissions.filter((s) => !s.isDeleted)
+    const totalViews = activeSubmissions.reduce((sum, s) => sum + s.viewsCount, 0)
+    const totalLikes = activeSubmissions.reduce((sum, s) => sum + s.likesCount, 0)
+    const approvedCount = processedSubmissions.filter((s) => s.status === "approved" && !s.isDeleted).length
+    const pendingCount = processedSubmissions.filter((s) => s.status === "pending").length
+    const rejectedCount = processedSubmissions.filter((s) => s.status === "rejected").length
+    const deletedCount = processedSubmissions.filter((s) => s.isDeleted).length
 
     return {
       success: true,
       profile,
-      submissions,
+      submissions: processedSubmissions,
       dailyTracking: {
         uploadsToday: dailyTrack?.uploadsToday || 0,
         storageUsedToday: Number(dailyTrack?.storageUsedTodayGb) || 0,
@@ -284,6 +299,7 @@ export async function getCreatorDashboardData() {
         approvedCount,
         pendingCount,
         rejectedCount,
+        deletedCount, // Add deleted count to stats
         strikeCount: strikeCount?.count || 0,
         unreadNotifications: notifCount?.count || 0,
       },

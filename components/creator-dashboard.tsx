@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Edit,
   Plus,
+  Trash2,
 } from "lucide-react"
 import { getCreatorDashboardData, getCreatorNotifications } from "@/lib/creator-actions"
 import { CreatorUploadForm } from "@/components/creator-upload-form"
@@ -36,7 +37,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [contentFilter, setContentFilter] = useState<"all" | "pending" | "approved" | "rejected">("all")
+  const [contentFilter, setContentFilter] = useState<"all" | "pending" | "approved" | "rejected" | "deleted">("all")
   const [editingSubmission, setEditingSubmission] = useState<any>(null)
 
   useEffect(() => {
@@ -88,6 +89,8 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
   const filteredSubmissions =
     dashboardData?.submissions?.filter((s: any) => {
       if (contentFilter === "all") return true
+      if (contentFilter === "deleted") return s.isDeleted
+      if (s.isDeleted) return false
       return s.status === contentFilter
     }) || []
 
@@ -246,17 +249,28 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <h2 className="text-xl font-bold text-white">My Content</h2>
             <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-              {["all", "pending", "approved", "rejected"].map((filter) => (
+              {["all", "pending", "approved", "rejected", "deleted"].map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setContentFilter(filter as any)}
                   className={`px-3 py-1.5 rounded-lg text-sm capitalize transition whitespace-nowrap ${
                     contentFilter === filter
-                      ? "bg-[#00FFFF]/20 text-[#00FFFF] border border-[#00FFFF]/30"
+                      ? filter === "deleted"
+                        ? "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+                        : "bg-[#00FFFF]/20 text-[#00FFFF] border border-[#00FFFF]/30"
                       : "bg-[#0B0C10] text-white/70 hover:bg-[#2A2B33]"
                   }`}
                 >
-                  {filter} {filter !== "all" && `(${dashboardData?.stats?.[`${filter}Count`] || 0})`}
+                  {filter}{" "}
+                  {filter !== "all" && (
+                    <span className="ml-1">
+                      (
+                      {filter === "deleted"
+                        ? dashboardData?.stats?.deletedCount || 0
+                        : dashboardData?.stats?.[`${filter}Count`] || 0}
+                      )
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -278,14 +292,27 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredSubmissions.map((submission: any) => (
-                <div key={submission.id} className="bg-[#0B0C10] border border-[#2A2B33] rounded-lg overflow-hidden">
+                <div
+                  key={submission.id}
+                  className={`bg-[#0B0C10] border rounded-lg overflow-hidden ${
+                    submission.isDeleted ? "border-gray-500/30 opacity-75" : "border-[#2A2B33]"
+                  }`}
+                >
                   <div className="aspect-video relative">
+                    {submission.isDeleted && (
+                      <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
+                        <div className="text-center">
+                          <Trash2 className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-400 text-sm font-medium">Content Deleted</p>
+                        </div>
+                      </div>
+                    )}
                     <img
                       src={submission.thumbnailUrl || "/placeholder.svg?height=180&width=320"}
                       alt={submission.title}
-                      className="w-full h-full object-cover"
+                      className={`w-full h-full object-cover ${submission.isDeleted ? "grayscale" : ""}`}
                     />
-                    <div className="absolute top-2 left-2">
+                    <div className="absolute top-2 left-2 z-20">
                       <span
                         className={`px-2 py-1 rounded text-xs font-bold ${
                           submission.type === "movie"
@@ -301,56 +328,72 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
                         {submission.type}
                       </span>
                     </div>
-                    <div className="absolute top-2 right-2">
+                    <div className="absolute top-2 right-2 z-20">
                       <span
                         className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${
-                          submission.status === "approved"
-                            ? "bg-green-500/20 text-green-400"
-                            : submission.status === "rejected"
-                              ? "bg-red-500/20 text-red-400"
-                              : "bg-amber-500/20 text-amber-400"
+                          submission.isDeleted
+                            ? "bg-gray-500/20 text-gray-400"
+                            : submission.status === "approved"
+                              ? "bg-green-500/20 text-green-400"
+                              : submission.status === "rejected"
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-amber-500/20 text-amber-400"
                         }`}
                       >
-                        {submission.status === "approved" && <CheckCircle className="w-3 h-3" />}
-                        {submission.status === "rejected" && <XCircle className="w-3 h-3" />}
-                        {submission.status === "pending" && <Clock className="w-3 h-3" />}
-                        {submission.status}
+                        {submission.isDeleted && <Trash2 className="w-3 h-3" />}
+                        {!submission.isDeleted && submission.status === "approved" && (
+                          <CheckCircle className="w-3 h-3" />
+                        )}
+                        {!submission.isDeleted && submission.status === "rejected" && <XCircle className="w-3 h-3" />}
+                        {!submission.isDeleted && submission.status === "pending" && <Clock className="w-3 h-3" />}
+                        {submission.isDeleted ? "deleted" : submission.status}
                       </span>
                     </div>
                   </div>
                   <div className="p-4">
-                    <h3 className="text-white font-bold truncate">{submission.title}</h3>
+                    <h3 className={`font-bold truncate ${submission.isDeleted ? "text-gray-400" : "text-white"}`}>
+                      {submission.title}
+                    </h3>
                     <p className="text-white/50 text-sm mb-3">{submission.genre}</p>
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-4 text-white/60">
-                        <span className="flex items-center gap-1">
-                          <Eye className="w-4 h-4" />
-                          {submission.viewsCount || 0}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Heart className="w-4 h-4" />
-                          {submission.likesCount || 0}
-                        </span>
+
+                    {submission.isDeleted ? (
+                      <div className="p-2 bg-gray-500/10 border border-gray-500/20 rounded text-xs text-gray-400">
+                        This content has been removed by an administrator and is no longer available on the platform.
                       </div>
-                      <span className="text-white/40 text-xs">
-                        {new Date(submission.submittedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    {submission.status === "rejected" && submission.rejectionReason && (
-                      <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-300">
-                        Reason: {submission.rejectionReason}
-                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-4 text-white/60">
+                            <span className="flex items-center gap-1">
+                              <Eye className="w-4 h-4" />
+                              {submission.viewsCount || 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Heart className="w-4 h-4" />
+                              {submission.likesCount || 0}
+                            </span>
+                          </div>
+                          <span className="text-white/40 text-xs">
+                            {new Date(submission.submittedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {submission.status === "rejected" && submission.rejectionReason && (
+                          <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-300">
+                            Reason: {submission.rejectionReason}
+                          </div>
+                        )}
+                        {submission.type === "series" &&
+                          (submission.status === "pending" || submission.status === "approved") && (
+                            <button
+                              onClick={() => handleEditSeries(submission)}
+                              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add Episodes
+                            </button>
+                          )}
+                      </>
                     )}
-                    {submission.type === "series" &&
-                      (submission.status === "pending" || submission.status === "approved") && (
-                        <button
-                          onClick={() => handleEditSeries(submission)}
-                          className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Episodes
-                        </button>
-                      )}
                   </div>
                 </div>
               ))}
