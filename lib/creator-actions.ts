@@ -896,3 +896,57 @@ export async function addEpisodesToSubmission(
     return { success: false, error: "Failed to add episodes" }
   }
 }
+
+// Update submission function for creators to edit their content
+export async function updateSubmission(
+  submissionId: string,
+  data: {
+    title?: string
+    description?: string
+    genre?: string
+    year?: number
+  },
+) {
+  try {
+    const clerkUser = await currentUser()
+    if (!clerkUser) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.clerkId, clerkUser.id)).limit(1)
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    const [profile] = await db.select().from(creatorProfiles).where(eq(creatorProfiles.userId, user.id)).limit(1)
+    if (!profile) {
+      return { success: false, error: "Not a creator" }
+    }
+
+    // Verify submission belongs to this creator
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(and(eq(contentSubmissions.id, submissionId), eq(contentSubmissions.creatorId, profile.id)))
+      .limit(1)
+
+    if (!submission) {
+      return { success: false, error: "Submission not found" }
+    }
+
+    // Only allow editing text fields, not video/thumbnail URLs
+    const updateData: any = {}
+    if (data.title !== undefined) updateData.title = data.title
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.genre !== undefined) updateData.genre = data.genre
+    if (data.year !== undefined) updateData.year = data.year
+
+    await db.update(contentSubmissions).set(updateData).where(eq(contentSubmissions.id, submissionId))
+
+    revalidatePath("/creator")
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating submission:", error)
+    return { success: false, error: "Failed to update submission" }
+  }
+}
