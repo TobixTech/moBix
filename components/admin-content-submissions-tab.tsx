@@ -64,8 +64,9 @@ export function AdminContentSubmissionsTab() {
 
       if (result.success) {
         toast.success("Content approved and published!")
-        await fetchData() // Refresh the list
+        await fetchData()
       } else {
+        console.error("[v0] Approve failed:", result.error)
         toast.error(result.error || "Failed to approve")
       }
     } catch (error: any) {
@@ -86,11 +87,12 @@ export function AdminContentSubmissionsTab() {
       return
     }
 
-    setLoadingItems((prev) => new Set(prev).add(selectedSubmission.id))
+    const submissionId = selectedSubmission.id
+    setLoadingItems((prev) => new Set(prev).add(submissionId))
 
     try {
-      console.log("[v0] Rejecting submission:", selectedSubmission.id)
-      const result = await rejectSubmission(selectedSubmission.id, "admin", rejectReason)
+      console.log("[v0] Rejecting submission:", submissionId)
+      const result = await rejectSubmission(submissionId, "admin", rejectReason)
       console.log("[v0] Reject result:", result)
 
       if (result.success) {
@@ -100,6 +102,7 @@ export function AdminContentSubmissionsTab() {
         setSelectedSubmission(null)
         await fetchData()
       } else {
+        console.error("[v0] Reject failed:", result.error)
         toast.error(result.error || "Failed to reject")
       }
     } catch (error: any) {
@@ -108,7 +111,7 @@ export function AdminContentSubmissionsTab() {
     } finally {
       setLoadingItems((prev) => {
         const next = new Set(prev)
-        next.delete(selectedSubmission?.id)
+        next.delete(submissionId)
         return next
       })
     }

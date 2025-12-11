@@ -61,6 +61,10 @@ export function AdminCreatorManagementTab() {
   })
   const [actionLoading, setActionLoading] = useState(false)
 
+  // Individual loading states for each action
+  const [loadingRequests, setLoadingRequests] = useState<Set<string>>(new Set())
+  const [loadingCreators, setLoadingCreators] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     fetchData()
   }, [requestFilter])
@@ -82,33 +86,60 @@ export function AdminCreatorManagementTab() {
   }
 
   const handleApproveRequest = async (requestId: string) => {
-    setActionLoading(true)
-    const result = await approveCreatorRequest(requestId, "admin")
-    setActionLoading(false)
+    setLoadingRequests((prev) => new Set(prev).add(requestId))
 
-    if (result.success) {
-      toast.success("Creator request approved!")
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to approve")
+    try {
+      console.log("[v0] Approving creator request:", requestId)
+      const result = await approveCreatorRequest(requestId, "admin")
+      console.log("[v0] Approve result:", result)
+
+      if (result.success) {
+        toast.success("Creator request approved!")
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to approve")
+      }
+    } catch (error: any) {
+      console.error("[v0] Error approving request:", error)
+      toast.error(error.message || "Failed to approve")
+    } finally {
+      setLoadingRequests((prev) => {
+        const next = new Set(prev)
+        next.delete(requestId)
+        return next
+      })
     }
   }
 
   const handleRejectRequest = async () => {
     if (!selectedItem || !rejectReason) return
 
-    setActionLoading(true)
-    const result = await rejectCreatorRequest(selectedItem.id, "admin", rejectReason)
-    setActionLoading(false)
+    const requestId = selectedItem.id
+    setLoadingRequests((prev) => new Set(prev).add(requestId))
 
-    if (result.success) {
-      toast.success("Request rejected")
-      setShowRejectModal(false)
-      setRejectReason("")
-      setSelectedItem(null)
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to reject")
+    try {
+      console.log("[v0] Rejecting creator request:", requestId)
+      const result = await rejectCreatorRequest(requestId, "admin", rejectReason)
+      console.log("[v0] Reject result:", result)
+
+      if (result.success) {
+        toast.success("Request rejected")
+        setShowRejectModal(false)
+        setRejectReason("")
+        setSelectedItem(null)
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to reject")
+      }
+    } catch (error: any) {
+      console.error("[v0] Error rejecting request:", error)
+      toast.error(error.message || "Failed to reject")
+    } finally {
+      setLoadingRequests((prev) => {
+        const next = new Set(prev)
+        next.delete(requestId)
+        return next
+      })
     }
   }
 
@@ -147,43 +178,86 @@ export function AdminCreatorManagementTab() {
   }
 
   const handleSuspend = async (creatorId: string) => {
-    const reason = prompt("Enter suspension reason:")
-    if (!reason) return
+    setLoadingCreators((prev) => new Set(prev).add(creatorId))
 
-    const result = await suspendCreator(creatorId, reason)
-    if (result.success) {
-      toast.success("Creator suspended")
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to suspend")
+    try {
+      console.log("[v0] Suspending creator:", creatorId)
+      const result = await suspendCreator(creatorId, "Manual suspension by admin", "admin")
+      console.log("[v0] Suspend result:", result)
+
+      if (result.success) {
+        toast.success("Creator suspended")
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to suspend")
+      }
+    } catch (error: any) {
+      console.error("[v0] Error suspending creator:", error)
+      toast.error(error.message || "Failed to suspend")
+    } finally {
+      setLoadingCreators((prev) => {
+        const next = new Set(prev)
+        next.delete(creatorId)
+        return next
+      })
     }
   }
 
   const handleUnsuspend = async (creatorId: string) => {
-    const result = await unsuspendCreator(creatorId)
-    if (result.success) {
-      toast.success("Creator reinstated")
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to unsuspend")
+    setLoadingCreators((prev) => new Set(prev).add(creatorId))
+
+    try {
+      console.log("[v0] Unsuspending creator:", creatorId)
+      const result = await unsuspendCreator(creatorId, "admin")
+      console.log("[v0] Unsuspend result:", result)
+
+      if (result.success) {
+        toast.success("Creator reinstated")
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to reinstate")
+      }
+    } catch (error: any) {
+      console.error("[v0] Error unsuspending creator:", error)
+      toast.error(error.message || "Failed to reinstate")
+    } finally {
+      setLoadingCreators((prev) => {
+        const next = new Set(prev)
+        next.delete(creatorId)
+        return next
+      })
     }
   }
 
   const handleAddStrike = async () => {
     if (!selectedItem || !strikeReason) return
 
-    setActionLoading(true)
-    const result = await addCreatorStrike(selectedItem.id, strikeReason, "admin")
-    setActionLoading(false)
+    const creatorId = selectedItem.id
+    setLoadingCreators((prev) => new Set(prev).add(creatorId))
 
-    if (result.success) {
-      toast.success(`Strike added. Total: ${result.totalStrikes}`)
-      setShowStrikeModal(false)
-      setStrikeReason("")
-      setSelectedItem(null)
-      fetchData()
-    } else {
-      toast.error(result.error || "Failed to add strike")
+    try {
+      console.log("[v0] Adding strike to creator:", creatorId)
+      const result = await addCreatorStrike(creatorId, strikeReason, "admin")
+      console.log("[v0] Strike result:", result)
+
+      if (result.success) {
+        toast.success(`Strike added. Total: ${result.totalStrikes}`)
+        setShowStrikeModal(false)
+        setStrikeReason("")
+        setSelectedItem(null)
+        fetchData()
+      } else {
+        toast.error(result.error || "Failed to add strike")
+      }
+    } catch (error: any) {
+      console.error("[v0] Error adding strike:", error)
+      toast.error(error.message || "Failed to add strike")
+    } finally {
+      setLoadingCreators((prev) => {
+        const next = new Set(prev)
+        next.delete(creatorId)
+        return next
+      })
     }
   }
 
@@ -304,58 +378,65 @@ export function AdminCreatorManagementTab() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {requests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-white font-medium">
-                            {request.user?.firstName || request.user?.username || "User"}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded text-xs font-bold ${
-                              request.status === "pending"
-                                ? "bg-amber-500/20 text-amber-400"
-                                : request.status === "approved"
-                                  ? "bg-green-500/20 text-green-400"
-                                  : "bg-red-500/20 text-red-400"
-                            }`}
-                          >
-                            {request.status}
-                          </span>
+                  {requests.map((request) => {
+                    const isLoading = loadingRequests.has(request.id)
+                    return (
+                      <div
+                        key={request.id}
+                        className={`bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${isLoading ? "opacity-70" : ""}`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-white font-medium">
+                              {request.user?.firstName || request.user?.username || "User"}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                request.status === "pending"
+                                  ? "bg-amber-500/20 text-amber-400"
+                                  : request.status === "approved"
+                                    ? "bg-green-500/20 text-green-400"
+                                    : "bg-red-500/20 text-red-400"
+                              }`}
+                            >
+                              {request.status}
+                            </span>
+                          </div>
+                          <p className="text-white/60 text-sm">{request.user?.email}</p>
+                          <div className="flex gap-4 mt-2 text-xs text-white/50">
+                            <span>Account Age: {request.accountAgeDays} days</span>
+                            <span>Requested: {new Date(request.requestedAt).toLocaleDateString()}</span>
+                          </div>
                         </div>
-                        <p className="text-white/60 text-sm">{request.user?.email}</p>
-                        <div className="flex gap-4 mt-2 text-xs text-white/50">
-                          <span>Account Age: {request.accountAgeDays} days</span>
-                          <span>Requested: {new Date(request.requestedAt).toLocaleDateString()}</span>
-                        </div>
+                        {request.status === "pending" && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleApproveRequest(request.id)}
+                              disabled={isLoading}
+                              className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                              {isLoading ? (
+                                <Loader className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4" />
+                              )}
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedItem(request)
+                                setShowRejectModal(true)
+                              }}
+                              className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              Reject
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {request.status === "pending" && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApproveRequest(request.id)}
-                            disabled={actionLoading}
-                            className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition flex items-center gap-2"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedItem(request)
-                              setShowRejectModal(true)
-                            }}
-                            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition flex items-center gap-2"
-                          >
-                            <XCircle className="w-4 h-4" />
-                            Reject
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -396,88 +477,91 @@ export function AdminCreatorManagementTab() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredCreators.map((creator) => (
-                        <tr key={creator.id} className="border-b border-white/5">
-                          <td className="py-4 pr-4">
-                            <p className="text-white font-medium">
-                              {creator.user?.username || creator.user?.firstName || "Creator"}
-                            </p>
-                            <p className="text-white/50 text-sm">{creator.user?.email}</p>
-                          </td>
-                          <td className="py-4 pr-4 text-white">{creator.totalUploads}</td>
-                          <td className="py-4 pr-4 text-white">{creator.totalViews}</td>
-                          <td className="py-4 pr-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                creator.strikeCount >= 2
-                                  ? "bg-red-500/20 text-red-400"
-                                  : creator.strikeCount >= 1
-                                    ? "bg-amber-500/20 text-amber-400"
-                                    : "bg-green-500/20 text-green-400"
-                              }`}
-                            >
-                              {creator.strikeCount}/3
-                            </span>
-                          </td>
-                          <td className="py-4 pr-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                creator.status === "active"
-                                  ? "bg-green-500/20 text-green-400"
-                                  : "bg-red-500/20 text-red-400"
-                              }`}
-                            >
-                              {creator.status}
-                            </span>
-                          </td>
-                          <td className="py-4">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedItem(creator)
-                                  setEditLimits({
-                                    dailyUploadLimit: creator.dailyUploadLimit,
-                                    dailyStorageLimitGb: Number(creator.dailyStorageLimitGb),
-                                    isAutoApproveEnabled: creator.isAutoApproveEnabled,
-                                  })
-                                  setShowEditLimitsModal(true)
-                                }}
-                                className="p-2 bg-white/5 text-white/70 rounded hover:bg-white/10 transition"
-                                title="Edit Limits"
+                      {filteredCreators.map((creator) => {
+                        const isLoading = loadingCreators.has(creator.id)
+                        return (
+                          <tr key={creator.id} className="border-b border-white/5">
+                            <td className="py-4 pr-4">
+                              <p className="text-white font-medium">
+                                {creator.user?.username || creator.user?.firstName || "Creator"}
+                              </p>
+                              <p className="text-white/50 text-sm">{creator.user?.email}</p>
+                            </td>
+                            <td className="py-4 pr-4 text-white">{creator.totalUploads}</td>
+                            <td className="py-4 pr-4 text-white">{creator.totalViews}</td>
+                            <td className="py-4 pr-4">
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                  creator.strikeCount >= 2
+                                    ? "bg-red-500/20 text-red-400"
+                                    : creator.strikeCount >= 1
+                                      ? "bg-amber-500/20 text-amber-400"
+                                      : "bg-green-500/20 text-green-400"
+                                }`}
                               >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedItem(creator)
-                                  setShowStrikeModal(true)
-                                }}
-                                className="p-2 bg-amber-500/10 text-amber-400 rounded hover:bg-amber-500/20 transition"
-                                title="Add Strike"
+                                {creator.strikeCount}/3
+                              </span>
+                            </td>
+                            <td className="py-4 pr-4">
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                  creator.status === "active"
+                                    ? "bg-green-500/20 text-green-400"
+                                    : "bg-red-500/20 text-red-400"
+                                }`}
                               >
-                                <AlertTriangle className="w-4 h-4" />
-                              </button>
-                              {creator.status === "active" ? (
+                                {creator.status}
+                              </span>
+                            </td>
+                            <td className="py-4">
+                              <div className="flex gap-2">
                                 <button
-                                  onClick={() => handleSuspend(creator.id)}
-                                  className="p-2 bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 transition"
-                                  title="Suspend"
+                                  onClick={() => {
+                                    setSelectedItem(creator)
+                                    setEditLimits({
+                                      dailyUploadLimit: creator.dailyUploadLimit,
+                                      dailyStorageLimitGb: Number(creator.dailyStorageLimitGb),
+                                      isAutoApproveEnabled: creator.isAutoApproveEnabled,
+                                    })
+                                    setShowEditLimitsModal(true)
+                                  }}
+                                  className="p-2 bg-white/5 text-white/70 rounded hover:bg-white/10 transition"
+                                  title="Edit Limits"
                                 >
-                                  <Ban className="w-4 h-4" />
+                                  <Edit className="w-4 h-4" />
                                 </button>
-                              ) : (
                                 <button
-                                  onClick={() => handleUnsuspend(creator.id)}
-                                  className="p-2 bg-green-500/10 text-green-400 rounded hover:bg-green-500/20 transition"
-                                  title="Reinstate"
+                                  onClick={() => {
+                                    setSelectedItem(creator)
+                                    setShowStrikeModal(true)
+                                  }}
+                                  className="p-2 bg-amber-500/10 text-amber-400 rounded hover:bg-amber-500/20 transition"
+                                  title="Add Strike"
                                 >
-                                  <UserCheck className="w-4 h-4" />
+                                  <AlertTriangle className="w-4 h-4" />
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                {creator.status === "active" ? (
+                                  <button
+                                    onClick={() => handleSuspend(creator.id)}
+                                    className="p-2 bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 transition"
+                                    title="Suspend"
+                                  >
+                                    <Ban className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleUnsuspend(creator.id)}
+                                    className="p-2 bg-green-500/10 text-green-400 rounded hover:bg-green-500/20 transition"
+                                    title="Reinstate"
+                                  >
+                                    <UserCheck className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

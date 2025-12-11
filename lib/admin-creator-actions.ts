@@ -462,7 +462,7 @@ export async function getContentSubmissions(status?: string) {
 // Approve content submission
 export async function approveSubmission(submissionId: string, adminUserId: string) {
   try {
-    console.log("[v0] approveSubmission called with:", { submissionId, adminUserId })
+    console.log("[approveSubmission] Starting approval for:", submissionId)
 
     const [submission] = await db
       .select()
@@ -471,16 +471,23 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
       .limit(1)
 
     if (!submission) {
-      console.log("[v0] Submission not found")
+      console.log("[approveSubmission] Submission not found")
       return { success: false, error: "Submission not found" }
     }
 
+    console.log("[approveSubmission] Found submission:", {
+      id: submission.id,
+      title: submission.title,
+      type: submission.type,
+      status: submission.status,
+    })
+
     if (submission.status !== "pending") {
-      console.log("[v0] Submission already processed:", submission.status)
+      console.log("[approveSubmission] Submission already processed:", submission.status)
       return { success: false, error: "Submission already processed" }
     }
 
-    console.log("[v0] Updating submission status to approved")
+    console.log("[approveSubmission] Updating status to approved...")
 
     // Update status first
     await db
@@ -492,21 +499,15 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
       })
       .where(eq(contentSubmissions.id, submissionId))
 
-    // Get creator profile for notification
-    const [profile] = await db
-      .select()
-      .from(creatorProfiles)
-      .where(eq(creatorProfiles.id, submission.creatorId))
-      .limit(1)
+    console.log("[approveSubmission] Status updated, now publishing content...")
 
     // Publish content to movies/series
-    console.log("[v0] Publishing content to library")
     const publishResult = await publishSubmissionContent(submissionId)
-    console.log("[v0] Publish result:", publishResult)
+    console.log("[approveSubmission] Publish result:", publishResult)
 
     if (!publishResult.success) {
+      console.log("[approveSubmission] Publishing failed, reverting status...")
       // Revert the status if publishing failed
-      console.log("[v0] Publishing failed, reverting status")
       await db
         .update(contentSubmissions)
         .set({
@@ -519,9 +520,16 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
       return { success: false, error: publishResult.error || "Failed to publish content" }
     }
 
+    // Get creator profile for notification
+    const [profile] = await db
+      .select()
+      .from(creatorProfiles)
+      .where(eq(creatorProfiles.id, submission.creatorId))
+      .limit(1)
+
     // Send notification to creator
     if (profile) {
-      console.log("[v0] Sending notification to creator")
+      console.log("[approveSubmission] Sending notification to creator...")
       await db.insert(creatorNotifications).values({
         userId: profile.userId,
         type: "submission_approved",
@@ -536,10 +544,10 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
     revalidatePath("/movies")
     revalidatePath("/series")
 
-    console.log("[v0] Approval complete")
+    console.log("[approveSubmission] Approval complete!")
     return { success: true }
   } catch (error: any) {
-    console.error("[v0] Error approving submission:", error)
+    console.error("[approveSubmission] Error:", error)
     return { success: false, error: error.message || "Failed to approve submission" }
   }
 }
@@ -547,6 +555,8 @@ export async function approveSubmission(submissionId: string, adminUserId: strin
 // Reject content submission
 export async function rejectSubmission(submissionId: string, adminUserId: string, reason: string) {
   try {
+    console.log("[rejectSubmission] Starting rejection for:", submissionId)
+
     const [submission] = await db
       .select()
       .from(contentSubmissions)
@@ -554,8 +564,11 @@ export async function rejectSubmission(submissionId: string, adminUserId: string
       .limit(1)
 
     if (!submission) {
+      console.log("[rejectSubmission] Submission not found")
       return { success: false, error: "Submission not found" }
     }
+
+    console.log("[rejectSubmission] Found submission:", submission.title)
 
     await db
       .update(contentSubmissions)
@@ -567,6 +580,8 @@ export async function rejectSubmission(submissionId: string, adminUserId: string
       })
       .where(eq(contentSubmissions.id, submissionId))
 
+    console.log("[rejectSubmission] Status updated to rejected")
+
     // Get creator for notification
     const [profile] = await db
       .select()
@@ -575,6 +590,7 @@ export async function rejectSubmission(submissionId: string, adminUserId: string
       .limit(1)
 
     if (profile) {
+      console.log("[rejectSubmission] Sending notification to creator...")
       await db.insert(creatorNotifications).values({
         userId: profile.userId,
         type: "submission_rejected",
@@ -585,17 +601,18 @@ export async function rejectSubmission(submissionId: string, adminUserId: string
     }
 
     revalidatePath("/admin/dashboard")
+    console.log("[rejectSubmission] Rejection complete!")
     return { success: true }
-  } catch (error) {
-    console.error("Error rejecting submission:", error)
-    return { success: false, error: "Failed to reject submission" }
+  } catch (error: any) {
+    console.error("[rejectSubmission] Error:", error)
+    return { success: false, error: error.message || "Failed to reject submission" }
   }
 }
 
 // Publish submission content to main site
 async function publishSubmissionContent(submissionId: string) {
   try {
-    console.log("[v0] publishSubmissionContent called for:", submissionId)
+    console.log("[publishSubmissionContent] Called for:", submissionId)
 
     const [submission] = await db
       .select()
@@ -607,7 +624,7 @@ async function publishSubmissionContent(submissionId: string) {
       return { success: false, error: "Submission not found" }
     }
 
-    console.log("[v0] Submission data:", {
+    console.log("[publishSubmissionContent] Submission data:", {
       type: submission.type,
       title: submission.title,
       genre: submission.genre,
@@ -643,7 +660,7 @@ async function publishSubmissionContent(submissionId: string) {
         titleCounter++
       }
 
-      console.log("[v0] Creating movie with slug:", slug, "title:", finalTitle)
+      console.log("[publishSubmissionContent] Creating movie with slug:", slug, "title:", finalTitle)
 
       const [newMovie] = await db
         .insert(movies)
@@ -662,7 +679,7 @@ async function publishSubmissionContent(submissionId: string) {
         })
         .returning({ id: movies.id })
 
-      console.log("[v0] Movie created with ID:", newMovie?.id)
+      console.log("[publishSubmissionContent] Movie created with ID:", newMovie?.id)
 
       // Update submission with published movie ID
       await db
@@ -695,7 +712,7 @@ async function publishSubmissionContent(submissionId: string) {
         titleCounter++
       }
 
-      console.log("[v0] Creating series with slug:", slug, "title:", finalTitle)
+      console.log("[publishSubmissionContent] Creating series with slug:", slug, "title:", finalTitle)
 
       const seriesData = submission.seriesData ? JSON.parse(submission.seriesData) : { totalSeasons: 1 }
 
@@ -718,7 +735,7 @@ async function publishSubmissionContent(submissionId: string) {
         })
         .returning({ id: series.id })
 
-      console.log("[v0] Series created with ID:", newSeries?.id)
+      console.log("[publishSubmissionContent] Series created with ID:", newSeries?.id)
 
       // Get submission episodes
       const subEpisodes = await db
@@ -727,7 +744,7 @@ async function publishSubmissionContent(submissionId: string) {
         .where(eq(submissionEpisodes.submissionId, submissionId))
         .orderBy(submissionEpisodes.seasonNumber, submissionEpisodes.episodeNumber)
 
-      console.log("[v0] Found", subEpisodes.length, "episodes to publish")
+      console.log("[publishSubmissionContent] Found", subEpisodes.length, "episodes to publish")
 
       // Group episodes by season
       const seasonMap = new Map<number, typeof subEpisodes>()
@@ -742,7 +759,7 @@ async function publishSubmissionContent(submissionId: string) {
 
       // Create seasons and episodes
       for (const [seasonNum, seasonEpisodes] of seasonMap) {
-        console.log("[v0] Creating season", seasonNum, "with", seasonEpisodes.length, "episodes")
+        console.log("[publishSubmissionContent] Creating season", seasonNum, "with", seasonEpisodes.length, "episodes")
 
         const [newSeason] = await db
           .insert(seasons)
@@ -782,7 +799,7 @@ async function publishSubmissionContent(submissionId: string) {
       return { success: true, seriesId: newSeries.id }
     }
   } catch (error: any) {
-    console.error("[v0] Error publishing content:", error)
+    console.error("[publishSubmissionContent] Error:", error)
     return { success: false, error: error.message || "Failed to publish content" }
   }
 }
