@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
-import { creatorProfiles } from "@/lib/db/schema"
+import { creatorProfiles, users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import crypto from "crypto"
 import { put, del } from "@vercel/blob"
@@ -13,14 +13,21 @@ export async function POST(request: NextRequest) {
   try {
     console.log("[ThumbnailUpload] Starting upload request")
 
-    const { userId } = await auth()
-    if (!userId) {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if user is a creator
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+    })
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 })
+    }
+
     const creator = await db.query.creatorProfiles.findFirst({
-      where: eq(creatorProfiles.userId, userId),
+      where: eq(creatorProfiles.userId, user.id),
     })
 
     if (!creator) {
@@ -64,7 +71,7 @@ export async function POST(request: NextRequest) {
       const timestamp = Date.now()
       const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
 
-      const blob = await put(`${folder}/${userId}/${timestamp}-${safeFileName}`, file, {
+      const blob = await put(`${folder}/${user.id}/${timestamp}-${safeFileName}`, file, {
         access: "public",
         addRandomSuffix: true,
       })
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
           api_signature: signature,
           file_url: blobUrl,
           folder: folder,
-          public_id: `${userId}-${Date.now()}`,
+          public_id: `${user.id}-${Date.now()}`,
           title: file.name.replace(/\.[^/.]+$/, ""),
         })
 
@@ -142,7 +149,7 @@ export async function POST(request: NextRequest) {
         const directFormData = new FormData()
         directFormData.append("file", file)
         directFormData.append("folder", folder)
-        directFormData.append("public_id", `${userId}-${Date.now()}`)
+        directFormData.append("public_id", `${user.id}-${Date.now()}`)
 
         const directParams = new URLSearchParams({
           api_key: PUBLITIO_API_KEY,

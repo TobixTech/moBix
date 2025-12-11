@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { db } from "@/lib/db"
-import { creatorProfiles } from "@/lib/db/schema"
+import { creatorProfiles, users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { put, del } from "@vercel/blob"
 
@@ -12,14 +12,21 @@ export async function POST(request: NextRequest) {
   try {
     console.log("[VideoUpload] Starting upload request")
 
-    const { userId } = await auth()
-    if (!userId) {
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if user is a creator
+    const user = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+    })
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 })
+    }
+
     const creator = await db.query.creatorProfiles.findFirst({
-      where: eq(creatorProfiles.userId, userId),
+      where: eq(creatorProfiles.userId, user.id),
     })
 
     if (!creator) {
@@ -72,7 +79,7 @@ export async function POST(request: NextRequest) {
     try {
       const timestamp = Date.now()
       const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-      blobPath = `creator-videos/${userId}/${timestamp}-${safeFileName}`
+      blobPath = `creator-videos/${user.id}/${timestamp}-${safeFileName}`
 
       const blob = await put(blobPath, file, {
         access: "public",
