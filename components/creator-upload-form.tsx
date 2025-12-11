@@ -160,14 +160,47 @@ export function CreatorUploadForm({
 
       setStatus((prev) => ({ ...prev, progress: 30 }))
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        body: formData,
-      })
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000) // 5 minute timeout
+
+      let response: Response
+      try {
+        response = await fetch(endpoint, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        })
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === "AbortError") {
+          throw new Error("Upload timed out. Please try a smaller file or check your connection.")
+        }
+        throw new Error(`Network error: ${fetchError.message}`)
+      }
+      clearTimeout(timeoutId)
 
       setStatus((prev) => ({ ...prev, progress: 70, status: "processing" }))
 
-      const result = await response.json()
+      const contentType = response.headers.get("content-type")
+      let result: any
+
+      if (contentType && contentType.includes("application/json")) {
+        result = await response.json()
+      } else {
+        const textResponse = await response.text()
+        console.error(`[v0] Non-JSON response from ${endpoint}:`, textResponse)
+
+        if (
+          textResponse.toLowerCase().includes("entity too large") ||
+          textResponse.toLowerCase().includes("too large")
+        ) {
+          throw new Error("File is too large. Please try a smaller file (max 500MB recommended).")
+        } else if (textResponse.toLowerCase().includes("timeout")) {
+          throw new Error("Upload timed out. Please try again with a smaller file.")
+        } else {
+          throw new Error(textResponse || "Upload failed - server returned an invalid response")
+        }
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Upload failed")
@@ -233,10 +266,13 @@ export function CreatorUploadForm({
   }
 
   // Handle episode video upload
-  const handleEpisodeVideoUpload = async (index: number, file: File) => {
-    if (!file.type.startsWith("video/")) {
-      toast.error("Please select a valid video file")
-      return
+  const handleEpisodeVideoSelect = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Check file size - recommend max 500MB for episodes
+    if (file.size > 500 * 1024 * 1024) {
+      toast.error("Episode videos should be under 500MB for reliable uploads")
     }
 
     setEpisodes((prev) =>
@@ -250,14 +286,40 @@ export function CreatorUploadForm({
 
       setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 30 } : ep)))
 
-      const response = await fetch("/api/upload/video", {
-        method: "POST",
-        body: formData,
-      })
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000) // 5 minute timeout
+
+      let response: Response
+      try {
+        response = await fetch("/api/upload/video", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        })
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === "AbortError") {
+          throw new Error("Upload timed out. Please try a smaller file.")
+        }
+        throw new Error(`Network error: ${fetchError.message}`)
+      }
+      clearTimeout(timeoutId)
 
       setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 70 } : ep)))
 
-      const result = await response.json()
+      const contentType = response.headers.get("content-type")
+      let result: any
+
+      if (contentType && contentType.includes("application/json")) {
+        result = await response.json()
+      } else {
+        const textResponse = await response.text()
+        console.error("[v0] Non-JSON response:", textResponse)
+        if (textResponse.toLowerCase().includes("too large")) {
+          throw new Error("File is too large. Please try a smaller file.")
+        }
+        throw new Error(textResponse || "Upload failed")
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Upload failed")
@@ -816,7 +878,7 @@ export function CreatorUploadForm({
                             accept="video/*"
                             onChange={(e) => {
                               const file = e.target.files?.[0]
-                              if (file) handleEpisodeVideoUpload(index, file)
+                              if (file) handleEpisodeVideoSelect(index, e)
                             }}
                             className="hidden"
                           />

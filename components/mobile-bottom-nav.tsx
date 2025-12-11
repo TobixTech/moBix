@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Film, Bookmark, User, Tv, Crown, Video } from "lucide-react"
+import { Home, Film, Bookmark, User, Tv, Crown, Video, Search } from "lucide-react"
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 
@@ -36,6 +36,7 @@ export function MobileBottomNav() {
 
   const navItems = [
     { href: "/home", icon: Home, label: "Home" },
+    { href: "/search", icon: Search, label: "Search" },
     { href: "/browse", icon: Film, label: "Movies" },
     { href: "/series", icon: Tv, label: "Series" },
     ...(isCreator ? [{ href: "/creator", icon: Video, label: "Creator", isCreatorTab: true }] : []),
@@ -50,7 +51,7 @@ export function MobileBottomNav() {
 
   return (
     <motion.nav
-      className="fixed bottom-3 left-3 right-3 z-50 md:hidden"
+      className="fixed bottom-3 left-3 right-3 z-50 md:hidden safe-area-bottom"
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -66,6 +67,7 @@ export function MobileBottomNav() {
             inset 0 1px 0 rgba(255, 255, 255, 0.08),
             inset 0 -1px 0 rgba(0, 0, 0, 0.2)
           `,
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
         {/* Top glow line */}
@@ -82,7 +84,7 @@ export function MobileBottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center gap-0.5 px-2 py-1 transition-all duration-300 relative"
+                className="flex flex-col items-center gap-0.5 px-2 py-1 transition-all duration-300 relative min-w-[60px]"
               >
                 {/* Active indicator glow */}
                 {isActive && (
@@ -181,6 +183,17 @@ export function MobileBottomNav() {
                 >
                   {isPremiumMe ? "Premium" : item.label}
                 </span>
+
+                {/* Active indicator dot */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeIndicator"
+                    className={`absolute -bottom-0.5 w-1 h-1 rounded-full ${
+                      isPremiumMe ? "bg-[#FFD700]" : isCreatorItem ? "bg-purple-400" : "bg-[#00FFFF]"
+                    }`}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
               </Link>
             )
           })}

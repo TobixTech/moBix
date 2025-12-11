@@ -12,6 +12,8 @@ import {
   rateMovie,
   getUserRating,
   addToWatchLater,
+  trackContentLike,
+  trackWatchTime,
 } from "@/lib/server-actions"
 import { useAuth } from "@clerk/nextjs"
 import Link from "next/link"
@@ -141,6 +143,7 @@ export default function MovieDetailClient({
         setAverageRating(result.averageRating)
       }
       toast.success("Rating saved!")
+      trackContentLike(movie.id, userId, rating)
     } else {
       toast.error(result.error || "Failed to rate movie")
     }
@@ -160,6 +163,7 @@ export default function MovieDetailClient({
     if (result.success) {
       setIsLiked(result.liked || false)
       setLikesCount((prev) => (result.liked ? prev + 1 : prev - 1))
+      trackContentLike(movie.id, userId, result.liked ? 1 : 0)
     } else {
       toast.error(result.error || "Failed to like movie")
     }
@@ -260,6 +264,7 @@ export default function MovieDetailClient({
               skipDelay={0}
               rotationInterval={0}
               isPremium={isPremiumUser}
+              onTrackWatchTime={trackWatchTime}
             />
           </motion.div>
 

@@ -1,24 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { movies, contentSubmissions, creatorAnalytics } from "@/lib/db/schema"
+import { series, contentSubmissions, creatorAnalytics } from "@/lib/db/schema"
 import { eq, sql, and } from "drizzle-orm"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolvedParams = await params
-    const movieId = resolvedParams.id
+    const seriesId = resolvedParams.id
 
     // Increment views directly in the database
     await db
-      .update(movies)
-      .set({ views: sql`${movies.views} + 1` })
-      .where(eq(movies.id, movieId))
+      .update(series)
+      .set({ views: sql`${series.views} + 1` })
+      .where(eq(series.id, seriesId))
 
+    // Track creator analytics if this series was uploaded by a creator
     try {
       const [submission] = await db
         .select()
         .from(contentSubmissions)
-        .where(eq(contentSubmissions.publishedMovieId, movieId))
+        .where(eq(contentSubmissions.publishedSeriesId, seriesId))
         .limit(1)
 
       if (submission) {
@@ -49,7 +50,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
     } catch (analyticsError) {
-      // Don't fail the request if analytics tracking fails
       console.error("Error tracking creator analytics:", analyticsError)
     }
 

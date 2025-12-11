@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
       formData = await request.formData()
     } catch (e) {
       console.error("[VideoUpload] Failed to parse form data:", e)
-      return NextResponse.json({ success: false, error: "Failed to parse upload data" }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "Failed to parse upload data. File may be too large." },
+        { status: 400 },
+      )
     }
 
     const file = formData.get("video") as File
@@ -54,9 +57,15 @@ export async function POST(request: NextRequest) {
 
     console.log("[VideoUpload] File received:", file.name, "Size:", file.size, "Type:", file.type)
 
-    const maxSize = 1 * 1024 * 1024 * 1024 // 1GB
+    const maxSize = 500 * 1024 * 1024 // 500MB - more realistic for 60s timeout
     if (file.size > maxSize) {
-      return NextResponse.json({ success: false, error: "File too large. Maximum size is 1GB" }, { status: 400 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: `File too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is 500MB for reliable uploads.`,
+        },
+        { status: 400 },
+      )
     }
 
     // Check file type
@@ -91,43 +100,70 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Failed to upload video. Please try again." }, { status: 500 })
     }
 
-    // This allows large files to upload without timeout
     const VOE_API_KEY = process.env.VOE_API_KEY
 
     if (VOE_API_KEY) {
-      console.log("[VideoUpload] Queuing VOE URL upload with Blob URL...")
+      console.log("[VideoUpload] Attempting VOE direct upload...")
 
       try {
-        // Use VOE's URL upload API - non-blocking
-        const voeParams = new URLSearchParams({
-          key: VOE_API_KEY,
-          url: blobUrl,
-          title: title || file.name.replace(/\.[^/.]+$/, ""),
-        })
+        // First get the upload server
+        const serverResponse = await fetch(`https://voe.sx/api/upload/server?key=${VOE_API_KEY}`)
+        const serverText = await serverResponse.text()
 
-        // Fire and forget - don't wait for VOE
-        fetch(`https://voe.sx/api/upload/url?${voeParams.toString()}`, {
-          method: "GET",
-        })
-          .then(async (voeResponse) => {
-            try {
-              const responseText = await voeResponse.text()
-              console.log("[VideoUpload] VOE async response:", responseText)
-            } catch (e) {
-              console.error("[VideoUpload] VOE async error:", e)
-            }
-          })
-          .catch((e) => {
-            console.error("[VideoUpload] VOE fire-and-forget error:", e)
+        let serverData: any
+        try {
+          serverData = JSON.parse(serverText)
+        } catch {
+          console.log("[VideoUpload] VOE server response not JSON:", serverText)
+          // Continue with blob URL
+        }
+
+        if (serverData?.result) {
+          const uploadServer = serverData.result
+          console.log("[VideoUpload] VOE upload server:", uploadServer)
+
+          // Upload directly to VOE server
+          const voeFormData = new FormData()
+          voeFormData.append("api_key", VOE_API_KEY)
+          voeFormData.append("file", file)
+
+          const uploadResponse = await fetch(uploadServer, {
+            method: "POST",
+            body: voeFormData,
           })
 
-        console.log("[VideoUpload] VOE upload queued, returning Blob URL immediately")
+          const uploadText = await uploadResponse.text()
+          console.log("[VideoUpload] VOE upload response:", uploadText)
+
+          let uploadData: any
+          try {
+            uploadData = JSON.parse(uploadText)
+          } catch {
+            console.log("[VideoUpload] VOE upload response not JSON, using blob")
+          }
+
+          if (uploadData?.files?.[0]?.url || uploadData?.result?.url) {
+            const voeUrl = uploadData.files?.[0]?.url || uploadData.result?.url
+            const fileCode = uploadData.files?.[0]?.filecode || uploadData.result?.filecode
+            console.log("[VideoUpload] VOE upload successful:", voeUrl)
+
+            return NextResponse.json({
+              success: true,
+              embedUrl: `https://voe.sx/e/${fileCode}`,
+              fileCode: fileCode,
+              fileSize: file.size,
+              storageType: "voe",
+              message: "Video uploaded to VOE successfully",
+            })
+          }
+        }
       } catch (voeError: any) {
-        console.error("[VideoUpload] VOE queue error:", voeError.message)
+        console.error("[VideoUpload] VOE error:", voeError.message)
+        // Fall through to return blob URL
       }
     }
 
-    // Return Blob URL immediately - this is the reliable storage
+    // Return Blob URL as fallback - this always works
     return NextResponse.json({
       success: true,
       embedUrl: blobUrl,

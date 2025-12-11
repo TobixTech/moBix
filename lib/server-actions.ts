@@ -1763,6 +1763,161 @@ export async function getContinueWatching() {
   }
 }
 
+export async function trackContentView(contentId: string, contentType: "movie" | "series") {
+  try {
+    // Increment views on the content itself
+    if (contentType === "movie") {
+      await db
+        .update(movies)
+        .set({ views: sql`${movies.views} + 1` })
+        .where(eq(movies.id, contentId))
+    } else {
+      await db
+        .update(series)
+        .set({ views: sql`${series.views} + 1` })
+        .where(eq(series.id, contentId))
+    }
+
+    // Find if this content was uploaded by a creator and update their analytics
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(
+        contentType === "movie"
+          ? eq(contentSubmissions.publishedMovieId, contentId)
+          : eq(contentSubmissions.publishedSeriesId, contentId),
+      )
+      .limit(1)
+
+    if (submission) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Try to update existing analytics for today
+      const [existing] = await db
+        .select()
+        .from(creatorAnalytics)
+        .where(and(eq(creatorAnalytics.submissionId, submission.id), eq(creatorAnalytics.date, today)))
+        .limit(1)
+
+      if (existing) {
+        await db
+          .update(creatorAnalytics)
+          .set({ views: sql`${creatorAnalytics.views} + 1` })
+          .where(eq(creatorAnalytics.id, existing.id))
+      } else {
+        await db.insert(creatorAnalytics).values({
+          submissionId: submission.id,
+          date: today,
+          views: 1,
+          watchTimeMinutes: 0,
+          likes: 0,
+          favorites: 0,
+        })
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error tracking content view:", error)
+    return { success: false }
+  }
+}
+
+export async function trackContentLike(contentId: string, contentType: "movie" | "series", isLiking: boolean) {
+  try {
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(
+        contentType === "movie"
+          ? eq(contentSubmissions.publishedMovieId, contentId)
+          : eq(contentSubmissions.publishedSeriesId, contentId),
+      )
+      .limit(1)
+
+    if (submission) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const [existing] = await db
+        .select()
+        .from(creatorAnalytics)
+        .where(and(eq(creatorAnalytics.submissionId, submission.id), eq(creatorAnalytics.date, today)))
+        .limit(1)
+
+      if (existing) {
+        await db
+          .update(creatorAnalytics)
+          .set({
+            likes: isLiking ? sql`${creatorAnalytics.likes} + 1` : sql`GREATEST(${creatorAnalytics.likes} - 1, 0)`,
+          })
+          .where(eq(creatorAnalytics.id, existing.id))
+      } else if (isLiking) {
+        await db.insert(creatorAnalytics).values({
+          submissionId: submission.id,
+          date: today,
+          views: 0,
+          watchTimeMinutes: 0,
+          likes: 1,
+          favorites: 0,
+        })
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error tracking content like:", error)
+    return { success: false }
+  }
+}
+
+export async function trackWatchTime(contentId: string, contentType: "movie" | "series", minutes: number) {
+  try {
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(
+        contentType === "movie"
+          ? eq(contentSubmissions.publishedMovieId, contentId)
+          : eq(contentSubmissions.publishedSeriesId, contentId),
+      )
+      .limit(1)
+
+    if (submission) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const [existing] = await db
+        .select()
+        .from(creatorAnalytics)
+        .where(and(eq(creatorAnalytics.submissionId, submission.id), eq(creatorAnalytics.date, today)))
+        .limit(1)
+
+      if (existing) {
+        await db
+          .update(creatorAnalytics)
+          .set({ watchTimeMinutes: sql`${creatorAnalytics.watchTimeMinutes} + ${Math.round(minutes)}` })
+          .where(eq(creatorAnalytics.id, existing.id))
+      } else {
+        await db.insert(creatorAnalytics).values({
+          submissionId: submission.id,
+          date: today,
+          views: 0,
+          watchTimeMinutes: Math.round(minutes),
+          likes: 0,
+          favorites: 0,
+        })
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error tracking watch time:", error)
+    return { success: false }
+  }
+}
+
 export async function seedDatabase() {
   const logs: string[] = []
   const log = (msg: string) => {
@@ -3393,5 +3548,44 @@ export async function getUserDashboardData() {
   } catch (error) {
     console.error("Error getting user dashboard data:", error)
     return { success: false, error: "Failed to load dashboard data" }
+  }
+}
+
+export async function searchContent(query: string) {
+  try {
+    if (!query || query.trim().length < 2) {
+      return { movies: [], series: [] }
+    }
+
+    const searchTerm = `%${query.toLowerCase()}%`
+
+    // Search movies
+    const movieResults = await db.query.movies.findMany({
+      where: or(
+        ilike(movies.title, searchTerm),
+        ilike(movies.description, searchTerm),
+        ilike(movies.genre, searchTerm),
+        ilike(movies.director, searchTerm),
+        ilike(movies.cast, searchTerm),
+      ),
+      limit: 20,
+      orderBy: [desc(movies.views), desc(movies.createdAt)],
+    })
+
+    // Search series
+    const seriesResults = await db.query.series.findMany({
+      where: or(
+        ilike(series.title, searchTerm),
+        ilike(series.description, searchTerm),
+        ilike(series.genre, searchTerm),
+      ),
+      limit: 20,
+      orderBy: [desc(series.views), desc(series.createdAt)],
+    })
+
+    return { movies: movieResults, series: seriesResults }
+  } catch (error) {
+    console.error("Error searching content:", error)
+    return { movies: [], series: [] }
   }
 }

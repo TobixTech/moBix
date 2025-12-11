@@ -221,3 +221,41 @@
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
 }
+
+/* Added safe-area-bottom class for mobile nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Touch-friendly styles for mobile */
+@media (pointer: coarse) {
+  /* Larger touch targets on mobile */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Better tap highlighting */
+  button:active,
+  a:active {
+    opacity: 0.8;
+  }
+}
+
+/* Smooth scrolling for carousels */
+.scroll-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar while maintaining scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
