@@ -39,7 +39,7 @@ export async function getCreatorRequests(status?: string) {
         },
       })
       .from(creatorRequests)
-      .innerJoin(users, eq(creatorRequests.userId, users.id))
+      .leftJoin(users, eq(creatorRequests.userId, users.id))
       .orderBy(desc(creatorRequests.requestedAt))
 
     const requests = await query
@@ -63,7 +63,7 @@ export async function getCreatorRequests(status?: string) {
 }
 
 // Approve creator request
-export async function approveCreatorRequest(requestId: string, adminUserId: string) {
+export async function approveCreatorRequest(requestId: string, _adminUserId?: string) {
   try {
     const [request] = await db.select().from(creatorRequests).where(eq(creatorRequests.id, requestId)).limit(1)
 
@@ -84,17 +84,26 @@ export async function approveCreatorRequest(requestId: string, adminUserId: stri
       .set({
         status: "approved",
         reviewedAt: new Date(),
-        reviewedBy: adminUserId,
+        reviewedBy: null,
       })
       .where(eq(creatorRequests.id, requestId))
 
-    // Create creator profile
-    await db.insert(creatorProfiles).values({
-      userId: request.userId,
-      dailyUploadLimit: settings?.defaultDailyUploadLimit || 4,
-      dailyStorageLimitGb: settings?.defaultDailyStorageLimitGb?.toString() || "8",
-      isAutoApproveEnabled: false,
-    })
+    // Check if creator profile already exists
+    const [existingProfile] = await db
+      .select()
+      .from(creatorProfiles)
+      .where(eq(creatorProfiles.userId, request.userId))
+      .limit(1)
+
+    if (!existingProfile) {
+      // Create creator profile
+      await db.insert(creatorProfiles).values({
+        userId: request.userId,
+        dailyUploadLimit: settings?.defaultDailyUploadLimit || 4,
+        dailyStorageLimitGb: settings?.defaultDailyStorageLimitGb?.toString() || "8",
+        isAutoApproveEnabled: false,
+      })
+    }
 
     // Create notification for user
     await db.insert(creatorNotifications).values({
@@ -115,7 +124,7 @@ export async function approveCreatorRequest(requestId: string, adminUserId: stri
 }
 
 // Reject creator request
-export async function rejectCreatorRequest(requestId: string, adminUserId: string, reason: string) {
+export async function rejectCreatorRequest(requestId: string, _adminUserId?: string, reason?: string) {
   try {
     const [request] = await db.select().from(creatorRequests).where(eq(creatorRequests.id, requestId)).limit(1)
 
@@ -128,8 +137,8 @@ export async function rejectCreatorRequest(requestId: string, adminUserId: strin
       .set({
         status: "rejected",
         reviewedAt: new Date(),
-        reviewedBy: adminUserId,
-        rejectionReason: reason,
+        reviewedBy: null,
+        rejectionReason: reason || "Request rejected by admin",
       })
       .where(eq(creatorRequests.id, requestId))
 
@@ -138,7 +147,7 @@ export async function rejectCreatorRequest(requestId: string, adminUserId: strin
       userId: request.userId,
       type: "system",
       title: "Creator Access Request Rejected",
-      message: `Your creator access request was not approved. Reason: ${reason}`,
+      message: `Your creator access request was not approved. Reason: ${reason || "Request rejected by admin"}`,
     })
 
     revalidatePath("/admin/dashboard")
@@ -150,7 +159,7 @@ export async function rejectCreatorRequest(requestId: string, adminUserId: strin
 }
 
 // Grant creator access manually (bypass eligibility)
-export async function grantCreatorAccess(userEmail: string, adminUserId: string) {
+export async function grantCreatorAccess(userEmail: string, _adminUserId?: string) {
   try {
     const [user] = await db.select().from(users).where(eq(users.email, userEmail)).limit(1)
 
@@ -169,7 +178,7 @@ export async function grantCreatorAccess(userEmail: string, adminUserId: string)
       return { success: false, error: "User is already a creator" }
     }
 
-    // Get creator settings
+    // Get creator settings for default limits
     const [settings] = await db.select().from(creatorSettings).limit(1)
 
     // Create creator profile
@@ -180,19 +189,171 @@ export async function grantCreatorAccess(userEmail: string, adminUserId: string)
       isAutoApproveEnabled: false,
     })
 
-    // Create notification
+    // Create notification for user
     await db.insert(creatorNotifications).values({
       userId: user.id,
       type: "system",
       title: "Creator Access Granted!",
-      message: "You have been granted creator access by an administrator. Start uploading your content now!",
+      message:
+        "You have been granted creator access by an administrator. You can now start uploading content to moBix.",
     })
 
     revalidatePath("/admin/dashboard")
+    revalidatePath("/creator")
     return { success: true }
   } catch (error) {
     console.error("Error granting creator access:", error)
-    return { success: false, error: "Failed to grant creator access" }
+    return { success: false, error: "Failed to grant access" }
+  }
+}
+
+// Approve content submission
+export async function approveSubmission(submissionId: string, _adminUserId?: string) {
+  try {
+    console.log("[approveSubmission] Starting approval for:", submissionId)
+
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(eq(contentSubmissions.id, submissionId))
+      .limit(1)
+
+    if (!submission) {
+      console.log("[approveSubmission] Submission not found")
+      return { success: false, error: "Submission not found" }
+    }
+
+    console.log("[approveSubmission] Found submission:", {
+      id: submission.id,
+      title: submission.title,
+      type: submission.type,
+      status: submission.status,
+    })
+
+    if (submission.status !== "pending") {
+      console.log("[approveSubmission] Submission already processed:", submission.status)
+      return { success: false, error: "Submission already processed" }
+    }
+
+    console.log("[approveSubmission] Updating status to approved...")
+
+    // Update status first
+    await db
+      .update(contentSubmissions)
+      .set({
+        status: "approved",
+        reviewedAt: new Date(),
+        reviewedBy: null,
+      })
+      .where(eq(contentSubmissions.id, submissionId))
+
+    console.log("[approveSubmission] Status updated, now publishing content...")
+
+    // Publish content to movies/series
+    const publishResult = await publishSubmissionContent(submissionId)
+    console.log("[approveSubmission] Publish result:", publishResult)
+
+    if (!publishResult.success) {
+      console.log("[approveSubmission] Publishing failed, reverting status...")
+      // Revert the status if publishing failed
+      await db
+        .update(contentSubmissions)
+        .set({
+          status: "pending",
+          reviewedAt: null,
+          reviewedBy: null,
+        })
+        .where(eq(contentSubmissions.id, submissionId))
+
+      return { success: false, error: publishResult.error || "Failed to publish content" }
+    }
+
+    // Get creator profile for notification
+    const [profile] = await db
+      .select()
+      .from(creatorProfiles)
+      .where(eq(creatorProfiles.id, submission.creatorId))
+      .limit(1)
+
+    // Send notification to creator
+    if (profile) {
+      console.log("[approveSubmission] Sending notification to creator...")
+      await db.insert(creatorNotifications).values({
+        userId: profile.userId,
+        type: "submission_approved",
+        title: "Content Approved!",
+        message: `Your ${submission.type} "${submission.title}" has been approved and is now live!`,
+      })
+    }
+
+    revalidatePath("/admin/dashboard")
+    revalidatePath("/creator")
+    revalidatePath("/home")
+    revalidatePath("/movies")
+    revalidatePath("/series")
+
+    console.log("[approveSubmission] Approval complete!")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[approveSubmission] Error:", error)
+    return { success: false, error: error.message || "Failed to approve submission" }
+  }
+}
+
+// Reject content submission
+export async function rejectSubmission(submissionId: string, _adminUserId?: string, reason?: string) {
+  try {
+    console.log("[rejectSubmission] Starting rejection for:", submissionId)
+
+    const [submission] = await db
+      .select()
+      .from(contentSubmissions)
+      .where(eq(contentSubmissions.id, submissionId))
+      .limit(1)
+
+    if (!submission) {
+      console.log("[rejectSubmission] Submission not found")
+      return { success: false, error: "Submission not found" }
+    }
+
+    console.log("[rejectSubmission] Found submission:", submission.title)
+
+    await db
+      .update(contentSubmissions)
+      .set({
+        status: "rejected",
+        reviewedAt: new Date(),
+        reviewedBy: null,
+        rejectionReason: reason || "Rejected by admin",
+      })
+      .where(eq(contentSubmissions.id, submissionId))
+
+    console.log("[rejectSubmission] Status updated to rejected")
+
+    // Get creator for notification
+    const [profile] = await db
+      .select()
+      .from(creatorProfiles)
+      .where(eq(creatorProfiles.id, submission.creatorId))
+      .limit(1)
+
+    if (profile) {
+      console.log("[rejectSubmission] Sending notification to creator...")
+      await db.insert(creatorNotifications).values({
+        userId: profile.userId,
+        type: "submission_rejected",
+        title: "Content Rejected",
+        message: `Your ${submission.type} "${submission.title}" was not approved. Reason: ${reason || "Rejected by admin"}`,
+        submissionId,
+      })
+    }
+
+    revalidatePath("/admin/dashboard")
+    console.log("[rejectSubmission] Rejection complete!")
+    return { success: true }
+  } catch (error: any) {
+    console.error("[rejectSubmission] Error:", error)
+    return { success: false, error: error.message || "Failed to reject submission" }
   }
 }
 
@@ -456,156 +617,6 @@ export async function getContentSubmissions(status?: string) {
   } catch (error) {
     console.error("Error getting submissions:", error)
     return { success: false, error: "Failed to get submissions" }
-  }
-}
-
-// Approve content submission
-export async function approveSubmission(submissionId: string, adminUserId: string) {
-  try {
-    console.log("[approveSubmission] Starting approval for:", submissionId)
-
-    const [submission] = await db
-      .select()
-      .from(contentSubmissions)
-      .where(eq(contentSubmissions.id, submissionId))
-      .limit(1)
-
-    if (!submission) {
-      console.log("[approveSubmission] Submission not found")
-      return { success: false, error: "Submission not found" }
-    }
-
-    console.log("[approveSubmission] Found submission:", {
-      id: submission.id,
-      title: submission.title,
-      type: submission.type,
-      status: submission.status,
-    })
-
-    if (submission.status !== "pending") {
-      console.log("[approveSubmission] Submission already processed:", submission.status)
-      return { success: false, error: "Submission already processed" }
-    }
-
-    console.log("[approveSubmission] Updating status to approved...")
-
-    // Update status first
-    await db
-      .update(contentSubmissions)
-      .set({
-        status: "approved",
-        reviewedAt: new Date(),
-        reviewedBy: adminUserId,
-      })
-      .where(eq(contentSubmissions.id, submissionId))
-
-    console.log("[approveSubmission] Status updated, now publishing content...")
-
-    // Publish content to movies/series
-    const publishResult = await publishSubmissionContent(submissionId)
-    console.log("[approveSubmission] Publish result:", publishResult)
-
-    if (!publishResult.success) {
-      console.log("[approveSubmission] Publishing failed, reverting status...")
-      // Revert the status if publishing failed
-      await db
-        .update(contentSubmissions)
-        .set({
-          status: "pending",
-          reviewedAt: null,
-          reviewedBy: null,
-        })
-        .where(eq(contentSubmissions.id, submissionId))
-
-      return { success: false, error: publishResult.error || "Failed to publish content" }
-    }
-
-    // Get creator profile for notification
-    const [profile] = await db
-      .select()
-      .from(creatorProfiles)
-      .where(eq(creatorProfiles.id, submission.creatorId))
-      .limit(1)
-
-    // Send notification to creator
-    if (profile) {
-      console.log("[approveSubmission] Sending notification to creator...")
-      await db.insert(creatorNotifications).values({
-        userId: profile.userId,
-        type: "submission_approved",
-        title: "Content Approved!",
-        message: `Your ${submission.type} "${submission.title}" has been approved and is now live!`,
-      })
-    }
-
-    revalidatePath("/admin/dashboard")
-    revalidatePath("/creator")
-    revalidatePath("/home")
-    revalidatePath("/movies")
-    revalidatePath("/series")
-
-    console.log("[approveSubmission] Approval complete!")
-    return { success: true }
-  } catch (error: any) {
-    console.error("[approveSubmission] Error:", error)
-    return { success: false, error: error.message || "Failed to approve submission" }
-  }
-}
-
-// Reject content submission
-export async function rejectSubmission(submissionId: string, adminUserId: string, reason: string) {
-  try {
-    console.log("[rejectSubmission] Starting rejection for:", submissionId)
-
-    const [submission] = await db
-      .select()
-      .from(contentSubmissions)
-      .where(eq(contentSubmissions.id, submissionId))
-      .limit(1)
-
-    if (!submission) {
-      console.log("[rejectSubmission] Submission not found")
-      return { success: false, error: "Submission not found" }
-    }
-
-    console.log("[rejectSubmission] Found submission:", submission.title)
-
-    await db
-      .update(contentSubmissions)
-      .set({
-        status: "rejected",
-        reviewedAt: new Date(),
-        reviewedBy: adminUserId,
-        rejectionReason: reason,
-      })
-      .where(eq(contentSubmissions.id, submissionId))
-
-    console.log("[rejectSubmission] Status updated to rejected")
-
-    // Get creator for notification
-    const [profile] = await db
-      .select()
-      .from(creatorProfiles)
-      .where(eq(creatorProfiles.id, submission.creatorId))
-      .limit(1)
-
-    if (profile) {
-      console.log("[rejectSubmission] Sending notification to creator...")
-      await db.insert(creatorNotifications).values({
-        userId: profile.userId,
-        type: "submission_rejected",
-        title: "Content Rejected",
-        message: `Your ${submission.type} "${submission.title}" was not approved. Reason: ${reason}`,
-        submissionId,
-      })
-    }
-
-    revalidatePath("/admin/dashboard")
-    console.log("[rejectSubmission] Rejection complete!")
-    return { success: true }
-  } catch (error: any) {
-    console.error("[rejectSubmission] Error:", error)
-    return { success: false, error: error.message || "Failed to reject submission" }
   }
 }
 
