@@ -1,19 +1,18 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, Plus, Film, Tv, Check, X, AlertCircle, LinkIcon } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Loader2, Upload, Plus, Film, Tv, Check, X, LinkIcon, FileVideo, ImageIcon } from "lucide-react"
 import { toast } from "sonner"
 import { submitContent, addEpisodesToSubmission, getSubmissionEpisodes } from "@/lib/creator-actions"
-import { upload } from "@vercel/blob/client"
 
 interface Episode {
   episodeNumber: number
@@ -22,12 +21,13 @@ interface Episode {
   videoUrl: string
   duration: string
   videoFile?: File | null
-  videoUploadStatus?: UploadStatus
+  uploadStatus?: "idle" | "uploading" | "success" | "error"
+  uploadProgress?: number
+  uploadError?: string
 }
 
 interface UploadStatus {
-  file: File | null
-  status: "idle" | "uploading" | "success" | "error"
+  status: "idle" | "uploading" | "processing" | "success" | "error"
   progress: number
   resultUrl: string | null
   error: string | null
@@ -60,16 +60,13 @@ const GENRES = [
   "Drama",
   "Family",
   "Fantasy",
-  "History",
   "Horror",
-  "Music",
   "Mystery",
   "Romance",
-  "Science Fiction",
+  "Sci-Fi",
   "Thriller",
   "War",
   "Western",
-  "K-Drama",
 ]
 
 export function CreatorUploadForm({
@@ -83,429 +80,281 @@ export function CreatorUploadForm({
   const [contentType, setContentType] = useState<"movie" | "series">(
     editingSubmission?.type === "series" ? "series" : "movie",
   )
-  const [uploadMode, setUploadMode] = useState<"file" | "url">("file")
+  const [uploadMode, setUploadMode] = useState<"url" | "file">("file")
   const [title, setTitle] = useState(editingSubmission?.title || "")
   const [description, setDescription] = useState(editingSubmission?.description || "")
   const [genre, setGenre] = useState(editingSubmission?.genre || "")
   const [year, setYear] = useState(new Date().getFullYear().toString())
+
+  // Movie fields
   const [videoUrl, setVideoUrl] = useState("")
   const [thumbnailUrl, setThumbnailUrl] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [duration, setDuration] = useState("")
 
   // File upload states
-  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null)
-  const [selectedThumbnailFile, setSelectedThumbnailFile] = useState<File | null>(null)
-  const [videoUploadStatus, setVideoUploadStatus] = useState<UploadStatus>({
-    file: null,
+  const [videoUpload, setVideoUpload] = useState<UploadStatus>({
     status: "idle",
     progress: 0,
     resultUrl: null,
     error: null,
   })
-  const [thumbnailUploadStatus, setThumbnailUploadStatus] = useState<UploadStatus>({
-    file: null,
+  const [thumbnailUpload, setThumbnailUpload] = useState<UploadStatus>({
     status: "idle",
     progress: 0,
     resultUrl: null,
     error: null,
   })
 
-  // Series states
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const thumbnailInputRef = useRef<HTMLInputElement>(null)
+
+  // Series fields
   const [seasonNumber, setSeasonNumber] = useState(editingSubmission?.seasonNumber?.toString() || "1")
-  const [totalEpisodes, setTotalEpisodes] = useState(editingSubmission?.totalEpisodes?.toString() || "")
-  const [episodes, setEpisodes] = useState<Episode[]>([])
-  const [existingEpisodes, setExistingEpisodes] = useState<Episode[]>([])
+  const [episodes, setEpisodes] = useState<Episode[]>([
+    { episodeNumber: 1, seasonNumber: 1, title: "", videoUrl: "", duration: "", uploadStatus: "idle" },
+  ])
+  const [existingEpisodes, setExistingEpisodes] = useState<any[]>([])
 
-  // Load existing episodes when editing
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Load existing episodes if editing
   useEffect(() => {
     if (editingSubmission?.id) {
       loadExistingEpisodes()
     }
-  }, [editingSubmission?.id])
+  }, [editingSubmission])
 
   const loadExistingEpisodes = async () => {
     if (!editingSubmission?.id) return
-    try {
-      const result = await getSubmissionEpisodes(editingSubmission.id)
-      if (result.success && result.episodes) {
-        setExistingEpisodes(
-          result.episodes.map((ep: any) => ({
-            episodeNumber: ep.episodeNumber,
-            seasonNumber: ep.seasonNumber,
-            title: ep.title,
-            videoUrl: ep.videoUrl,
-            duration: ep.duration || "",
-          })),
-        )
-      }
-    } catch (error) {
-      console.error("Failed to load existing episodes:", error)
-    }
-  }
-
-  // Generate episode slots when total episodes changes
-  useEffect(() => {
-    if (contentType === "series" && totalEpisodes && !editingSubmission) {
-      const count = Number.parseInt(totalEpisodes) || 0
-      const newEpisodes: Episode[] = []
-      for (let i = 1; i <= count; i++) {
-        newEpisodes.push({
-          episodeNumber: i,
-          seasonNumber: Number.parseInt(seasonNumber) || 1,
-          title: `Episode ${i}`,
+    const result = await getSubmissionEpisodes(editingSubmission.id)
+    if (result.success && result.episodes) {
+      setExistingEpisodes(result.episodes)
+      const maxEpisode = Math.max(...result.episodes.map((e: any) => e.episodeNumber), 0)
+      setEpisodes([
+        {
+          episodeNumber: maxEpisode + 1,
+          seasonNumber: editingSubmission.seasonNumber || 1,
+          title: "",
           videoUrl: "",
           duration: "",
-          videoFile: null,
-          videoUploadStatus: { file: null, status: "idle", progress: 0, resultUrl: null, error: null },
-        })
-      }
-      setEpisodes(newEpisodes)
+          uploadStatus: "idle",
+        },
+      ])
     }
-  }, [totalEpisodes, seasonNumber, contentType, editingSubmission])
+  }
 
-  const uploadVideoFile = async (
+  // Upload file to server
+  const uploadFile = async (
     file: File,
-    episodeTitle?: string,
-    onProgress?: (progress: number) => void,
+    type: "video" | "thumbnail",
+    setStatus: React.Dispatch<React.SetStateAction<UploadStatus>>,
   ): Promise<string | null> => {
+    setStatus({ status: "uploading", progress: 10, resultUrl: null, error: null })
+
     try {
-      console.log("[v0] Starting client-side Blob upload for:", file.name)
-      onProgress?.(10)
+      const formData = new FormData()
+      formData.append(type, file) // "video" or "thumbnail"
+      formData.append("title", title || file.name)
 
-      // Step 1: Upload directly to Blob from client
-      const timestamp = Date.now()
-      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-      const pathname = `creator-videos/${timestamp}-${safeFileName}`
+      const endpoint = type === "video" ? "/api/upload/video" : "/api/upload/thumbnail"
 
-      const blob = await upload(pathname, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload/blob-token",
-      })
+      setStatus((prev) => ({ ...prev, progress: 30 }))
 
-      console.log("[v0] Blob upload complete:", blob.url)
-      onProgress?.(60)
-
-      // Step 2: Process Blob URL through VOE (if configured)
-      const processResponse = await fetch("/api/upload/process-video", {
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blobUrl: blob.url,
-          title: episodeTitle || title || file.name,
-        }),
+        body: formData,
       })
 
-      onProgress?.(90)
+      setStatus((prev) => ({ ...prev, progress: 70, status: "processing" }))
 
-      if (!processResponse.ok) {
-        const errorData = await processResponse.json()
-        console.error("[v0] Process video failed:", errorData)
-        // Use Blob URL as fallback
-        return blob.url
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Upload failed")
       }
 
-      const result = await processResponse.json()
-      onProgress?.(100)
-
-      if (result.success && result.embedUrl) {
-        return result.embedUrl
-      }
-
-      // Use Blob URL as fallback
-      return blob.url
+      const finalUrl = type === "video" ? result.embedUrl : result.thumbnailUrl || result.cdnUrl
+      setStatus({ status: "success", progress: 100, resultUrl: finalUrl, error: null })
+      return finalUrl
     } catch (error: any) {
-      console.error("[v0] Video upload error:", error)
-      throw error
+      console.error(`[v0] ${type} upload error:`, error)
+      setStatus({ status: "error", progress: 0, resultUrl: null, error: error.message })
+      toast.error(`Upload failed: ${error.message}`)
+      return null
     }
   }
 
-  const uploadThumbnailFile = async (file: File, onProgress?: (progress: number) => void): Promise<string | null> => {
-    try {
-      console.log("[v0] Starting client-side Blob upload for thumbnail:", file.name)
-      onProgress?.(10)
-
-      // Step 1: Upload directly to Blob from client
-      const timestamp = Date.now()
-      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-      const pathname = `creator-thumbnails/${timestamp}-${safeFileName}`
-
-      const blob = await upload(pathname, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload/blob-token",
-      })
-
-      console.log("[v0] Thumbnail Blob upload complete:", blob.url)
-      onProgress?.(60)
-
-      // Step 2: Process through Publitio (if configured)
-      const processResponse = await fetch("/api/upload/process-thumbnail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blobUrl: blob.url }),
-      })
-
-      onProgress?.(90)
-
-      if (!processResponse.ok) {
-        // Use Blob URL as fallback
-        return blob.url
-      }
-
-      const result = await processResponse.json()
-      onProgress?.(100)
-
-      if (result.success && result.cdnUrl) {
-        return result.cdnUrl
-      }
-
-      return blob.url
-    } catch (error: any) {
-      console.error("[v0] Thumbnail upload error:", error)
-      throw error
-    }
-  }
-
+  // Handle video file selection
   const handleVideoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
-    if (!file.name.match(allowedExtensions)) {
-      toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
-      return
-    }
-    if (file.size > 10 * 1024 * 1024 * 1024) {
-      toast.error("File too large. Maximum size is 10GB")
+    // Validate file type
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please select a valid video file")
       return
     }
 
-    setSelectedVideoFile(file)
-    setVideoUploadStatus({
-      file,
-      status: "uploading",
-      progress: 10,
-      resultUrl: null,
-      error: null,
-    })
+    // Validate file size (max 5GB)
+    if (file.size > 5 * 1024 * 1024 * 1024) {
+      toast.error("Video file must be less than 5GB")
+      return
+    }
 
-    toast.info(`Uploading video: ${file.name}...`)
-
-    try {
-      const resultUrl = await uploadVideoFile(file, undefined, (progress) => {
-        setVideoUploadStatus((prev) => ({ ...prev, progress }))
-      })
-
-      if (resultUrl) {
-        setVideoUploadStatus({
-          file,
-          status: "success",
-          progress: 100,
-          resultUrl,
-          error: null,
-        })
-        setVideoUrl(resultUrl)
-        toast.success("Video uploaded successfully!")
-      } else {
-        throw new Error("No URL returned")
-      }
-    } catch (error: any) {
-      console.error("[v0] Video upload failed:", error)
-      setVideoUploadStatus({
-        file,
-        status: "error",
-        progress: 0,
-        resultUrl: null,
-        error: error.message || "Upload failed",
-      })
-      toast.error(`Video upload failed: ${error.message}`)
+    const url = await uploadFile(file, "video", setVideoUpload)
+    if (url) {
+      setVideoUrl(url)
+      toast.success("Video uploaded successfully!")
     }
   }
 
+  // Handle thumbnail file selection
   const handleThumbnailFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const allowedExtensions = /\.(jpg|jpeg|png|webp)$/i
-    if (!file.name.match(allowedExtensions)) {
-      toast.error("Invalid file type. Allowed: jpg, jpeg, png, webp")
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file")
       return
     }
+
+    // Validate file size (max 15MB)
     if (file.size > 15 * 1024 * 1024) {
-      toast.error("File too large. Maximum size is 15MB")
+      toast.error("Thumbnail must be less than 15MB")
       return
     }
 
-    setSelectedThumbnailFile(file)
-    setThumbnailUploadStatus({
-      file,
-      status: "uploading",
-      progress: 10,
-      resultUrl: null,
-      error: null,
-    })
-
-    toast.info(`Uploading thumbnail: ${file.name}...`)
-
-    try {
-      const resultUrl = await uploadThumbnailFile(file, (progress) => {
-        setThumbnailUploadStatus((prev) => ({ ...prev, progress }))
-      })
-
-      if (resultUrl) {
-        setThumbnailUploadStatus({
-          file,
-          status: "success",
-          progress: 100,
-          resultUrl,
-          error: null,
-        })
-        setThumbnailUrl(resultUrl)
-        toast.success("Thumbnail uploaded successfully!")
-      } else {
-        throw new Error("No URL returned")
-      }
-    } catch (error: any) {
-      console.error("[v0] Thumbnail upload failed:", error)
-      setThumbnailUploadStatus({
-        file,
-        status: "error",
-        progress: 0,
-        resultUrl: null,
-        error: error.message || "Upload failed",
-      })
-      toast.error(`Thumbnail upload failed: ${error.message}`)
+    const url = await uploadFile(file, "thumbnail", setThumbnailUpload)
+    if (url) {
+      setThumbnailUrl(url)
+      toast.success("Thumbnail uploaded successfully!")
     }
   }
 
-  const handleEpisodeVideoSelect = async (episodeIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const allowedExtensions = /\.(mp4|webm|mkv|avi|mov)$/i
-    if (!file.name.match(allowedExtensions)) {
-      toast.error("Invalid file type. Allowed: mp4, webm, mkv, avi, mov")
+  // Handle episode video upload
+  const handleEpisodeVideoUpload = async (index: number, file: File) => {
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please select a valid video file")
       return
     }
 
-    const updatedEpisodes = [...episodes]
-    updatedEpisodes[episodeIndex] = {
-      ...updatedEpisodes[episodeIndex],
-      videoFile: file,
-      videoUploadStatus: {
-        file,
-        status: "uploading",
-        progress: 10,
-        resultUrl: null,
-        error: null,
+    setEpisodes((prev) =>
+      prev.map((ep, i) => (i === index ? { ...ep, uploadStatus: "uploading", uploadProgress: 10 } : ep)),
+    )
+
+    try {
+      const formData = new FormData()
+      formData.append("video", file)
+      formData.append("title", episodes[index].title || `Episode ${episodes[index].episodeNumber}`)
+
+      setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 30 } : ep)))
+
+      const response = await fetch("/api/upload/video", {
+        method: "POST",
+        body: formData,
+      })
+
+      setEpisodes((prev) => prev.map((ep, i) => (i === index ? { ...ep, uploadProgress: 70 } : ep)))
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Upload failed")
+      }
+
+      setEpisodes((prev) =>
+        prev.map((ep, i) =>
+          i === index ? { ...ep, videoUrl: result.embedUrl, uploadStatus: "success", uploadProgress: 100 } : ep,
+        ),
+      )
+      toast.success(`Episode ${episodes[index].episodeNumber} video uploaded!`)
+    } catch (error: any) {
+      console.error("[v0] Episode upload error:", error)
+      setEpisodes((prev) =>
+        prev.map((ep, i) => (i === index ? { ...ep, uploadStatus: "error", uploadError: error.message } : ep)),
+      )
+      toast.error(`Upload failed: ${error.message}`)
+    }
+  }
+
+  const addEpisode = () => {
+    const lastEp = episodes[episodes.length - 1]
+    setEpisodes([
+      ...episodes,
+      {
+        episodeNumber: lastEp.episodeNumber + 1,
+        seasonNumber: Number(seasonNumber),
+        title: "",
+        videoUrl: "",
+        duration: "",
+        uploadStatus: "idle",
       },
-    }
-    setEpisodes(updatedEpisodes)
+    ])
+  }
 
-    toast.info(`Uploading Episode ${episodeIndex + 1} video...`)
-
-    try {
-      const resultUrl = await uploadVideoFile(file, updatedEpisodes[episodeIndex].title, (progress) => {
-        setEpisodes((prev) => {
-          const updated = [...prev]
-          updated[episodeIndex] = {
-            ...updated[episodeIndex],
-            videoUploadStatus: { ...updated[episodeIndex].videoUploadStatus!, progress },
-          }
-          return updated
-        })
-      })
-
-      if (resultUrl) {
-        setEpisodes((prev) => {
-          const updated = [...prev]
-          updated[episodeIndex] = {
-            ...updated[episodeIndex],
-            videoUrl: resultUrl,
-            videoUploadStatus: {
-              file,
-              status: "success",
-              progress: 100,
-              resultUrl,
-              error: null,
-            },
-          }
-          return updated
-        })
-        toast.success(`Episode ${episodeIndex + 1} video uploaded!`)
-      }
-    } catch (error: any) {
-      setEpisodes((prev) => {
-        const updated = [...prev]
-        updated[episodeIndex] = {
-          ...updated[episodeIndex],
-          videoUploadStatus: {
-            file,
-            status: "error",
-            progress: 0,
-            resultUrl: null,
-            error: error.message,
-          },
-        }
-        return updated
-      })
-      toast.error(`Episode ${episodeIndex + 1} upload failed: ${error.message}`)
+  const removeEpisode = (index: number) => {
+    if (episodes.length > 1) {
+      setEpisodes(episodes.filter((_, i) => i !== index))
     }
   }
 
-  const clearVideoUpload = () => {
-    setSelectedVideoFile(null)
-    setVideoUrl("")
-    setVideoUploadStatus({ file: null, status: "idle", progress: 0, resultUrl: null, error: null })
+  const updateEpisode = (index: number, field: keyof Episode, value: any) => {
+    setEpisodes(episodes.map((ep, i) => (i === index ? { ...ep, [field]: value } : ep)))
   }
 
-  const clearThumbnailUpload = () => {
-    setSelectedThumbnailFile(null)
-    setThumbnailUrl("")
-    setThumbnailUploadStatus({ file: null, status: "idle", progress: 0, resultUrl: null, error: null })
-  }
-
-  const isAnyUploadInProgress = () => {
-    if (videoUploadStatus.status === "uploading") return true
-    if (thumbnailUploadStatus.status === "uploading") return true
-    if (episodes.some((ep) => ep.videoUploadStatus?.status === "uploading")) return true
-    return false
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (isAnyUploadInProgress()) {
-      toast.error("Please wait for uploads to complete")
-      return
-    }
-
+  const handleSubmit = async () => {
     // Validation
     if (!title.trim()) {
       toast.error("Please enter a title")
       return
     }
+    if (title.length < 3) {
+      toast.error("Title must be at least 3 characters")
+      return
+    }
     if (!description.trim() || description.length < 20) {
-      toast.error("Please enter a description (minimum 20 characters)")
+      toast.error("Description must be at least 20 characters")
       return
     }
     if (!genre) {
       toast.error("Please select a genre")
       return
     }
-    if (!thumbnailUrl) {
-      toast.error("Please upload or provide a thumbnail URL")
+
+    // Check upload states
+    if (videoUpload.status === "uploading" || thumbnailUpload.status === "uploading") {
+      toast.error("Please wait for uploads to complete")
       return
     }
 
+    const finalVideoUrl = videoUpload.resultUrl || videoUrl
+    const finalThumbnailUrl = thumbnailUpload.resultUrl || thumbnailUrl
+
     if (contentType === "movie") {
-      if (!videoUrl) {
-        toast.error("Please upload or provide a video URL")
+      if (!finalVideoUrl) {
+        toast.error("Please provide a video URL or upload a video file")
+        return
+      }
+      if (!finalThumbnailUrl) {
+        toast.error("Please provide a thumbnail URL or upload a thumbnail")
         return
       }
     } else {
-      const episodesWithVideo = episodes.filter((ep) => ep.videoUrl)
-      if (episodesWithVideo.length === 0) {
-        toast.error("Please upload at least one episode")
+      // Series validation
+      const hasAnyEpisodeUploading = episodes.some((ep) => ep.uploadStatus === "uploading")
+      if (hasAnyEpisodeUploading) {
+        toast.error("Please wait for episode uploads to complete")
+        return
+      }
+
+      const validEpisodes = episodes.filter((ep) => ep.videoUrl && ep.title)
+      if (validEpisodes.length === 0) {
+        toast.error("Please add at least one episode with title and video")
+        return
+      }
+      if (!finalThumbnailUrl) {
+        toast.error("Please provide a thumbnail URL or upload a thumbnail")
         return
       }
     }
@@ -513,609 +362,541 @@ export function CreatorUploadForm({
     setIsSubmitting(true)
 
     try {
-      const result = await submitContent({
-        type: contentType,
-        title: title.trim(),
-        description: description.trim(),
-        genre,
-        year: Number.parseInt(year),
-        videoUrl: contentType === "movie" ? videoUrl : undefined,
-        thumbnailUrl,
-        seasonNumber: contentType === "series" ? Number.parseInt(seasonNumber) : undefined,
-        episodes:
-          contentType === "series"
-            ? episodes
-                .filter((ep) => ep.videoUrl)
-                .map((ep) => ({
-                  episodeNumber: ep.episodeNumber,
-                  seasonNumber: ep.seasonNumber,
-                  title: ep.title,
-                  videoUrl: ep.videoUrl,
-                  duration: ep.duration,
-                }))
-            : undefined,
-      })
+      if (editingSubmission?.id && contentType === "series") {
+        // Adding episodes to existing submission
+        const newEpisodes = episodes
+          .filter((ep) => ep.videoUrl && ep.title)
+          .map((ep) => ({
+            episodeNumber: ep.episodeNumber,
+            seasonNumber: Number(seasonNumber),
+            title: ep.title,
+            videoUrl: ep.videoUrl,
+            duration: ep.duration || "0",
+          }))
 
-      if (result.success) {
-        toast.success(result.message || "Content submitted for review!")
-        // Reset form
-        setTitle("")
-        setDescription("")
-        setGenre("")
-        setVideoUrl("")
-        setThumbnailUrl("")
-        setEpisodes([])
-        setTotalEpisodes("")
-        clearVideoUpload()
-        clearThumbnailUpload()
-        onSubmitSuccess?.()
+        const result = await addEpisodesToSubmission(editingSubmission.id, newEpisodes)
+
+        if (result.success) {
+          toast.success("Episodes added successfully!")
+          onCancelEdit?.()
+          onSubmitSuccess?.()
+        } else {
+          toast.error(result.error || "Failed to add episodes")
+        }
       } else {
-        toast.error(result.error || "Submission failed")
+        // New submission
+        const submissionData = {
+          type: contentType,
+          title,
+          description,
+          genre,
+          year: Number(year),
+          videoUrl: finalVideoUrl,
+          thumbnailUrl: finalThumbnailUrl,
+          duration: duration || undefined,
+          seasonNumber: contentType === "series" ? Number(seasonNumber) : undefined,
+          episodes:
+            contentType === "series"
+              ? episodes
+                  .filter((ep) => ep.videoUrl && ep.title)
+                  .map((ep) => ({
+                    episodeNumber: ep.episodeNumber,
+                    seasonNumber: Number(seasonNumber),
+                    title: ep.title,
+                    videoUrl: ep.videoUrl,
+                    duration: ep.duration || "0",
+                  }))
+              : undefined,
+        }
+
+        const result = await submitContent(submissionData)
+
+        if (result.success) {
+          toast.success("Content submitted for review!")
+          // Reset form
+          setTitle("")
+          setDescription("")
+          setGenre("")
+          setVideoUrl("")
+          setThumbnailUrl("")
+          setDuration("")
+          setVideoUpload({ status: "idle", progress: 0, resultUrl: null, error: null })
+          setThumbnailUpload({ status: "idle", progress: 0, resultUrl: null, error: null })
+          setEpisodes([
+            { episodeNumber: 1, seasonNumber: 1, title: "", videoUrl: "", duration: "", uploadStatus: "idle" },
+          ])
+          onSubmitSuccess?.()
+        } else {
+          toast.error(result.error || "Failed to submit content")
+        }
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred")
+      console.error("[v0] Submit error:", error)
+      toast.error("Failed to submit content")
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleAddEpisodes = async () => {
-    if (!editingSubmission?.id) return
+  const renderUploadStatus = (upload: UploadStatus, type: "video" | "thumbnail") => {
+    if (upload.status === "idle") return null
 
-    const newEpisodes = episodes.filter((ep) => ep.videoUrl)
-    if (newEpisodes.length === 0) {
-      toast.error("Please upload at least one episode")
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      const result = await addEpisodesToSubmission(editingSubmission.id, newEpisodes)
-      if (result.success) {
-        toast.success("Episodes added successfully!")
-        setEpisodes([])
-        onSubmitSuccess?.()
-      } else {
-        toast.error(result.error || "Failed to add episodes")
-      }
-    } catch (error: any) {
-      toast.error(error.message || "An error occurred")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const renderUploadStatusBadge = (status: UploadStatus) => {
-    if (status.status === "idle") return null
-    if (status.status === "uploading") {
-      return (
-        <Badge variant="secondary" className="gap-1">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {status.progress}%
-        </Badge>
-      )
-    }
-    if (status.status === "success") {
-      return (
-        <Badge variant="default" className="gap-1 bg-green-600">
-          <Check className="h-3 w-3" />
-          Uploaded
-        </Badge>
-      )
-    }
-    if (status.status === "error") {
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <X className="h-3 w-3" />
-          Failed
-        </Badge>
-      )
-    }
-    return null
-  }
-
-  // If editing a series, show simplified add episodes UI
-  if (editingSubmission) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Add Episodes to: {editingSubmission.title}</span>
-            <Button variant="outline" size="sm" onClick={onCancelEdit}>
-              Cancel
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {existingEpisodes.length > 0 && (
-            <div className="space-y-2">
-              <Label>Existing Episodes</Label>
-              <div className="grid gap-2 max-h-40 overflow-y-auto">
-                {existingEpisodes.map((ep) => (
-                  <div
-                    key={`${ep.seasonNumber}-${ep.episodeNumber}`}
-                    className="flex items-center gap-2 p-2 bg-muted rounded text-sm"
-                  >
-                    <Badge variant="outline">
-                      S{ep.seasonNumber}E{ep.episodeNumber}
-                    </Badge>
-                    <span className="truncate">{ep.title}</span>
-                    <Check className="h-4 w-4 text-green-500 ml-auto" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
+      <div className="mt-2">
+        {(upload.status === "uploading" || upload.status === "processing") && (
           <div className="space-y-2">
-            <Label>Add New Episodes</Label>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="Number of new episodes"
-                value={totalEpisodes}
-                onChange={(e) => setTotalEpisodes(e.target.value)}
-                min="1"
-                max="50"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const count = Number.parseInt(totalEpisodes) || 0
-                  const startEp = existingEpisodes.length + 1
-                  const newEps: Episode[] = []
-                  for (let i = 0; i < count; i++) {
-                    newEps.push({
-                      episodeNumber: startEp + i,
-                      seasonNumber: editingSubmission.seasonNumber || 1,
-                      title: `Episode ${startEp + i}`,
-                      videoUrl: "",
-                      duration: "",
-                      videoFile: null,
-                      videoUploadStatus: { file: null, status: "idle", progress: 0, resultUrl: null, error: null },
-                    })
-                  }
-                  setEpisodes(newEps)
-                }}
-              >
-                Generate Slots
-              </Button>
+            <div className="flex items-center gap-2 text-sm text-[#00FFFF]">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{upload.status === "processing" ? "Processing..." : "Uploading..."}</span>
+              <span>{upload.progress}%</span>
             </div>
+            <Progress value={upload.progress} className="h-2" />
           </div>
-
-          {episodes.length > 0 && (
-            <div className="space-y-3">
-              {episodes.map((episode, index) => (
-                <Card key={index} className="p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge>
-                      S{episode.seasonNumber}E{episode.episodeNumber}
-                    </Badge>
-                    <Input
-                      value={episode.title}
-                      onChange={(e) => {
-                        const updated = [...episodes]
-                        updated[index].title = e.target.value
-                        setEpisodes(updated)
-                      }}
-                      placeholder="Episode title"
-                      className="flex-1"
-                    />
-                    {renderUploadStatusBadge(
-                      episode.videoUploadStatus || {
-                        file: null,
-                        status: "idle",
-                        progress: 0,
-                        resultUrl: null,
-                        error: null,
-                      },
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Input
-                        type="file"
-                        accept="video/*"
-                        onChange={(e) => handleEpisodeVideoSelect(index, e)}
-                        disabled={episode.videoUploadStatus?.status === "uploading"}
-                      />
-                    </div>
-                    <span className="text-muted-foreground text-sm self-center">or</span>
-                    <Input
-                      placeholder="Video URL"
-                      value={episode.videoUrl}
-                      onChange={(e) => {
-                        const updated = [...episodes]
-                        updated[index].videoUrl = e.target.value
-                        setEpisodes(updated)
-                      }}
-                      className="flex-1"
-                      disabled={episode.videoUploadStatus?.status === "uploading"}
-                    />
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          <Button
-            onClick={handleAddEpisodes}
-            disabled={isSubmitting || isAnyUploadInProgress() || episodes.filter((ep) => ep.videoUrl).length === 0}
-            className="w-full"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding Episodes...
-              </>
-            ) : isAnyUploadInProgress() ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Waiting for uploads...
-              </>
-            ) : (
-              <>
-                <Plus className="mr-2 h-4 w-4" />
-                Add {episodes.filter((ep) => ep.videoUrl).length} Episode(s)
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+        )}
+        {upload.status === "success" && (
+          <div className="flex items-center gap-2 text-sm text-green-400">
+            <Check className="w-4 h-4" />
+            <span>{type === "video" ? "Video" : "Thumbnail"} uploaded successfully</span>
+          </div>
+        )}
+        {upload.status === "error" && (
+          <div className="flex items-center gap-2 text-sm text-red-400">
+            <X className="w-4 h-4" />
+            <span>{upload.error || "Upload failed"}</span>
+          </div>
+        )}
+      </div>
     )
   }
 
+  // Check if any upload is in progress
+  const isUploading =
+    videoUpload.status === "uploading" ||
+    videoUpload.status === "processing" ||
+    thumbnailUpload.status === "uploading" ||
+    thumbnailUpload.status === "processing" ||
+    episodes.some((ep) => ep.uploadStatus === "uploading")
+
   return (
-    <form onSubmit={handleSubmit}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Upload New Content</span>
-            <div className="flex gap-2 text-sm font-normal">
-              <Badge variant="outline">Uploads: {dailyUploadsRemaining} left</Badge>
-              <Badge variant="outline">Storage: {dailyStorageRemaining.toFixed(1)}GB left</Badge>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Content Type Tabs */}
-          <Tabs value={contentType} onValueChange={(v) => setContentType(v as "movie" | "series")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="movie" className="gap-2">
-                <Film className="h-4 w-4" />
+    <Card className="bg-[#1A1B23] border-[#2A2B33]">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center justify-between">
+          <span>{editingSubmission ? `Add Episodes to "${editingSubmission.title}"` : "Upload Content"}</span>
+          {editingSubmission && (
+            <Button variant="ghost" size="sm" onClick={onCancelEdit} className="text-white/60 hover:text-white">
+              Cancel Edit
+            </Button>
+          )}
+        </CardTitle>
+        {!editingSubmission && (
+          <div className="flex gap-2 text-sm text-white/60">
+            <span>Uploads today: {4 - dailyUploadsRemaining}/4</span>
+            <span>|</span>
+            <span>Storage used: {(8 - dailyStorageRemaining).toFixed(1)}/8 GB</span>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {!editingSubmission && (
+          <>
+            {/* Content Type Selection */}
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant={contentType === "movie" ? "default" : "outline"}
+                className={contentType === "movie" ? "bg-[#00FFFF] text-black" : "border-[#2A2B33] text-white"}
+                onClick={() => setContentType("movie")}
+              >
+                <Film className="w-4 h-4 mr-2" />
                 Movie
-              </TabsTrigger>
-              <TabsTrigger value="series" className="gap-2">
-                <Tv className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={contentType === "series" ? "default" : "outline"}
+                className={contentType === "series" ? "bg-[#00FFFF] text-black" : "border-[#2A2B33] text-white"}
+                onClick={() => setContentType("series")}
+              >
+                <Tv className="w-4 h-4 mr-2" />
                 Series
-              </TabsTrigger>
-            </TabsList>
+              </Button>
+            </div>
 
-            {/* Common Fields */}
-            <div className="mt-4 space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter title"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="genre">Genre *</Label>
-                  <Select value={genre} onValueChange={setGenre}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select genre" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GENRES.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+            {/* Upload Mode Selection */}
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant={uploadMode === "file" ? "default" : "outline"}
+                className={uploadMode === "file" ? "bg-purple-600 text-white" : "border-[#2A2B33] text-white"}
+                onClick={() => setUploadMode("file")}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Files
+              </Button>
+              <Button
+                type="button"
+                variant={uploadMode === "url" ? "default" : "outline"}
+                className={uploadMode === "url" ? "bg-purple-600 text-white" : "border-[#2A2B33] text-white"}
+                onClick={() => setUploadMode("url")}
+              >
+                <LinkIcon className="w-4 h-4 mr-2" />
+                Paste URLs
+              </Button>
+            </div>
 
+            {/* Basic Info */}
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter description (minimum 20 characters)"
-                  rows={3}
-                  required
+                <Label className="text-white">Title *</Label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter title"
+                  className="bg-[#0B0C10] border-[#2A2B33] text-white"
                 />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="year">Year</Label>
+                <Label className="text-white">Genre *</Label>
+                <Select value={genre} onValueChange={setGenre}>
+                  <SelectTrigger className="bg-[#0B0C10] border-[#2A2B33] text-white">
+                    <SelectValue placeholder="Select genre" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1A1B23] border-[#2A2B33]">
+                    {GENRES.map((g) => (
+                      <SelectItem key={g} value={g} className="text-white hover:bg-[#2A2B33]">
+                        {g}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-white">Description *</Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter description (minimum 20 characters)"
+                className="bg-[#0B0C10] border-[#2A2B33] text-white min-h-[100px]"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-white">Year</Label>
                 <Input
-                  id="year"
                   type="number"
                   value={year}
                   onChange={(e) => setYear(e.target.value)}
-                  min="1900"
-                  max={new Date().getFullYear() + 1}
+                  placeholder="Release year"
+                  className="bg-[#0B0C10] border-[#2A2B33] text-white"
                 />
               </div>
+              {contentType === "movie" && (
+                <div className="space-y-2">
+                  <Label className="text-white">Duration (minutes)</Label>
+                  <Input
+                    type="number"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    placeholder="e.g., 120"
+                    className="bg-[#0B0C10] border-[#2A2B33] text-white"
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
-              {/* Upload Mode Toggle */}
-              <div className="flex items-center gap-4">
-                <Label>Upload Method:</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={uploadMode === "file" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUploadMode("file")}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Upload Files
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={uploadMode === "url" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUploadMode("url")}
-                  >
-                    <LinkIcon className="h-4 w-4 mr-1" />
-                    Paste URLs
-                  </Button>
+        {/* Thumbnail Upload */}
+        <div className="space-y-2">
+          <Label className="text-white">Thumbnail *</Label>
+          {uploadMode === "file" || editingSubmission ? (
+            <div className="space-y-2">
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                  thumbnailUpload.status === "success"
+                    ? "border-green-500 bg-green-500/10"
+                    : thumbnailUpload.status === "error"
+                      ? "border-red-500 bg-red-500/10"
+                      : "border-[#2A2B33] hover:border-[#00FFFF]/50"
+                }`}
+                onClick={() => thumbnailInputRef.current?.click()}
+              >
+                <input
+                  ref={thumbnailInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailFileSelect}
+                  className="hidden"
+                />
+                {thumbnailUpload.status === "success" ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Check className="w-8 h-8 text-green-400" />
+                    <span className="text-green-400">Thumbnail uploaded!</span>
+                    <span className="text-xs text-white/40">Click to replace</span>
+                  </div>
+                ) : thumbnailUpload.status === "uploading" || thumbnailUpload.status === "processing" ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 text-[#00FFFF] animate-spin" />
+                    <span className="text-[#00FFFF]">
+                      {thumbnailUpload.status === "processing" ? "Processing..." : "Uploading..."}
+                    </span>
+                    <Progress value={thumbnailUpload.progress} className="w-full max-w-xs h-2" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <ImageIcon className="w-8 h-8 text-white/40" />
+                    <span className="text-white/60">Click to upload thumbnail</span>
+                    <span className="text-xs text-white/40">JPG, PNG, WebP (max 15MB)</span>
+                  </div>
+                )}
+              </div>
+              {thumbnailUpload.status === "error" && <p className="text-sm text-red-400">{thumbnailUpload.error}</p>}
+            </div>
+          ) : (
+            <Input
+              value={thumbnailUrl}
+              onChange={(e) => setThumbnailUrl(e.target.value)}
+              placeholder="https://example.com/thumbnail.jpg"
+              className="bg-[#0B0C10] border-[#2A2B33] text-white"
+            />
+          )}
+        </div>
+
+        {/* Movie Video Upload */}
+        {contentType === "movie" && !editingSubmission && (
+          <div className="space-y-2">
+            <Label className="text-white">Video *</Label>
+            {uploadMode === "file" ? (
+              <div className="space-y-2">
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                    videoUpload.status === "success"
+                      ? "border-green-500 bg-green-500/10"
+                      : videoUpload.status === "error"
+                        ? "border-red-500 bg-red-500/10"
+                        : "border-[#2A2B33] hover:border-[#00FFFF]/50"
+                  }`}
+                  onClick={() => videoInputRef.current?.click()}
+                >
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoFileSelect}
+                    className="hidden"
+                  />
+                  {videoUpload.status === "success" ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Check className="w-8 h-8 text-green-400" />
+                      <span className="text-green-400">Video uploaded!</span>
+                      <span className="text-xs text-white/40">Click to replace</span>
+                    </div>
+                  ) : videoUpload.status === "uploading" || videoUpload.status === "processing" ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 text-[#00FFFF] animate-spin" />
+                      <span className="text-[#00FFFF]">
+                        {videoUpload.status === "processing" ? "Processing video..." : "Uploading..."}
+                      </span>
+                      <Progress value={videoUpload.progress} className="w-full max-w-xs h-2" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileVideo className="w-8 h-8 text-white/40" />
+                      <span className="text-white/60">Click to upload video</span>
+                      <span className="text-xs text-white/40">MP4, WebM, MKV (max 5GB)</span>
+                    </div>
+                  )}
+                </div>
+                {videoUpload.status === "error" && <p className="text-sm text-red-400">{videoUpload.error}</p>}
+              </div>
+            ) : (
+              <Input
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://voe.sx/e/xxxxx or embed URL"
+                className="bg-[#0B0C10] border-[#2A2B33] text-white"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Series Episodes */}
+        {(contentType === "series" || editingSubmission?.type === "series") && (
+          <div className="space-y-4">
+            {!editingSubmission && (
+              <div className="space-y-2">
+                <Label className="text-white">Season Number</Label>
+                <Input
+                  type="number"
+                  value={seasonNumber}
+                  onChange={(e) => setSeasonNumber(e.target.value)}
+                  min="1"
+                  className="bg-[#0B0C10] border-[#2A2B33] text-white w-32"
+                />
+              </div>
+            )}
+
+            {/* Existing Episodes (Read-only) */}
+            {existingEpisodes.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-white/60">Existing Episodes</Label>
+                <div className="space-y-2 opacity-60">
+                  {existingEpisodes.map((ep) => (
+                    <div key={ep.id} className="flex items-center gap-2 p-2 bg-[#0B0C10] rounded-lg">
+                      <Badge variant="outline" className="border-green-500 text-green-400">
+                        S{ep.seasonNumber}E{ep.episodeNumber}
+                      </Badge>
+                      <span className="text-white/60 text-sm">{ep.title}</span>
+                      <Check className="w-4 h-4 text-green-400 ml-auto" />
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
 
-              {/* Thumbnail Upload */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  Thumbnail *{renderUploadStatusBadge(thumbnailUploadStatus)}
-                </Label>
-                {uploadMode === "file" ? (
-                  <div className="space-y-2">
-                    {thumbnailUploadStatus.status === "success" ? (
-                      <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                        <img
-                          src={thumbnailUploadStatus.resultUrl || ""}
-                          alt="Thumbnail preview"
-                          className="w-20 h-12 object-cover rounded"
-                        />
-                        <span className="flex-1 text-sm truncate">{thumbnailUploadStatus.file?.name}</span>
-                        <Button type="button" variant="ghost" size="sm" onClick={clearThumbnailUpload}>
-                          <X className="h-4 w-4" />
+            {/* New Episodes */}
+            <div className="space-y-2">
+              <Label className="text-white">{editingSubmission ? "New Episodes" : "Episodes"}</Label>
+              <div className="space-y-4">
+                {episodes.map((episode, index) => (
+                  <div key={index} className="p-4 bg-[#0B0C10] rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Badge className="bg-[#00FFFF]/20 text-[#00FFFF]">
+                        S{seasonNumber}E{episode.episodeNumber}
+                      </Badge>
+                      {episodes.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeEpisode(index)}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
+                        >
+                          <X className="w-4 h-4" />
                         </Button>
-                      </div>
-                    ) : thumbnailUploadStatus.status === "uploading" ? (
-                      <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span className="flex-1 text-sm">{thumbnailUploadStatus.file?.name}</span>
-                        <span className="text-sm font-medium">{thumbnailUploadStatus.progress}%</span>
-                      </div>
-                    ) : thumbnailUploadStatus.status === "error" ? (
+                      )}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Input
+                        value={episode.title}
+                        onChange={(e) => updateEpisode(index, "title", e.target.value)}
+                        placeholder="Episode title"
+                        className="bg-[#1A1B23] border-[#2A2B33] text-white"
+                      />
+                      <Input
+                        value={episode.duration}
+                        onChange={(e) => updateEpisode(index, "duration", e.target.value)}
+                        placeholder="Duration (minutes)"
+                        type="number"
+                        className="bg-[#1A1B23] border-[#2A2B33] text-white"
+                      />
+                    </div>
+
+                    {/* Episode Video Upload */}
+                    {uploadMode === "file" || editingSubmission ? (
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                          <AlertCircle className="h-5 w-5 text-red-500" />
-                          <span className="flex-1 text-sm text-red-500">{thumbnailUploadStatus.error}</span>
-                          <Button type="button" variant="ghost" size="sm" onClick={clearThumbnailUpload}>
-                            <X className="h-4 w-4" />
-                          </Button>
+                        <div
+                          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                            episode.uploadStatus === "success"
+                              ? "border-green-500 bg-green-500/10"
+                              : episode.uploadStatus === "error"
+                                ? "border-red-500 bg-red-500/10"
+                                : "border-[#2A2B33] hover:border-[#00FFFF]/50"
+                          }`}
+                          onClick={() => {
+                            const input = document.getElementById(`episode-video-${index}`) as HTMLInputElement
+                            input?.click()
+                          }}
+                        >
+                          <input
+                            id={`episode-video-${index}`}
+                            type="file"
+                            accept="video/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleEpisodeVideoUpload(index, file)
+                            }}
+                            className="hidden"
+                          />
+                          {episode.uploadStatus === "success" ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <Check className="w-5 h-5 text-green-400" />
+                              <span className="text-green-400 text-sm">Video uploaded</span>
+                            </div>
+                          ) : episode.uploadStatus === "uploading" ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="w-5 h-5 text-[#00FFFF] animate-spin" />
+                              <Progress value={episode.uploadProgress || 0} className="w-full max-w-xs h-2" />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-2">
+                              <FileVideo className="w-5 h-5 text-white/40" />
+                              <span className="text-white/60 text-sm">Click to upload episode video</span>
+                            </div>
+                          )}
                         </div>
-                        <Input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={handleThumbnailFileSelect}
-                        />
+                        {episode.uploadStatus === "error" && (
+                          <p className="text-xs text-red-400">{episode.uploadError}</p>
+                        )}
                       </div>
                     ) : (
                       <Input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleThumbnailFileSelect}
+                        value={episode.videoUrl}
+                        onChange={(e) => updateEpisode(index, "videoUrl", e.target.value)}
+                        placeholder="Video URL (VOE embed URL)"
+                        className="bg-[#1A1B23] border-[#2A2B33] text-white"
                       />
                     )}
                   </div>
-                ) : (
-                  <Input
-                    value={thumbnailUrl}
-                    onChange={(e) => setThumbnailUrl(e.target.value)}
-                    placeholder="https://example.com/thumbnail.jpg"
-                  />
-                )}
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addEpisode}
+                  className="w-full border-dashed border-[#2A2B33] text-white/60 hover:text-white hover:border-[#00FFFF] bg-transparent"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Episode
+                </Button>
               </div>
-
-              {/* Movie-specific fields */}
-              <TabsContent value="movie" className="mt-0 space-y-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">Video *{renderUploadStatusBadge(videoUploadStatus)}</Label>
-                  {uploadMode === "file" ? (
-                    <div className="space-y-2">
-                      {videoUploadStatus.status === "success" ? (
-                        <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                          <Film className="h-5 w-5 text-green-500" />
-                          <span className="flex-1 text-sm truncate">{videoUploadStatus.file?.name}</span>
-                          <Check className="h-4 w-4 text-green-500" />
-                          <Button type="button" variant="ghost" size="sm" onClick={clearVideoUpload}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : videoUploadStatus.status === "uploading" ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            <span className="flex-1 text-sm">{videoUploadStatus.file?.name}</span>
-                            <span className="text-sm font-medium">{videoUploadStatus.progress}%</span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-primary transition-all duration-300"
-                              style={{ width: `${videoUploadStatus.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                      ) : videoUploadStatus.status === "error" ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                            <AlertCircle className="h-5 w-5 text-red-500" />
-                            <span className="flex-1 text-sm text-red-500">{videoUploadStatus.error}</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={clearVideoUpload}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <Input
-                            type="file"
-                            accept="video/mp4,video/webm,video/x-matroska,video/avi,video/quicktime"
-                            onChange={handleVideoFileSelect}
-                          />
-                        </div>
-                      ) : (
-                        <Input
-                          type="file"
-                          accept="video/mp4,video/webm,video/x-matroska,video/avi,video/quicktime"
-                          onChange={handleVideoFileSelect}
-                        />
-                      )}
-                    </div>
-                  ) : (
-                    <Input
-                      value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://voe.sx/e/xxxxx or video embed URL"
-                    />
-                  )}
-                </div>
-              </TabsContent>
-
-              {/* Series-specific fields */}
-              <TabsContent value="series" className="mt-0 space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Season Number</Label>
-                    <Input
-                      type="number"
-                      value={seasonNumber}
-                      onChange={(e) => setSeasonNumber(e.target.value)}
-                      min="1"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Total Episodes</Label>
-                    <Input
-                      type="number"
-                      value={totalEpisodes}
-                      onChange={(e) => setTotalEpisodes(e.target.value)}
-                      min="1"
-                      max="50"
-                      placeholder="Number of episodes"
-                    />
-                  </div>
-                </div>
-
-                {episodes.length > 0 && (
-                  <div className="space-y-3">
-                    <Label>Episodes</Label>
-                    {episodes.map((episode, index) => (
-                      <Card key={index} className="p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline">Ep {episode.episodeNumber}</Badge>
-                          <Input
-                            value={episode.title}
-                            onChange={(e) => {
-                              const updated = [...episodes]
-                              updated[index].title = e.target.value
-                              setEpisodes(updated)
-                            }}
-                            placeholder="Episode title"
-                            className="flex-1"
-                          />
-                          {renderUploadStatusBadge(
-                            episode.videoUploadStatus || {
-                              file: null,
-                              status: "idle",
-                              progress: 0,
-                              resultUrl: null,
-                              error: null,
-                            },
-                          )}
-                        </div>
-                        <div className="flex gap-2 items-center">
-                          {uploadMode === "file" ? (
-                            <>
-                              {episode.videoUploadStatus?.status === "success" ? (
-                                <div className="flex-1 flex items-center gap-2 p-2 bg-green-500/10 rounded">
-                                  <Check className="h-4 w-4 text-green-500" />
-                                  <span className="text-sm truncate">{episode.videoFile?.name || "Uploaded"}</span>
-                                </div>
-                              ) : episode.videoUploadStatus?.status === "uploading" ? (
-                                <div className="flex-1 flex items-center gap-2 p-2 bg-muted rounded">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span className="text-sm">{episode.videoUploadStatus.progress}%</span>
-                                </div>
-                              ) : (
-                                <Input
-                                  type="file"
-                                  accept="video/*"
-                                  onChange={(e) => handleEpisodeVideoSelect(index, e)}
-                                  className="flex-1"
-                                />
-                              )}
-                            </>
-                          ) : (
-                            <Input
-                              placeholder="Video URL"
-                              value={episode.videoUrl}
-                              onChange={(e) => {
-                                const updated = [...episodes]
-                                updated[index].videoUrl = e.target.value
-                                setEpisodes(updated)
-                              }}
-                              className="flex-1"
-                            />
-                          )}
-                          <Input
-                            placeholder="Duration (e.g., 45m)"
-                            value={episode.duration}
-                            onChange={(e) => {
-                              const updated = [...episodes]
-                              updated[index].duration = e.target.value
-                              setEpisodes(updated)
-                            }}
-                            className="w-28"
-                          />
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
             </div>
-          </Tabs>
+          </div>
+        )}
 
-          {/* Submit Button */}
-          <Button type="submit" className="w-full" disabled={isSubmitting || isAnyUploadInProgress()}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : isAnyUploadInProgress() ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Waiting for uploads...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-2 h-4 w-4" />
-                Submit for Review
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-    </form>
+        {/* Submit Button */}
+        <Button
+          onClick={handleSubmit}
+          disabled={isSubmitting || isUploading || dailyUploadsRemaining <= 0}
+          className="w-full bg-gradient-to-r from-[#00FFFF] to-cyan-400 text-black font-bold hover:shadow-lg hover:shadow-[#00FFFF]/50 disabled:opacity-50"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Submitting...
+            </>
+          ) : isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Waiting for uploads...
+            </>
+          ) : dailyUploadsRemaining <= 0 ? (
+            "Daily upload limit reached"
+          ) : editingSubmission ? (
+            "Add Episodes"
+          ) : (
+            "Submit for Review"
+          )}
+        </Button>
+
+        {dailyUploadsRemaining <= 0 && (
+          <p className="text-center text-sm text-yellow-400">
+            You have reached your daily upload limit. Try again tomorrow.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
