@@ -23,6 +23,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .limit(1)
 
       if (submission) {
+        await db
+          .update(contentSubmissions)
+          .set({ viewsCount: sql`${contentSubmissions.viewsCount} + 1` })
+          .where(eq(contentSubmissions.id, submission.id))
+
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 

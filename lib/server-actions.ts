@@ -1837,6 +1837,15 @@ export async function trackContentLike(contentId: string, contentType: "movie" |
       .limit(1)
 
     if (submission) {
+      await db
+        .update(contentSubmissions)
+        .set({
+          likesCount: isLiking
+            ? sql`${contentSubmissions.likesCount} + 1`
+            : sql`GREATEST(${contentSubmissions.likesCount} - 1, 0)`,
+        })
+        .where(eq(contentSubmissions.id, submission.id))
+
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 

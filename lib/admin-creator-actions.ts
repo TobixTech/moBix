@@ -486,6 +486,8 @@ export async function unsuspendCreator(creatorId: string) {
       return { success: false, error: "Creator not found" }
     }
 
+    await db.delete(creatorStrikes).where(eq(creatorStrikes.creatorId, creatorId))
+
     await db
       .update(creatorProfiles)
       .set({
@@ -498,10 +500,12 @@ export async function unsuspendCreator(creatorId: string) {
       userId: profile.userId,
       type: "system",
       title: "Account Reinstated",
-      message: "Your creator account has been reinstated. You can now upload content again.",
+      message:
+        "Your creator account has been reinstated and all previous strikes have been cleared. You can now upload content again.",
     })
 
     revalidatePath("/admin/dashboard")
+    revalidatePath("/creator")
     return { success: true }
   } catch (error) {
     console.error("Error unsuspending creator:", error)
