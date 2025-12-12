@@ -363,16 +363,16 @@ export function ProductionVideoPlayer({
             <div className="flex-1 relative overflow-hidden">
               <div ref={adContainerRef} className="absolute inset-0 flex items-center justify-center" />
             </div>
-            <div className="absolute bottom-4 right-4 z-10">
+            <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
               {canSkipPreroll ? (
                 <button
                   onClick={handleSkipPreroll}
-                  className="px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 transition-colors"
+                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white/80 text-xs font-medium rounded-md transition-colors"
                 >
-                  Skip Ad
+                  Skip →
                 </button>
               ) : (
-                <div className="px-4 py-2 bg-black/80 text-white rounded-lg">Skip in {prerollCountdown}s</div>
+                <div className="px-3 py-1.5 bg-black/60 text-white/60 text-xs rounded-md">{prerollCountdown}s</div>
               )}
             </div>
             <div className="absolute top-4 left-4 bg-yellow-500/90 text-black text-xs font-bold px-2 py-1 rounded">

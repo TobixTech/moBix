@@ -153,20 +153,11 @@ export default function PrerollAdPlayer({
           <button
             onClick={canSkip ? handleSkip : undefined}
             disabled={!canSkip}
-            className={`px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 text-sm ${
-              canSkip
-                ? "bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10]"
-                : "bg-white/10 text-white/50 cursor-not-allowed"
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              canSkip ? "bg-white/20 hover:bg-white/30 text-white/80" : "bg-white/5 text-white/30 cursor-not-allowed"
             }`}
           >
-            {canSkip ? (
-              <>
-                <X className="w-4 h-4" />
-                Skip Ad
-              </>
-            ) : (
-              <span>Skip in {skipTimeLeft}s</span>
-            )}
+            {canSkip ? `Skip →` : `${skipTimeLeft}s`}
           </button>
         </div>
       </div>
