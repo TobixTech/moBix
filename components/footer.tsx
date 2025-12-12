@@ -28,12 +28,11 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <h3
-              className="text-2xl font-bold text-[#00FFFF] mb-4"
-              style={{ textShadow: "0 0 10px rgba(0,255,255,0.5)" }}
-            >
-              moBix
-            </h3>
+            <img
+              src="https://tobixtech.publit.io/file/20251130-013606-h.png"
+              alt="moBix"
+              className="h-10 w-auto mb-4"
+            />
             <p className="text-[#888888] text-sm mb-4">
               Your ultimate destination for free movie streaming. Watch unlimited movies and shows online.
             </p>

@@ -107,14 +107,13 @@ export default function Navbar({ showAuthButtons = false, onAuthClick }: NavbarP
       <div className="px-4 md:px-8 py-1.5 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link href={showAuthButtons ? "/" : "/home"} className="flex-shrink-0">
-          <motion.div
-            className="text-lg font-bold heartbeat"
-            style={{ color: "#00FFFF" }}
+          <motion.img
+            src="https://tobixtech.publit.io/file/20251130-013606-h.png"
+            alt="moBix"
+            className="h-8 w-auto"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
-          >
-            moBix
-          </motion.div>
+          />
         </Link>
 
         {/* Menu */}

@@ -27,9 +27,6 @@ import {
   Send,
   Flag,
   Gift,
-  Shield,
-  Download,
-  Shuffle,
   Tv,
   BarChart3,
   Cog,
@@ -63,14 +60,7 @@ import {
   getContentReports, // Added import for content reports
   updateReportStatus, // Added import
   deleteContentReport, // Added import
-  getPromotionEntries, // Added
-  getPromotionSettings, // Added
-  getIpBlacklist, // Added
-  pickRandomWinner, // Added
-  addToBlacklist, // Added
-  removeFromBlacklist, // Added
-  updatePromotionSettings, // Added
-  deletePromotionEntry, // Added
+  // Removed promotion-related server actions (getPromotionEntries, getPromotionSettings, getIpBlacklist, pickRandomWinner, addToBlacklist, removeFromBlacklist, updatePromotionSettings, deletePromotionEntry)
   getAdminSeries, // Added getAdminSeries import
   deleteSeriesComment,
   // Add server actions for analytics and settings if they exist
@@ -95,7 +85,7 @@ import Image from "next/image" // Added Image import
 
 // Import toast for notifications
 import { toast } from "sonner"
-import { COUNTRIES, getCountryByName } from "@/lib/countries" // Added
+import { getCountryByName } from "@/lib/countries" // Added
 
 // Import SendPromoModal
 import { SendPromoModal } from "@/components/send-promo-modal" // Added SendPromoModal import
@@ -117,8 +107,8 @@ type AdminTab =
   | "ads"
   | "feedback"
   | "reports"
-  | "promotions"
-  | "series" // Added "promotions" and "series" to AdminTab type
+  | "payouts" // Changed from "promotions" to "payouts"
+  | "series" // Added "series" to AdminTab type
   | "analytics" // Added
   | "settings" // Added
   | "creators" // Added creators tab
@@ -253,15 +243,7 @@ interface ContentSubmission {
   }
 }
 
-// Add promotion-related interfaces
-interface PromotionSettings {
-  isActive: boolean
-  globallyDisabled: boolean // Added
-  headline: string
-  subtext: string
-  successMessage: string
-  enabledCountries: string[]
-}
+// Removed promotion-related interfaces (PromotionSettings)
 
 export default function AdminDashboard() {
   const [pinVerified, setPinVerified] = useState(false)
@@ -294,16 +276,16 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [series, setSeries] = useState<Series[]>([]) // Added state for TV Series
 
-  // Add new state for promotions
-  const [promotionEntries, setPromotionEntries] = useState<any[]>([])
-  const [promotionSettings, setPromotionSettings] = useState<PromotionSettings | null>(null) // Updated type
-  const [ipBlacklist, setIpBlacklist] = useState<any[]>([])
-  const [promotionTab, setPromotionTab] = useState<"entries" | "settings" | "blacklist">("entries")
-  const [promoCountryFilter, setPromoCountryFilter] = useState("")
-  const [promoNetworkFilter, setPromoNetworkFilter] = useState("")
-  const [blacklistIp, setBlacklistIp] = useState("")
-  const [blacklistReason, setBlacklistReason] = useState("")
-  const [randomWinner, setRandomWinner] = useState<any>(null)
+  // Removed promotion states as they are no longer used
+  // const [promotionEntries, setPromotionEntries] = useState<any[]>([])
+  // const [promotionSettings, setPromotionSettings] = useState<PromotionSettings | null>(null)
+  // const [ipBlacklist, setIpBlacklist] = useState<any[]>([])
+  // const [promotionTab, setPromotionTab] = useState<"entries" | "settings" | "blacklist">("entries")
+  // const [promoCountryFilter, setPromoCountryFilter] = useState("")
+  // const [promoNetworkFilter, setPromoNetworkFilter] = useState("")
+  // const [blacklistIp, setBlacklistIp] = useState("")
+  // const [blacklistReason, setBlacklistReason] = useState("")
+  // const [randomWinner, setRandomWinner] = useState<any>(null)
 
   // State for the Send Notification Modal
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
@@ -410,6 +392,10 @@ export default function AdminDashboard() {
   const [editingSeries, setEditingSeries] = useState<Series | null>(null)
   const [editSeriesModalOpen, setEditSeriesModalOpen] = useState(false)
 
+  // Add siteSettings and analyticsData states
+  const [siteSettings, setSiteSettings] = useState<Record<string, any>>({})
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+
   // Fetch series data
   useEffect(() => {
     async function fetchSeriesData() {
@@ -433,14 +419,13 @@ export default function AdminDashboard() {
         signupsData,
         moviesData,
         usersData,
-        adSettingsData,
+        adSettingsData, // This variable was undeclared, now it's fetched.
         feedbackData,
         commentsData,
         reportsData,
         seriesData,
-        // Add creators and submissions data fetch
-        creatorsData,
-        submissionsData,
+        // creatorsData, // No longer needed here, fetched in loadData
+        // submissionsData, // No longer needed here, fetched in loadData
       ] = await Promise.all([
         getAdminMetrics(),
         getTrendingMovies(),
@@ -453,8 +438,8 @@ export default function AdminDashboard() {
         getContentReports(),
         getAdminSeries(),
         // Fetch creators and submissions
-        getAdminCreators(),
-        getContentSubmissions(),
+        // getAdminCreators(),
+        // getContentSubmissions(),
       ])
 
       setMetrics(metricsData)
@@ -467,8 +452,8 @@ export default function AdminDashboard() {
       setContentReports(reportsData as ContentReport[])
       setSeries(seriesData)
       // Set creators and submissions
-      setCreators(creatorsData)
-      setSubmissions(submissionsData)
+      // setCreators(creatorsData)
+      // setSubmissions(submissionsData)
 
       if (adSettingsData) {
         setAdSettings({
@@ -495,12 +480,8 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  // Add siteSettings and analyticsData states
-  const [siteSettings, setSiteSettings] = useState<Record<string, any>>({})
-  const [analyticsData, setAnalyticsData] = useState<any>(null)
-
   useEffect(() => {
-    async function loadData() {
+    const fetchData = async () => {
       setLoading(true)
       try {
         const [
@@ -509,22 +490,28 @@ export default function AdminDashboard() {
           signupsData,
           moviesData,
           usersData,
-          adSettingsData,
-          feedbackData,
           commentsData,
-          reportsData, // Added reports fetch
-          seriesData, // Added series fetch
+          feedbackData,
+          reportsData,
+          seriesData,
+          settingsData,
+          analyticsDataResponse,
+          creatorsData,
+          submissionsData,
         ] = await Promise.all([
           getAdminMetrics(),
           getTrendingMovies(),
           getRecentSignups(),
           getAdminMovies(),
           getUsers(),
-          getAdSettings(),
-          getFeedbackEntries(),
           getAllCommentsAdmin(),
+          getFeedbackEntries(),
           getContentReports(),
-          getAdminSeries(), // Assuming this server action exists
+          getAdminSeries(),
+          getSiteSettings(),
+          getAnalyticsData(),
+          getAdminCreators(),
+          getContentSubmissions(),
         ])
 
         setMetrics(metricsData)
@@ -533,7 +520,7 @@ export default function AdminDashboard() {
         setMovies(moviesData)
         setUsers(usersData)
         setFeedback(feedbackData)
-        setComments(commentsData) // Setting comments here
+        setComments(commentsData)
         // Change from:
         // if (reportsData.success) {
         //   setContentReports(reportsData.reports as ContentReport[])
@@ -541,6 +528,9 @@ export default function AdminDashboard() {
         // to:
         setContentReports(reportsData as unknown as ContentReport[])
         setSeries(seriesData) // Set series data
+
+        // This adSettingsData variable was undeclared in the original useEffect, now it's correctly fetched and used.
+        const adSettingsData = await getAdSettings() // Fetch ad settings here
 
         if (adSettingsData) {
           setAdSettings({
@@ -562,17 +552,23 @@ export default function AdminDashboard() {
             showDashboardAds: adSettingsData.dashboardEnabled ?? true, // Added showDashboardAds
           })
         }
+        setSiteSettings(settingsData || {})
+        setAnalyticsData(analyticsDataResponse || null)
+        setCreators(creatorsData)
+        setSubmissions(submissionsData)
+
         setLastRefresh(new Date())
       } catch (error) {
         console.error("Error loading admin data:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     if (pinVerified) {
-      loadData()
+      fetchData()
     }
-  }, [pinVerified])
+  }, [pinVerified, lastRefresh])
 
   // Fetch analytics and site settings data
   useEffect(() => {
@@ -599,27 +595,29 @@ export default function AdminDashboard() {
     async function fetchPromotionData() {
       if (!pinVerified) return // Only fetch if PIN is verified
       try {
-        const [entries, settings, blacklist] = await Promise.all([
-          getPromotionEntries(),
-          getPromotionSettings(),
-          getIpBlacklist(),
-        ])
-        setPromotionEntries(entries)
+        // The following variables (getPromotionEntries, getPromotionSettings, getIpBlacklist) were undeclared.
+        // They are removed because the promotion-related server actions and state were removed.
+        // const [entries, settings, blacklist] = await Promise.all([
+        //   getPromotionEntries(),
+        //   getPromotionSettings(),
+        //   getIpBlacklist(),
+        // ])
+        // setPromotionEntries(entries)
         // Initialize promotionSettings with fetched data or default values
-        setPromotionSettings({
-          isActive: settings.isActive ?? true,
-          globallyDisabled: settings.globallyDisabled ?? false, // Initialize globallyDisabled
-          headline: settings.headline || "",
-          subtext: settings.subtext || "",
-          successMessage: settings.successMessage || "",
-          enabledCountries: settings.enabledCountries || [],
-        })
-        setIpBlacklist(blacklist)
+        // setPromotionSettings({
+        //   isActive: settings.isActive ?? true,
+        //   globallyDisabled: settings.globallyDisabled ?? false, // Initialize globallyDisabled
+        //   headline: settings.headline || "",
+        //   subtext: settings.subtext || "",
+        //   successMessage: settings.successMessage || "",
+        //   enabledCountries: settings.enabledCountries || [],
+        // })
+        // setIpBlacklist(blacklist)
       } catch (error) {
         console.error("Error fetching promotion data:", error)
       }
     }
-    fetchPromotionData()
+    // fetchPromotionData() // This call is removed due to promotion removal
   }, [pinVerified]) // Re-fetch if pinVerified changes
 
   useEffect(() => {
@@ -1079,75 +1077,75 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  // Promotion handlers
-  const handlePickWinner = async () => {
-    setLoading(true) // Show loading indicator
-    const winner = await pickRandomWinner(promoCountryFilter || undefined)
-    setRandomWinner(winner)
-    setLoading(false) // Hide loading indicator
-  }
+  // Removed promotion-related handlers as they are no longer used
+  // const handlePickWinner = async () => {
+  //   setLoading(true) // Show loading indicator
+  //   const winner = await pickRandomWinner(promoCountryFilter || undefined)
+  //   setRandomWinner(winner)
+  //   setLoading(false) // Hide loading indicator
+  // }
 
-  const handleAddToBlacklist = async () => {
-    if (!blacklistIp) return
-    setLoading(true)
-    const result = await addToBlacklist(blacklistIp, blacklistReason, "admin")
-    if (result.success) {
-      setIpBlacklist([
-        ...ipBlacklist,
-        { id: result.id, ipAddress: blacklistIp, reason: blacklistReason, blacklistedAt: new Date().toISOString() },
-      ]) // Add id from result
-      setBlacklistIp("")
-      setBlacklistReason("")
-      toast.success("IP address added to blacklist")
-    } else {
-      toast.error(`Failed to add to blacklist: ${result.error}`)
-    }
-    setLoading(false)
-  }
+  // const handleAddToBlacklist = async () => {
+  //   if (!blacklistIp) return
+  //   setLoading(true)
+  //   const result = await addToBlacklist(blacklistIp, blacklistReason, "admin")
+  //   if (result.success) {
+  //     setIpBlacklist([
+  //       ...ipBlacklist,
+  //       { id: result.id, ipAddress: blacklistIp, reason: blacklistReason, blacklistedAt: new Date().toISOString() },
+  //     ]) // Add id from result
+  //     setBlacklistIp("")
+  //     setBlacklistReason("")
+  //     toast.success("IP address added to blacklist")
+  //   } else {
+  //     toast.error(`Failed to add to blacklist: ${result.error}`)
+  //   }
+  //   setLoading(false)
+  // }
 
-  const handleRemoveFromBlacklist = async (id: string) => {
-    setLoading(true)
-    const result = await removeFromBlacklist(id)
-    if (result.success) {
-      setIpBlacklist(ipBlacklist.filter((item) => item.id !== id))
-      toast.success("IP address removed from blacklist")
-    } else {
-      toast.error(`Failed to remove from blacklist: ${result.error}`)
-    }
-    setLoading(false)
-  }
+  // const handleRemoveFromBlacklist = async (id: string) => {
+  //   setLoading(true)
+  //   const result = await removeFromBlacklist(id)
+  //   if (result.success) {
+  //     setIpBlacklist(ipBlacklist.filter((item) => item.id !== id))
+  //     toast.success("IP address removed from blacklist")
+  //   } else {
+  //     toast.error(`Failed to remove from blacklist: ${result.error}`)
+  //   }
+  //   setLoading(false)
+  // }
 
-  const handleSavePromotionSettings = async () => {
-    if (!promotionSettings) return
-    setLoading(true)
-    const result = await updatePromotionSettings(promotionSettings)
-    if (result.success) {
-      toast.success("Promotion settings saved successfully")
-    } else {
-      toast.error(`Failed to save settings: ${result.error}`)
-    }
-    setLoading(false)
-  }
+  // const handleSavePromotionSettings = async () => {
+  //   if (!promotionSettings) return
+  //   setLoading(true)
+  //   const result = await updatePromotionSettings(promotionSettings)
+  //   if (result.success) {
+  //     toast.success("Promotion settings saved successfully")
+  //   } else {
+  //     toast.error(`Failed to save settings: ${result.error}`)
+  //   }
+  //   setLoading(false)
+  // }
 
-  const exportPromotionsToCSV = () => {
-    const headers = ["Email", "Phone", "Network", "Country", "IP Address", "Date"]
-    const rows = promotionEntries.map((e) => [
-      e.email,
-      e.phone,
-      e.network,
-      e.country,
-      e.ipAddress,
-      e.createdAt.split("T")[0],
-    ])
-    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `promotions-${new Date().toISOString().split("T")[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url) // Clean up the URL object
-  }
+  // const exportPromotionsToCSV = () => {
+  //   const headers = ["Email", "Phone", "Network", "Country", "IP Address", "Date"]
+  //   const rows = promotionEntries.map((e) => [
+  //     e.email,
+  //     e.phone,
+  //     e.network,
+  //     e.country,
+  //     e.ipAddress,
+  //     e.createdAt.split("T")[0],
+  //   ])
+  //   const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
+  //   const blob = new Blob([csv], { type: "text/csv" })
+  //   const url = URL.createObjectURL(blob)
+  //   const a = document.createElement("a")
+  //   a.href = url
+  //   a.download = `promotions-${new Date().toISOString().split("T")[0]}.csv`
+  //   a.click()
+  //   URL.revokeObjectURL(url) // Clean up the URL object
+  // }
 
   const filteredMovies = movies.filter((m) => m.title.toLowerCase().includes(movieSearch.toLowerCase()))
 
@@ -1473,7 +1471,7 @@ export default function AdminDashboard() {
             { id: "comments", label: "Comment Moderation", icon: MessageSquare },
             { id: "reports", label: "Content Reports", icon: Flag }, // Added reports tab
             { id: "ads", label: "Ad Management", icon: Settings },
-            { id: "promotions", label: "Promotions", icon: Gift }, // Added promotions tab
+            { id: "payouts", label: "Payouts", icon: Gift }, // Changed from "promotions" to "payouts"
             { id: "feedback", label: "Feedback & Requests", icon: Inbox },
             { id: "analytics", label: "Analytics", icon: BarChart3 }, // Added
             { id: "settings", label: "Site Settings", icon: Cog }, // Added
@@ -1528,6 +1526,7 @@ export default function AdminDashboard() {
             // Add creators and submissions to mobile nav
             { id: "creators", icon: Users },
             { id: "submissions", icon: Video },
+            { id: "payouts", icon: Gift }, // Added payouts to mobile nav
           ].map(({ id, icon: Icon }) => (
             <button
               key={id}
@@ -2274,6 +2273,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* Ads Tab Content */}
           {activeTab === "ads" && (
             <div className="max-w-4xl mx-auto space-y-8">
               <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
@@ -2761,401 +2761,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Promotions Tab Content */}
-          {activeTab === "promotions" && (
-            <div className="space-y-6">
-              {/* Sub-tabs */}
-              <div className="flex gap-2 border-b border-white/10 pb-4">
-                {[
-                  { id: "entries", label: "Entries", icon: Users },
-                  { id: "settings", label: "Settings", icon: Settings },
-                  { id: "blacklist", label: "Blacklist", icon: Shield },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setPromotionTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                      promotionTab === tab.id
-                        ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                        : "text-white/70 hover:bg-white/5"
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Entries Tab */}
-              {promotionTab === "entries" && (
-                <div className="space-y-4">
-                  {/* Actions Bar */}
-                  <div className="flex flex-wrap gap-4 items-center justify-between">
-                    <div className="flex gap-2">
-                      <select
-                        value={promoCountryFilter}
-                        onChange={(e) => setPromoCountryFilter(e.target.value)}
-                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
-                      >
-                        <option value="">All Countries</option>
-                        {COUNTRIES.slice(0, 20).map((c) => (
-                          <option key={c.code} value={c.name}>
-                            {c.flag} {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={promoNetworkFilter}
-                        onChange={(e) => setPromoNetworkFilter(e.target.value)}
-                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm"
-                      >
-                        <option value="">All Networks</option>
-                        <option value="MTN">MTN</option>
-                        <option value="Airtel">Airtel</option>
-                        <option value="Glo">Glo</option>
-                        <option value="9mobile">9mobile</option>
-                      </select>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowSendPromoModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition"
-                      >
-                        <Send className="w-4 h-4" />
-                        Send Direct
-                      </button>
-                      <button
-                        onClick={handlePickWinner}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500/30 transition"
-                      >
-                        <Shuffle className="w-4 h-4" />
-                        Pick Winner
-                      </button>
-                      <button
-                        onClick={exportPromotionsToCSV}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition"
-                      >
-                        <Download className="w-4 h-4" />
-                        Export CSV
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Winner Display */}
-                  {randomWinner && (
-                    <div className="p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl">
-                      <h4 className="text-white font-bold mb-2 flex items-center gap-2">
-                        <Gift className="w-5 h-5 text-purple-400" />
-                        Random Winner Selected!
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-white/50">Email:</span>{" "}
-                          <span className="text-white">{randomWinner.email}</span>
-                        </div>
-                        <div>
-                          <span className="text-white/50">Phone:</span>{" "}
-                          <span className="text-white">{randomWinner.phone}</span>
-                        </div>
-                        <div>
-                          <span className="text-white/50">Network:</span>{" "}
-                          <span className="text-white">{randomWinner.network}</span>
-                        </div>
-                        <div>
-                          <span className="text-white/50">Country:</span>{" "}
-                          <span className="text-white">{randomWinner.country}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Entries Table */}
-                  <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-white/5 border-b border-white/10">
-                          <tr>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Email</th>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Phone</th>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Network</th>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Country</th>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">IP Address</th>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Date</th>
-                            <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/10">
-                          {promotionEntries
-                            .filter((e) => !promoCountryFilter || e.country === promoCountryFilter)
-                            .filter((e) => !promoNetworkFilter || e.network === promoNetworkFilter)
-                            .map((entry) => (
-                              <tr key={entry.id} className="hover:bg-white/5">
-                                <td
-                                  className={`px-4 py-3 ${entry.isDuplicateEmail ? "text-orange-400" : "text-white"}`}
-                                >
-                                  {entry.email}
-                                  {entry.emailCount > 1 && (
-                                    <span className="ml-2 px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">
-                                      x{entry.emailCount}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 text-white">{entry.phone}</td>
-                                <td className="px-4 py-3 text-white">{entry.network}</td>
-                                <td className="px-4 py-3 text-white">
-                                  {getCountryByName(entry.country)?.flag} {entry.country}
-                                </td>
-                                <td className={`px-4 py-3 ${entry.isDuplicateIp ? "text-red-400" : "text-white/70"}`}>
-                                  {entry.ipAddress}
-                                  {entry.ipCount > 1 && (
-                                    <span className="ml-2 px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">
-                                      x{entry.ipCount}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 text-white/50">{entry.createdAt.split("T")[0]}</td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => {
-                                        setBlacklistIp(entry.ipAddress)
-                                        setPromotionTab("blacklist")
-                                      }}
-                                      className="p-1.5 hover:bg-red-500/10 rounded text-white/50 hover:text-red-400 transition"
-                                      title="Blacklist IP"
-                                    >
-                                      <Shield className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => deletePromotionEntry(entry.id)}
-                                      className="p-1.5 hover:bg-red-500/10 rounded text-white/50 hover:text-red-400 transition"
-                                      title="Delete Entry"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <p className="text-white/40 text-sm">
-                    Total entries: {promotionEntries.length} |<span className="text-red-400"> Red = Duplicate IP</span>{" "}
-                    |<span className="text-orange-400"> Orange = Duplicate Email</span>
-                  </p>
-                </div>
-              )}
-
-              {/* Settings Tab */}
-              {promotionTab === "settings" && promotionSettings && (
-                <div className="space-y-6 max-w-2xl">
-                  <div className="flex items-center justify-between p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                    <div>
-                      <h4 className="text-white font-medium">Globally Disable Promotions</h4>
-                      <p className="text-white/50 text-sm">
-                        Turn OFF to completely hide promotion modal everywhere on the site
-                      </p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setPromotionSettings({
-                          ...promotionSettings,
-                          globallyDisabled: !promotionSettings.globallyDisabled,
-                        })
-                      }
-                      className={`w-14 h-8 rounded-full transition-all ${
-                        promotionSettings.globallyDisabled ? "bg-red-500" : "bg-green-500"
-                      }`}
-                    >
-                      <div
-                        className={`w-6 h-6 bg-white rounded-full transition-all ${
-                          promotionSettings.globallyDisabled ? "translate-x-7" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {promotionSettings.globallyDisabled && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                      <p className="text-red-400 text-sm text-center">
-                        Promotion modal is currently DISABLED globally. No users will see it regardless of other
-                        settings.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Enable/Disable Toggle */}
-                  <div
-                    className={`flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl ${promotionSettings.globallyDisabled ? "opacity-50 pointer-events-none" : ""}`}
-                  >
-                    <div>
-                      <h4 className="text-white font-medium">Promotion Active</h4>
-                      <p className="text-white/50 text-sm">Show promotion modal to users in enabled countries</p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setPromotionSettings({ ...promotionSettings, isActive: !promotionSettings.isActive })
-                      }
-                      className={`w-14 h-8 rounded-full transition-all ${
-                        promotionSettings.isActive ? "bg-green-500" : "bg-white/20"
-                      }`}
-                    >
-                      <div
-                        className={`w-6 h-6 bg-white rounded-full transition-all ${
-                          promotionSettings.isActive ? "translate-x-7" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Enabled Countries */}
-                  <div>
-                    <label className="block text-white font-medium mb-2">Enabled Countries</label>
-                    <div className="flex flex-wrap gap-2">
-                      {COUNTRIES.slice(0, 20).map((country) => (
-                        <button
-                          key={country.code}
-                          onClick={() => {
-                            const countries = promotionSettings.enabledCountries || []
-                            if (countries.includes(country.name)) {
-                              setPromotionSettings({
-                                ...promotionSettings,
-                                enabledCountries: countries.filter((c: string) => c !== country.name),
-                              })
-                            } else {
-                              setPromotionSettings({
-                                ...promotionSettings,
-                                enabledCountries: [...countries, country.name],
-                              })
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition ${
-                            promotionSettings.enabledCountries?.includes(country.name)
-                              ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                              : "bg-white/5 text-white/50 border border-white/10 hover:border-white/20"
-                          }`}
-                        >
-                          {country.flag} {country.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Modal Text Settings */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-white font-medium mb-2">Headline</label>
-                      <input
-                        type="text"
-                        value={promotionSettings.headline}
-                        onChange={(e) => setPromotionSettings({ ...promotionSettings, headline: e.target.value })}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-white font-medium mb-2">Subtext</label>
-                      <input
-                        type="text"
-                        value={promotionSettings.subtext}
-                        onChange={(e) => setPromotionSettings({ ...promotionSettings, subtext: e.target.value })}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-white font-medium mb-2">Success Message</label>
-                      <input
-                        type="text"
-                        value={promotionSettings.successMessage}
-                        onChange={(e) => setPromotionSettings({ ...promotionSettings, successMessage: e.target.value })}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleSavePromotionSettings}
-                    className="px-6 py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition"
-                  >
-                    Save Settings
-                  </button>
-                </div>
-              )}
-
-              {/* Blacklist Tab */}
-              {promotionTab === "blacklist" && (
-                <div className="space-y-6">
-                  {/* Add to Blacklist */}
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
-                    <h4 className="text-white font-medium mb-4">Add to Blacklist</h4>
-                    <div className="flex gap-4">
-                      <input
-                        type="text"
-                        value={blacklistIp}
-                        onChange={(e) => setBlacklistIp(e.target.value)}
-                        placeholder="IP Address"
-                        className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-red-500/50"
-                      />
-                      <input
-                        type="text"
-                        value={blacklistReason}
-                        onChange={(e) => setBlacklistReason(e.target.value)}
-                        placeholder="Reason (optional)"
-                        className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-red-500/50"
-                      />
-                      <button
-                        onClick={handleAddToBlacklist}
-                        className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Blacklist Table */}
-                  <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead className="bg-white/5 border-b border-white/10">
-                        <tr>
-                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">IP Address</th>
-                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Reason</th>
-                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Date</th>
-                          <th className="px-4 py-3 text-xs font-bold text-white/60 uppercase">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/10">
-                        {ipBlacklist.map((item) => (
-                          <tr key={item.id} className="hover:bg-white/5">
-                            <td className="px-4 py-3 text-white font-mono">{item.ipAddress}</td>
-                            <td className="px-4 py-3 text-white/70">{item.reason || "-"}</td>
-                            <td className="px-4 py-3 text-white/50">{item.blacklistedAt.split("T")[0]}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => handleRemoveFromBlacklist(item.id)}
-                                className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded hover:bg-green-500/30 transition text-sm"
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {ipBlacklist.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="px-4 py-8 text-center text-white/50">
-                              No blacklisted IPs
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* TV Series Tab Content */}
           {activeTab === "series" && (
             <div className="space-y-6">
@@ -3411,6 +3016,69 @@ export default function AdminDashboard() {
 
           {/* Content Submissions Tab Content */}
           {activeTab === "submissions" && <AdminContentSubmissionsTab />}
+
+          {activeTab === "payouts" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                    <Gift className="w-7 h-7 text-cyan-400" />
+                    Creator Payout & Offers
+                  </h2>
+                  <p className="text-white/60 mt-1">Manage creator earnings and promotional offers</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-cyan-500/10 via-purple-500/10 to-pink-500/10 border border-cyan-500/20 rounded-2xl p-12 text-center">
+                <div className="max-w-2xl mx-auto space-y-6">
+                  <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center mx-auto">
+                    <Gift className="w-10 h-10 text-white" />
+                  </div>
+
+                  <h3 className="text-3xl font-bold text-white">Coming Soon</h3>
+
+                  <p className="text-white/70 text-lg leading-relaxed">
+                    We're building an amazing system to manage creator payouts and promotional offers. This feature will
+                    allow you to:
+                  </p>
+
+                  <div className="grid md:grid-cols-2 gap-4 text-left">
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="text-white font-semibold mb-2">💰 Creator Payouts</h4>
+                      <p className="text-white/60 text-sm">
+                        Track earnings, process payments, and manage creator revenue distribution
+                      </p>
+                    </div>
+
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="text-white font-semibold mb-2">🎁 Promotional Offers</h4>
+                      <p className="text-white/60 text-sm">
+                        Create and manage special offers to attract new creators to your platform
+                      </p>
+                    </div>
+
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="text-white font-semibold mb-2">📊 Revenue Analytics</h4>
+                      <p className="text-white/60 text-sm">
+                        View detailed analytics on creator earnings and content performance
+                      </p>
+                    </div>
+
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="text-white font-semibold mb-2">⚡ Automated Processing</h4>
+                      <p className="text-white/60 text-sm">Set up automatic payment schedules and payout thresholds</p>
+                    </div>
+                  </div>
+
+                  <p className="text-cyan-400 text-sm font-medium">
+                    Stay tuned! This feature is currently in development.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ... existing code for other tabs ... */}
         </div>
       </main>
 

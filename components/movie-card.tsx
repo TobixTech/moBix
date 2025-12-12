@@ -6,6 +6,8 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import StarRating from "./star-rating"
 
+const FALLBACK_IMAGE = "https://tobixtech.publit.io/file/c40f28e7-7aa2-4b52-b6e1-cd5ea614cbb5-1765441385263.png"
+
 interface MovieCardProps {
   movie: {
     id: string
@@ -24,6 +26,7 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isTouched, setIsTouched] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   const movieUrl = movie.slug ? `/movie/${movie.slug}` : `/movie/${movie.id}`
   const rating =
@@ -55,12 +58,16 @@ export default function MovieCard({ movie, progress }: MovieCardProps) {
           <div className="absolute inset-0 bg-gradient-to-r from-[#1A1B23] via-[#2A2B33] to-[#1A1B23] animate-pulse" />
         )}
         <motion.img
-          src={movie.posterUrl || `/placeholder.svg?height=288&width=192&query=movie poster ${movie.title}`}
+          src={imageError ? FALLBACK_IMAGE : movie.posterUrl || FALLBACK_IMAGE}
           alt={movie.title}
           className="w-full h-full object-cover"
           animate={{ scale: showOverlay ? 1.05 : 1 }}
           transition={{ duration: 0.3 }}
           onLoad={() => setIsLoading(false)}
+          onError={() => {
+            setImageError(true)
+            setIsLoading(false)
+          }}
           loading="lazy"
         />
 
