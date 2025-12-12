@@ -65,45 +65,50 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
 
   return (
     <div
-      className={`flex items-center justify-center bg-[#1A1B23] border border-[#2A2B33] rounded-lg overflow-hidden mx-auto ${className}`}
+      className={`flex items-center justify-center bg-gradient-to-br from-[#1A1B23]/50 to-[#0F1018]/50 border border-[#2A2B33] rounded-lg overflow-hidden mx-auto backdrop-blur-sm ${className}`}
       style={{
         maxWidth: isHorizontal ? "728px" : "300px",
         width: "100%",
       }}
     >
-      <iframe
-        srcDoc={`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body {
-                margin: 0;
-                padding: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 100%;
-                background: transparent;
-                overflow: hidden;
-              }
-            </style>
-          </head>
-          <body>
-            ${adCode}
-          </body>
-          </html>
-        `}
-        className="w-full"
-        style={{
-          border: "none",
-          height: isHorizontal ? "90px" : "250px",
-        }}
-        scrolling="no"
-        title="Advertisement"
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-      />
+      <div className="relative w-full">
+        <div className="absolute top-1 left-1 bg-yellow-500/90 text-black text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
+          AD
+        </div>
+        <iframe
+          srcDoc={`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                  margin: 0;
+                  padding: 8px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100%;
+                  background: transparent;
+                  overflow: hidden;
+                }
+              </style>
+            </head>
+            <body>
+              ${adCode}
+            </body>
+            </html>
+          `}
+          className="w-full"
+          style={{
+            border: "none",
+            height: isHorizontal ? "90px" : "250px",
+          }}
+          scrolling="no"
+          title="Advertisement"
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+        />
+      </div>
     </div>
   )
 }

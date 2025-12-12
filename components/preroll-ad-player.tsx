@@ -139,9 +139,10 @@ export default function PrerollAdPlayer({
   return (
     <div className="absolute inset-0 bg-[#0B0C10] z-40 flex flex-col">
       {/* Ad Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+      <div className="flex items-center justify-between px-4 py-3 bg-black/80 border-b border-white/10">
         <div className="flex items-center gap-3">
           <span className="text-xs text-white/60 uppercase tracking-wider">Advertisement</span>
+          <span className="bg-yellow-500/90 text-black text-xs font-bold px-2 py-0.5 rounded">AD</span>
           {adCodes.length > 1 && (
             <span className="text-xs text-[#00FFFF]">
               {currentAdIndex + 1} / {adCodes.length}
@@ -153,11 +154,13 @@ export default function PrerollAdPlayer({
           <button
             onClick={canSkip ? handleSkip : undefined}
             disabled={!canSkip}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              canSkip ? "bg-white/20 hover:bg-white/30 text-white/80" : "bg-white/5 text-white/30 cursor-not-allowed"
+            className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+              canSkip
+                ? "bg-white/10 hover:bg-white/20 text-white/70 hover:text-white"
+                : "bg-white/5 text-white/30 cursor-not-allowed"
             }`}
           >
-            {canSkip ? `Skip →` : `${skipTimeLeft}s`}
+            {canSkip ? `Skip` : `${skipTimeLeft}s`}
           </button>
         </div>
       </div>
