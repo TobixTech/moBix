@@ -2,6 +2,8 @@ import { pgTable, text, integer, boolean, timestamp, primaryKey, decimal } from 
 import { relations, sql } from "drizzle-orm"
 import { creatorStrikes, dailyUploadTracking } from "./otherTables" // Assuming these are declared in another file
 
+export { creatorStrikes, dailyUploadTracking }
+
 // Users
 export const users = pgTable("User", {
   id: text("id")
@@ -840,3 +842,249 @@ export const creatorAnalytics = pgTable("CreatorAnalytics", {
   likes: integer("likes").default(0).notNull(),
   favorites: integer("favorites").default(0).notNull(),
 })
+
+// Creator Wallets (crypto wallet management)
+export const creatorWallets = pgTable("CreatorWallet", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().unique(),
+  cryptoType: text("cryptoType").notNull(), // 'SOL', 'TRC20', 'BEP20'
+  walletAddress: text("walletAddress").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
+  canChangeAt: timestamp("canChangeAt").notNull(), // 3 weeks from last change
+  changeHistory: text("changeHistory").default("[]").notNull(), // JSON array of previous addresses
+})
+
+export const creatorWalletsRelations = relations(creatorWallets, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorWallets.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Withdrawal PINs (security for withdrawals)
+export const creatorWithdrawalPins = pgTable("CreatorWithdrawalPin", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().unique(),
+  pinHash: text("pinHash").notNull(), // bcrypt hashed PIN
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
+})
+
+export const creatorWithdrawalPinsRelations = relations(creatorWithdrawalPins, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorWithdrawalPins.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Earnings (tracks all earnings from content views)
+export const creatorEarnings = pgTable("CreatorEarning", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  contentId: text("contentId").notNull(),
+  contentType: text("contentType").notNull(), // 'movie' or 'series'
+  date: timestamp("date").notNull(),
+  views: integer("views").default(0).notNull(),
+  earningsUsd: decimal("earningsUsd", { precision: 10, scale: 4 }).default("0").notNull(),
+  tierRate: decimal("tierRate", { precision: 10, scale: 6 }).notNull(),
+  bonusMultiplier: decimal("bonusMultiplier", { precision: 3, scale: 2 }).default("1.00").notNull(),
+  isPaid: boolean("isPaid").default(false).notNull(),
+  calculatedAt: timestamp("calculatedAt").defaultNow().notNull(),
+  weekNumber: integer("weekNumber").notNull(), // week of year
+})
+
+export const creatorEarningsRelations = relations(creatorEarnings, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorEarnings.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Tiers (Bronze, Silver, Gold, Platinum)
+export const creatorTiers = pgTable("CreatorTier", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().unique(),
+  tierLevel: text("tierLevel").notNull(), // 'bronze', 'silver', 'gold', 'platinum'
+  totalViews: integer("totalViews").default(0).notNull(),
+  ratePerView: decimal("ratePerView", { precision: 10, scale: 6 }).notNull(),
+  requestedAt: timestamp("requestedAt"),
+  approvedAt: timestamp("approvedAt").defaultNow().notNull(),
+  approvedBy: text("approvedBy"), // adminId
+})
+
+export const creatorTiersRelations = relations(creatorTiers, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorTiers.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Settings (payout settings and limits)
+export const creatorSettings = pgTable("CreatorSetting", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().unique(),
+  monthlyWithdrawalLimit: decimal("monthlyWithdrawalLimit", { precision: 10, scale: 2 }).default("100.00").notNull(),
+  holdingPeriodDays: integer("holdingPeriodDays").default(7).notNull(),
+  canWithdraw: boolean("canWithdraw").default(true).notNull(),
+  isPremium: boolean("isPremium").default(false).notNull(),
+  pausedBy: text("pausedBy"), // adminId who paused
+  pausedReason: text("pausedReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const creatorSettingsRelations = relations(creatorSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorSettings.userId],
+    references: [users.id],
+  }),
+}))
+
+// Payout Requests (withdrawal requests from creators)
+export const payoutRequests = pgTable("PayoutRequest", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  amountUsd: decimal("amountUsd", { precision: 10, scale: 2 }).notNull(),
+  cryptoType: text("cryptoType").notNull(), // 'SOL', 'TRC20', 'BEP20'
+  walletAddress: text("walletAddress").notNull(),
+  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected', 'completed'
+  requestedAt: timestamp("requestedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+  processedBy: text("processedBy"), // adminId
+  adminNote: text("adminNote"),
+  transactionHash: text("transactionHash"),
+  rejectionReason: text("rejectionReason"),
+})
+
+export const payoutRequestsRelations = relations(payoutRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [payoutRequests.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Notifications (system notifications for creators)
+export const creatorNotifications = pgTable("CreatorNotification", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  type: text("type").notNull(), // 'payout', 'tier_upgrade', 'offer', 'strike', 'system'
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("isRead").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+})
+
+export const creatorNotificationsRelations = relations(creatorNotifications, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorNotifications.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator View Analytics (detailed view tracking)
+export const creatorViewAnalytics = pgTable("CreatorViewAnalytic", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  contentId: text("contentId").notNull(),
+  contentType: text("contentType").notNull(), // 'movie' or 'series'
+  date: timestamp("date").notNull(),
+  country: text("country"),
+  deviceType: text("deviceType"), // 'mobile', 'desktop', 'tablet'
+  viewSource: text("viewSource"), // 'search', 'browse', 'home', 'direct'
+  viewCount: integer("viewCount").default(1).notNull(),
+})
+
+export const creatorViewAnalyticsRelations = relations(creatorViewAnalytics, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorViewAnalytics.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Fraud Flags (security and fraud detection)
+export const creatorFraudFlag = pgTable("CreatorFraudFlag", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  flagType: text("flagType").notNull(), // 'duplicate_content', 'pirated_content', 'suspicious_activity', 'multiple_accounts'
+  severity: text("severity").notNull(), // 'low', 'medium', 'high', 'critical'
+  description: text("description").notNull(),
+  contentId: text("contentId"),
+  isResolved: boolean("isResolved").default(false).notNull(),
+  flaggedAt: timestamp("flaggedAt").defaultNow().notNull(),
+  resolvedAt: timestamp("resolvedAt"),
+  resolvedBy: text("resolvedBy"), // adminId
+  resolutionNote: text("resolutionNote"),
+})
+
+export const creatorFraudFlagRelations = relations(creatorFraudFlag, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorFraudFlag.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator IP Logs (track IP addresses for security)
+export const creatorIPLog = pgTable("CreatorIPLog", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  ipAddress: text("ipAddress").notNull(),
+  action: text("action").notNull(), // 'login', 'upload', 'withdrawal_request', 'wallet_change'
+  country: text("country"),
+  city: text("city"),
+  device: text("device"),
+  browser: text("browser"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+})
+
+export const creatorIPLogRelations = relations(creatorIPLog, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorIPLog.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Chargeback (reversal of payouts)
+export const creatorChargeback = pgTable("CreatorChargeback", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull(),
+  payoutRequestId: text("payoutRequestId").notNull(),
+  amountUsd: decimal("amountUsd", { precision: 10, scale: 2 }).notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").default("pending").notNull(), // 'pending', 'completed', 'rejected'
+  initiatedBy: text("initiatedBy").notNull(), // adminId
+  initiatedAt: timestamp("initiatedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+})
+
+export const creatorChargebackRelations = relations(creatorChargeback, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorChargeback.userId],
+    references: [users.id],
+  }),
+  payoutRequest: one(payoutRequests, {
+    fields: [creatorChargeback.payoutRequestId],
+    references: [payoutRequests.id],
+  }),
+}))
