@@ -5,6 +5,7 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import Image from "next/image"
+import NativeAdCard from "./native-ad-card"
 
 interface ContinueWatchingMovie {
   id: string
@@ -20,9 +21,17 @@ interface ContinueWatchingMovie {
 
 interface ContinueWatchingCarouselProps {
   movies: ContinueWatchingMovie[]
+  showInlineAds?: boolean
+  inlineAdCode?: string
+  adInterval?: number
 }
 
-export default function ContinueWatchingCarousel({ movies }: ContinueWatchingCarouselProps) {
+export default function ContinueWatchingCarousel({
+  movies,
+  showInlineAds = false,
+  inlineAdCode,
+  adInterval = 2,
+}: ContinueWatchingCarouselProps) {
   const [scrollPosition, setScrollPosition] = useState(0)
 
   if (movies.length === 0) return null
@@ -36,6 +45,22 @@ export default function ContinueWatchingCarousel({ movies }: ContinueWatchingCar
       setScrollPosition(newPosition)
     }
   }
+
+  const buildCarouselItems = () => {
+    const items: { type: "movie" | "ad"; data?: ContinueWatchingMovie; index: number }[] = []
+
+    movies.forEach((movie, index) => {
+      items.push({ type: "movie", data: movie, index })
+
+      if (showInlineAds && inlineAdCode && (index + 1) % adInterval === 0 && index < movies.length - 1) {
+        items.push({ type: "ad", index: index + 0.5 })
+      }
+    })
+
+    return items
+  }
+
+  const carouselItems = buildCarouselItems()
 
   return (
     <motion.div
@@ -76,47 +101,50 @@ export default function ContinueWatchingCarousel({ movies }: ContinueWatchingCar
           className="flex gap-4 overflow-x-auto scroll-smooth pb-4 scrollbar-hide"
           style={{ scrollBehavior: "smooth" }}
         >
-          {movies.map((movie, index) => (
+          {carouselItems.map((item, index) => (
             <motion.div
-              key={movie.id}
+              key={item.type === "movie" ? item.data!.id : `ad-${index}`}
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: index * 0.05 }}
               viewport={{ once: true }}
               className="flex-shrink-0"
             >
-              <Link href={`/movie/${movie.slug || movie.id}`} className="block group/card">
-                <div className="relative w-[180px] h-[270px] rounded-lg overflow-hidden">
-                  <Image
-                    src={movie.posterUrl || "/placeholder.svg?height=270&width=180&query=movie poster"}
-                    alt={movie.title}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover/card:scale-105"
-                  />
+              {item.type === "movie" ? (
+                <Link href={`/movie/${item.data!.slug || item.data!.id}`} className="block group/card">
+                  <div className="relative w-[180px] h-[270px] rounded-lg overflow-hidden">
+                    <Image
+                      src={item.data!.posterUrl || "/placeholder.svg?height=270&width=180&query=movie poster"}
+                      alt={item.data!.title}
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover/card:scale-105"
+                    />
 
-                  {/* Dark overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
-                  {/* Play button overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/card:opacity-100 transition-opacity">
-                    <div className="bg-[#00FFFF] rounded-full p-3">
-                      <Play className="w-8 h-8 text-[#0B0C10] fill-current" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/card:opacity-100 transition-opacity">
+                      <div className="bg-[#00FFFF] rounded-full p-3">
+                        <Play className="w-8 h-8 text-[#0B0C10] fill-current" />
+                      </div>
+                    </div>
+
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <p className="text-white font-medium text-sm mb-2 line-clamp-1">{item.data!.title}</p>
+                      <div className="w-full h-1.5 bg-[#1A1B23] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#00FFFF] rounded-full transition-all"
+                          style={{ width: `${item.data!.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-[#888888] text-xs mt-1">{item.data!.progress}% watched</p>
                     </div>
                   </div>
-
-                  {/* Progress bar */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3">
-                    <p className="text-white font-medium text-sm mb-2 line-clamp-1">{movie.title}</p>
-                    <div className="w-full h-1.5 bg-[#1A1B23] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#00FFFF] rounded-full transition-all"
-                        style={{ width: `${movie.progress}%` }}
-                      />
-                    </div>
-                    <p className="text-[#888888] text-xs mt-1">{movie.progress}% watched</p>
-                  </div>
+                </Link>
+              ) : (
+                <div className="w-[180px]">
+                  <NativeAdCard adCode={inlineAdCode} />
                 </div>
-              </Link>
+              )}
             </motion.div>
           ))}
         </div>

@@ -37,12 +37,12 @@ export default function NativeAdCard({ adCode }: NativeAdCardProps) {
           <style>
             body {
               margin: 0;
-              padding: 0;
+              padding: 8px;
               display: flex;
               align-items: center;
               justify-content: center;
               min-height: 100%;
-              background: transparent;
+              background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
               overflow: hidden;
             }
           </style>
@@ -67,10 +67,10 @@ export default function NativeAdCard({ adCode }: NativeAdCardProps) {
       transition={{ duration: 0.5 }}
       viewport={{ once: true }}
     >
-      <div className="relative bg-gradient-to-br from-[#00FFFF]/10 to-[#00CCCC]/5 border border-[#00FFFF]/30 rounded-lg overflow-hidden hover:border-[#00FFFF] hover:shadow-lg hover:shadow-[#00FFFF]/20 transition-all duration-300 w-full aspect-[2/3]">
+      <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/20 rounded-lg overflow-hidden hover:border-cyan-500 hover:shadow-lg hover:shadow-cyan-500/20 transition-all duration-300 w-full aspect-[2/3]">
         {/* Ad Badge */}
-        <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 bg-[#00FFFF]/20 backdrop-blur-sm rounded text-[#00FFFF] text-[10px] font-bold">
-          Ad
+        <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-cyan-500 text-black text-xs font-bold rounded shadow-lg">
+          AD
         </div>
 
         {/* Ad Content Container */}
@@ -79,15 +79,15 @@ export default function NativeAdCard({ adCode }: NativeAdCardProps) {
         {/* Loading state */}
         {!adLoaded && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-[#00FFFF]/20 border-t-[#00FFFF] rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
           </div>
         )}
 
         {/* Sponsored Label at Bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
           <div className="flex items-center justify-between">
-            <span className="text-white/70 text-[10px] font-medium">Sponsored</span>
-            <ExternalLink className="w-3 h-3 text-[#00FFFF]" />
+            <span className="text-white/70 text-xs font-medium">Sponsored Content</span>
+            <ExternalLink className="w-3 h-3 text-cyan-500" />
           </div>
         </div>
       </div>

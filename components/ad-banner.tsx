@@ -65,14 +65,14 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
 
   return (
     <div
-      className={`flex items-center justify-center bg-[#1A1B23] border border-cyan-500/10 rounded-lg overflow-hidden mx-auto ${className}`}
+      className={`flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 border border-cyan-500/20 rounded-lg overflow-hidden mx-auto ${className}`}
       style={{
         maxWidth: isHorizontal ? "728px" : "300px",
         width: "100%",
       }}
     >
       <div className="relative w-full">
-        <div className="absolute top-1 left-1 bg-cyan-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
+        <div className="absolute top-2 left-2 bg-cyan-500 text-black text-xs font-bold px-2 py-1 rounded-md z-10 shadow-lg">
           AD
         </div>
         <iframe
@@ -84,12 +84,12 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body {
                   margin: 0;
-                  padding: 8px;
+                  padding: 12px;
                   display: flex;
                   align-items: center;
                   justify-content: center;
                   min-height: 100%;
-                  background: #1A1B23;
+                  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                   overflow: hidden;
                 }
               </style>
@@ -102,7 +102,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
           className="w-full"
           style={{
             border: "none",
-            height: isHorizontal ? "90px" : "250px",
+            height: isHorizontal ? "100px" : "260px",
           }}
           scrolling="no"
           title="Advertisement"

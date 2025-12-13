@@ -82,7 +82,14 @@ export default async function AuthenticatedHomePage() {
       <HeroBanner movies={heroMovies} series={heroSeries} />
 
       <div className="px-4 md:px-8 py-8 space-y-12">
-        {continueWatching && continueWatching.length > 0 && <ContinueWatchingCarousel movies={continueWatching} />}
+        {continueWatching && continueWatching.length > 0 && (
+          <ContinueWatchingCarousel
+            movies={continueWatching}
+            showInlineAds={showInlineAds}
+            inlineAdCode={inlineAdCode}
+            adInterval={2}
+          />
+        )}
 
         {!isPremiumUser && <AdBanner type="horizontal" placement="homepage" className="mb-4" />}
 

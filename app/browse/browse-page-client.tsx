@@ -83,6 +83,18 @@ export default function BrowsePageClient({ movies, genres, initialGenre }: Brows
     return result
   }, [movies, selectedGenres, sortBy])
 
+  const moviesWithAds = useMemo(() => {
+    const items: Array<{ type: "movie" | "ad"; movie?: Movie; index: number }> = []
+    filteredAndSortedMovies.forEach((movie, index) => {
+      items.push({ type: "movie", movie, index })
+      // Add ad after every 12 movies
+      if ((index + 1) % 12 === 0 && index < filteredAndSortedMovies.length - 1) {
+        items.push({ type: "ad", index: index + 0.5 })
+      }
+    })
+    return items
+  }, [filteredAndSortedMovies])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -204,16 +216,21 @@ export default function BrowsePageClient({ movies, genres, initialGenre }: Brows
 
       <AdBannerClient type="horizontal" placement="homepage" />
 
-      {filteredAndSortedMovies.length > 0 ? (
+      {moviesWithAds.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-          {filteredAndSortedMovies.map((movie, index) => (
+          {moviesWithAds.map((item, index) => (
             <motion.div
-              key={movie.id}
+              key={item.type === "movie" ? item.movie!.id : `ad-${index}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.3) }}
+              className={item.type === "ad" ? "col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6" : ""}
             >
-              <MovieCard movie={movie} />
+              {item.type === "movie" ? (
+                <MovieCard movie={item.movie!} />
+              ) : (
+                <AdBannerClient type="horizontal" placement="homepage" />
+              )}
             </motion.div>
           ))}
         </div>

@@ -15,8 +15,7 @@ export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
   const [clickCount, setClickCount] = useState(0)
   const [showAd, setShowAd] = useState(false)
   const [adCode, setAdCode] = useState<string>("")
-  const [clickPattern] = useState([2, 3]) // 2 clicks, then 3 clicks, repeat pattern
-  const [patternIndex, setPatternIndex] = useState(0)
+  const [clickThreshold] = useState(2)
 
   useEffect(() => {
     fetch("/api/ad-settings")
@@ -39,19 +38,16 @@ export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
     }
 
     const newCount = clickCount + 1
-    const targetClicks = clickPattern[patternIndex]
+    console.log("[v0] Card click tracked:", newCount, "/", clickThreshold)
 
-    console.log("[v0] Card click tracked:", newCount, "/", targetClicks)
-
-    if (newCount >= targetClicks) {
-      console.log("[v0] Showing interstitial ad")
+    if (newCount >= clickThreshold) {
+      console.log("[v0] Showing interstitial ad after", clickThreshold, "clicks")
       setShowAd(true)
       setClickCount(0)
-      setPatternIndex((prev) => (prev + 1) % clickPattern.length)
     } else {
       setClickCount(newCount)
     }
-  }, [clickCount, patternIndex, clickPattern, adCode])
+  }, [clickCount, clickThreshold, adCode])
 
   const trackButtonClick = useCallback(
     (buttonName: string) => {
@@ -66,7 +62,6 @@ export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
 
   const resetClickCount = useCallback(() => {
     setClickCount(0)
-    setPatternIndex(0)
   }, [])
 
   return (
