@@ -482,6 +482,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!pinVerified) return
+
       setLoading(true)
       try {
         const [
@@ -494,6 +496,7 @@ export default function AdminDashboard() {
           feedbackData,
           reportsData,
           seriesData,
+          adSettingsData,
           settingsData,
           analyticsDataResponse,
           creatorsData,
@@ -508,6 +511,7 @@ export default function AdminDashboard() {
           getFeedbackEntries(),
           getContentReports(),
           getAdminSeries(),
+          getAdSettings(),
           getSiteSettings(),
           getAnalyticsData(),
           getAdminCreators(),
@@ -521,37 +525,28 @@ export default function AdminDashboard() {
         setUsers(usersData)
         setFeedback(feedbackData)
         setComments(commentsData)
-        // Change from:
-        // if (reportsData.success) {
-        //   setContentReports(reportsData.reports as ContentReport[])
-        // }
-        // to:
         setContentReports(reportsData as unknown as ContentReport[])
-        setSeries(seriesData) // Set series data
-
-        // This adSettingsData variable was undeclared in the original useEffect, now it's correctly fetched and used.
-        const adSettingsData = await getAdSettings() // Fetch ad settings here
+        setSeries(seriesData)
 
         if (adSettingsData) {
           setAdSettings({
             horizontalAdCode: adSettingsData.horizontalAdCode || "",
             verticalAdCode: adSettingsData.verticalAdCode || "",
-            // Parse prerollAdCodes from string to array
             prerollAdCodes: adSettingsData.prerollAdCodes ? JSON.parse(adSettingsData.prerollAdCodes) : [],
-            // Parse midrollAdCodes from string to array
             midrollAdCodes: adSettingsData.midrollAdCodes ? JSON.parse(adSettingsData.midrollAdCodes) : [],
             smartLinkUrl: adSettingsData.smartLinkUrl || "",
             adTimeout: adSettingsData.adTimeoutSeconds || 20,
-            skipDelay: adSettingsData.skipDelaySeconds || 10, // Added skipDelay
-            rotationInterval: adSettingsData.rotationIntervalSeconds || 5, // Added rotationInterval
-            midrollIntervalMinutes: adSettingsData.midrollIntervalMinutes || 20, // Added midrollIntervalMinutes
+            skipDelay: adSettingsData.skipDelaySeconds || 10,
+            rotationInterval: adSettingsData.rotationIntervalSeconds || 5,
+            midrollIntervalMinutes: adSettingsData.midrollIntervalMinutes || 20,
             showPrerollAds: adSettingsData.showPrerollAds ?? true,
-            showMidrollAds: adSettingsData.showMidrollAds ?? false, // Added showMidrollAds
+            showMidrollAds: adSettingsData.showMidrollAds ?? false,
             showHomepageAds: adSettingsData.homepageEnabled ?? true,
             showMovieDetailAds: adSettingsData.movieDetailEnabled ?? true,
-            showDashboardAds: adSettingsData.dashboardEnabled ?? true, // Added showDashboardAds
+            showDashboardAds: adSettingsData.dashboardEnabled ?? true,
           })
         }
+
         setSiteSettings(settingsData || {})
         setAnalyticsData(analyticsDataResponse || null)
         setCreators(creatorsData)
@@ -565,10 +560,10 @@ export default function AdminDashboard() {
       }
     }
 
-    if (pinVerified) {
-      fetchData()
-    }
-  }, [pinVerified, lastRefresh])
+    fetchData()
+  }, [pinVerified]) // Only depends on pinVerified, removed lastRefresh dependency to prevent loop
+
+  // The three separate useEffects have been consolidated into one above
 
   // Fetch analytics and site settings data
   useEffect(() => {
