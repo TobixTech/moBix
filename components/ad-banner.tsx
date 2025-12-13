@@ -65,7 +65,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
 
   return (
     <div
-      className={`flex items-center justify-center bg-transparent border border-cyan-500/10 rounded-lg overflow-hidden mx-auto ${className}`}
+      className={`flex items-center justify-center bg-[#1A1B23] border border-cyan-500/10 rounded-lg overflow-hidden mx-auto ${className}`}
       style={{
         maxWidth: isHorizontal ? "728px" : "300px",
         width: "100%",
@@ -89,7 +89,7 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
                   align-items: center;
                   justify-content: center;
                   min-height: 100%;
-                  background: transparent;
+                  background: #1A1B23;
                   overflow: hidden;
                 }
               </style>

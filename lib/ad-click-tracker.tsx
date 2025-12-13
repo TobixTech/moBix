@@ -15,27 +15,36 @@ export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
   const [clickCount, setClickCount] = useState(0)
   const [showAd, setShowAd] = useState(false)
   const [adCode, setAdCode] = useState<string>("")
-  const [clickPattern] = useState([2, 3]) // 2 clicks, then 3 clicks, repeat
+  const [clickPattern] = useState([2, 3]) // 2 clicks, then 3 clicks, repeat pattern
   const [patternIndex, setPatternIndex] = useState(0)
 
   useEffect(() => {
     fetch("/api/ad-settings")
       .then((res) => res.json())
       .then((data) => {
-        if (data.interstitialAdCode) {
+        if (data?.interstitialAdCode && data.interstitialAdCode.trim() !== "") {
+          console.log("[v0] Interstitial ad code loaded successfully")
           setAdCode(data.interstitialAdCode)
+        } else {
+          console.log("[v0] No interstitial ad code found in settings")
         }
       })
-      .catch((err) => console.error("Failed to load ad settings:", err))
+      .catch((err) => console.error("[v0] Failed to load ad settings:", err))
   }, [])
 
   const trackCardClick = useCallback(() => {
+    if (!adCode || adCode.trim() === "") {
+      console.log("[v0] No ad code available, skipping interstitial")
+      return
+    }
+
     const newCount = clickCount + 1
     const targetClicks = clickPattern[patternIndex]
 
-    console.log("[v0] Card click tracked:", newCount, "Target:", targetClicks)
+    console.log("[v0] Card click tracked:", newCount, "/", targetClicks)
 
-    if (newCount >= targetClicks && adCode) {
+    if (newCount >= targetClicks) {
+      console.log("[v0] Showing interstitial ad")
       setShowAd(true)
       setClickCount(0)
       setPatternIndex((prev) => (prev + 1) % clickPattern.length)
@@ -47,8 +56,8 @@ export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
   const trackButtonClick = useCallback(
     (buttonName: string) => {
       console.log("[v0] Button click tracked:", buttonName)
-      if (adCode && Math.random() < 0.3) {
-        // 30% chance to show ad on button clicks
+      if (adCode && adCode.trim() !== "" && Math.random() < 0.3) {
+        console.log("[v0] Showing interstitial ad from button click")
         setShowAd(true)
       }
     },
@@ -63,7 +72,7 @@ export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
   return (
     <AdClickTrackerContext.Provider value={{ trackCardClick, trackButtonClick, resetClickCount }}>
       {children}
-      {showAd && adCode && <InterstitialAd adCode={adCode} onClose={() => setShowAd(false)} />}
+      {showAd && adCode && adCode.trim() !== "" && <InterstitialAd adCode={adCode} onClose={() => setShowAd(false)} />}
     </AdClickTrackerContext.Provider>
   )
 }
