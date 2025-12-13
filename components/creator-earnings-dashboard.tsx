@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { CreatorAnalyticsTab } from "@/components/creator-analytics-tab"
 
 interface CreatorEarningsDashboardProps {
   onWalletSetup: () => void
@@ -32,6 +33,7 @@ export function CreatorEarningsDashboard({ onWalletSetup }: CreatorEarningsDashb
   const [loading, setLoading] = useState(true)
   const [showWalletModal, setShowWalletModal] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
+  const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
     fetchEarningsData()
@@ -80,205 +82,228 @@ export function CreatorEarningsDashboard({ onWalletSetup }: CreatorEarningsDashb
 
   return (
     <div className="space-y-6">
-      {/* Wallet Setup Warning */}
-      {!wallet && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="text-amber-500 font-semibold mb-1">Wallet Setup Required</h3>
-            <p className="text-white/70 text-sm mb-3">
-              You need to add a crypto wallet to receive payouts. Set up your wallet to start earning.
-            </p>
-            <Button
-              onClick={() => setShowWalletModal(true)}
-              size="sm"
-              className="bg-amber-500 hover:bg-amber-600 text-black"
-            >
-              <Wallet className="w-4 h-4 mr-2" />
-              Add Wallet Now
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Earnings Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/30 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-lg bg-cyan-500/20">
-              <DollarSign className="w-5 h-5 text-cyan-500" />
-            </div>
-            <span className="text-white/70 text-sm">Current Balance</span>
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">${earnings?.currentBalance?.toFixed(2) || "0.00"}</p>
-          <p className="text-xs text-white/50">Available for withdrawal</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-lg bg-purple-500/20">
-              <TrendingUp className="w-5 h-5 text-purple-500" />
-            </div>
-            <span className="text-white/70 text-sm">Total Earnings</span>
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">${earnings?.totalEarnings?.toFixed(2) || "0.00"}</p>
-          <p className="text-xs text-white/50">Lifetime earnings</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-lg bg-green-500/20">
-              <Eye className="w-5 h-5 text-green-500" />
-            </div>
-            <span className="text-white/70 text-sm">Total Views</span>
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">{earnings?.totalViews?.toLocaleString() || "0"}</p>
-          <p className="text-xs text-white/50">All-time views</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 rounded-lg bg-amber-500/20">
-              <Calendar className="w-5 h-5 text-amber-500" />
-            </div>
-            <span className="text-white/70 text-sm">This Month</span>
-          </div>
-          <p className="text-3xl font-bold text-white mb-1">{earnings?.viewsThisMonth?.toLocaleString() || "0"}</p>
-          <p className="text-xs text-white/50">views this month</p>
-        </div>
+      {/* Tabs for Overview and Analytics */}
+      <div className="flex gap-2 border-b">
+        <Button
+          variant={activeTab === "overview" ? "default" : "ghost"}
+          onClick={() => setActiveTab("overview")}
+          className="rounded-b-none"
+        >
+          Overview
+        </Button>
+        <Button
+          variant={activeTab === "analytics" ? "default" : "ghost"}
+          onClick={() => setActiveTab("analytics")}
+          className="rounded-b-none"
+        >
+          Analytics
+        </Button>
       </div>
 
-      {/* Tier Status & EPV */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-semibold">Current Tier</h3>
-            <div
-              className="px-3 py-1 rounded-full text-sm font-bold"
-              style={{ backgroundColor: `${currentTier.color}20`, color: currentTier.color }}
-            >
-              {currentTier.name}
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-white/60">Earning Rate</span>
-              <span className="text-white font-semibold">{currentTier.rate}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-white/60">Total Views</span>
-              <span className="text-white font-semibold">{earnings?.totalViews?.toLocaleString()}</span>
-            </div>
-            {earnings?.totalViews < 10000 && (
-              <div className="mt-4 p-3 bg-zinc-800 rounded-lg">
-                <p className="text-xs text-white/70">
-                  {(10000 - earnings?.totalViews).toLocaleString()} more views to reach Silver tier
+      {activeTab === "overview" && (
+        <>
+          {/* Wallet Setup Warning */}
+          {!wallet && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-amber-500 font-semibold mb-1">Wallet Setup Required</h3>
+                <p className="text-white/70 text-sm mb-3">
+                  You need to add a crypto wallet to receive payouts. Set up your wallet to start earning.
                 </p>
-                <div className="mt-2 h-2 bg-zinc-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all"
-                    style={{ width: `${Math.min(100, (earnings?.totalViews / 10000) * 100)}%` }}
-                  />
-                </div>
+                <Button
+                  onClick={() => setShowWalletModal(true)}
+                  size="sm"
+                  className="bg-amber-500 hover:bg-amber-600 text-black"
+                >
+                  <Wallet className="w-4 h-4 mr-2" />
+                  Add Wallet Now
+                </Button>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-semibold">Wallet Status</h3>
-            {wallet ? (
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-            ) : (
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-            )}
-          </div>
-          {wallet ? (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-white/60">Crypto Type</span>
-                <span className="text-white font-semibold">{wallet.cryptoType}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-white/60">Wallet Address</span>
-                <span className="text-white font-mono text-xs">
-                  {wallet.walletAddress.slice(0, 6)}...{wallet.walletAddress.slice(-4)}
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowWalletModal(true)}
-                className="w-full mt-2 border-zinc-700"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Manage Wallet
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-white/60 text-sm">No wallet configured yet</p>
-              <Button
-                onClick={() => setShowWalletModal(true)}
-                size="sm"
-                className="w-full bg-cyan-500 hover:bg-cyan-600"
-              >
-                <Wallet className="w-4 h-4 mr-2" />
-                Add Wallet
-              </Button>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Earnings History Graph */}
-      {earnings?.earningsHistory && earnings.earningsHistory.length > 0 && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <h3 className="text-white font-semibold mb-4">Earnings History</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={earnings.earningsHistory}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-              <XAxis dataKey="date" stroke="#666" />
-              <YAxis stroke="#666" />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333", borderRadius: "8px" }}
-                labelStyle={{ color: "#fff" }}
-              />
-              <Line type="monotone" dataKey="earnings" stroke="#00FFFF" strokeWidth={2} dot={{ fill: "#00FFFF" }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Top Performing Content */}
-      {earnings?.topContent && earnings.topContent.length > 0 && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <h3 className="text-white font-semibold mb-4">Top Performing Content</h3>
-          <div className="space-y-3">
-            {earnings.topContent.map((content: any, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-zinc-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  {content.contentType === "movie" ? (
-                    <Film className="w-5 h-5 text-cyan-500" />
-                  ) : (
-                    <Tv className="w-5 h-5 text-purple-500" />
-                  )}
-                  <div>
-                    <p className="text-white font-medium">{content.title}</p>
-                    <p className="text-xs text-white/50">{content.views} views</p>
-                  </div>
+          {/* Earnings Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border border-cyan-500/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-cyan-500/20">
+                  <DollarSign className="w-5 h-5 text-cyan-500" />
                 </div>
-                <div className="text-right">
-                  <p className="text-white font-semibold">${content.earnings.toFixed(2)}</p>
-                  <p className="text-xs text-white/50">earned</p>
+                <span className="text-white/70 text-sm">Current Balance</span>
+              </div>
+              <p className="text-3xl font-bold text-white mb-1">${earnings?.currentBalance?.toFixed(2) || "0.00"}</p>
+              <p className="text-xs text-white/50">Available for withdrawal</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-purple-500/20">
+                  <TrendingUp className="w-5 h-5 text-purple-500" />
+                </div>
+                <span className="text-white/70 text-sm">Total Earnings</span>
+              </div>
+              <p className="text-3xl font-bold text-white mb-1">${earnings?.totalEarnings?.toFixed(2) || "0.00"}</p>
+              <p className="text-xs text-white/50">Lifetime earnings</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <Eye className="w-5 h-5 text-green-500" />
+                </div>
+                <span className="text-white/70 text-sm">Total Views</span>
+              </div>
+              <p className="text-3xl font-bold text-white mb-1">{earnings?.totalViews?.toLocaleString() || "0"}</p>
+              <p className="text-xs text-white/50">All-time views</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-amber-500/20">
+                  <Calendar className="w-5 h-5 text-amber-500" />
+                </div>
+                <span className="text-white/70 text-sm">This Month</span>
+              </div>
+              <p className="text-3xl font-bold text-white mb-1">{earnings?.viewsThisMonth?.toLocaleString() || "0"}</p>
+              <p className="text-xs text-white/50">views this month</p>
+            </div>
+          </div>
+
+          {/* Tier Status & EPV */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold">Current Tier</h3>
+                <div
+                  className="px-3 py-1 rounded-full text-sm font-bold"
+                  style={{ backgroundColor: `${currentTier.color}20`, color: currentTier.color }}
+                >
+                  {currentTier.name}
                 </div>
               </div>
-            ))}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Earning Rate</span>
+                  <span className="text-white font-semibold">{currentTier.rate}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white/60">Total Views</span>
+                  <span className="text-white font-semibold">{earnings?.totalViews?.toLocaleString()}</span>
+                </div>
+                {earnings?.totalViews < 10000 && (
+                  <div className="mt-4 p-3 bg-zinc-800 rounded-lg">
+                    <p className="text-xs text-white/70">
+                      {(10000 - earnings?.totalViews).toLocaleString()} more views to reach Silver tier
+                    </p>
+                    <div className="mt-2 h-2 bg-zinc-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all"
+                        style={{ width: `${Math.min(100, (earnings?.totalViews / 10000) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold">Wallet Status</h3>
+                {wallet ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-amber-500" />
+                )}
+              </div>
+              {wallet ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-white/60">Crypto Type</span>
+                    <span className="text-white font-semibold">{wallet.cryptoType}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-white/60">Wallet Address</span>
+                    <span className="text-white font-mono text-xs">
+                      {wallet.walletAddress.slice(0, 6)}...{wallet.walletAddress.slice(-4)}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowWalletModal(true)}
+                    className="w-full mt-2 border-zinc-700"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Manage Wallet
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-white/60 text-sm">No wallet configured yet</p>
+                  <Button
+                    onClick={() => setShowWalletModal(true)}
+                    size="sm"
+                    className="w-full bg-cyan-500 hover:bg-cyan-600"
+                  >
+                    <Wallet className="w-4 h-4 mr-2" />
+                    Add Wallet
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+
+          {/* Earnings History Graph */}
+          {earnings?.earningsHistory && earnings.earningsHistory.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h3 className="text-white font-semibold mb-4">Earnings History</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={earnings.earningsHistory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="date" stroke="#666" />
+                  <YAxis stroke="#666" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333", borderRadius: "8px" }}
+                    labelStyle={{ color: "#fff" }}
+                  />
+                  <Line type="monotone" dataKey="earnings" stroke="#00FFFF" strokeWidth={2} dot={{ fill: "#00FFFF" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Top Performing Content */}
+          {earnings?.topContent && earnings.topContent.length > 0 && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h3 className="text-white font-semibold mb-4">Top Performing Content</h3>
+              <div className="space-y-3">
+                {earnings.topContent.map((content: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-zinc-800 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {content.contentType === "movie" ? (
+                        <Film className="w-5 h-5 text-cyan-500" />
+                      ) : (
+                        <Tv className="w-5 h-5 text-purple-500" />
+                      )}
+                      <div>
+                        <p className="text-white font-medium">{content.title}</p>
+                        <p className="text-xs text-white/50">{content.views} views</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white font-semibold">${content.earnings.toFixed(2)}</p>
+                      <p className="text-xs text-white/50">earned</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
+      {activeTab === "analytics" && <CreatorAnalyticsTab />}
       {/* Wallet Setup Modal */}
       {showWalletModal && (
         <WalletSetupModal

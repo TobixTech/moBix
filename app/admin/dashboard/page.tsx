@@ -106,6 +106,9 @@ import { AdminCreatorTiersTab } from "@/components/admin-creator-tiers-tab"
 import { AdminCreatorOffersTab } from "@/components/admin-creator-offers-tab"
 // CHANGE END
 
+import { AdminSecurityTab } from "@/components/admin-security-tab"
+// CHANGE END
+
 // Update AdminTab type
 type AdminTab =
   | "overview"
@@ -124,6 +127,7 @@ type AdminTab =
   | "submissions" // Added submissions tab
   | "tiers" // Added tiers tab
   | "offers" // Added offers tab
+  | "security" // Added security tab
 
 interface Metric {
   label: string
@@ -1496,6 +1500,7 @@ export default function AdminDashboard() {
             // Add new tabs to sidebar navigation
             { id: "tiers", label: "Tier Requests", icon: TrendingUp },
             { id: "offers", label: "Offers & Promotions", icon: Gift },
+            { id: "security", label: "Security & Fraud", icon: AlertTriangle },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1548,6 +1553,8 @@ export default function AdminDashboard() {
             // Add new tabs to mobile nav
             { id: "tiers", icon: TrendingUp },
             { id: "offers", icon: Gift },
+            // Add security tab to mobile nav
+            { id: "security", icon: AlertTriangle },
           ].map(({ id, icon: Icon }) => (
             <button
               key={id}
@@ -3082,6 +3089,12 @@ export default function AdminDashboard() {
                 Creator Offers & Promotions
               </h2>
               <AdminCreatorOffersTab />
+            </div>
+          )}
+
+          {activeTab === "security" && (
+            <div className="space-y-6">
+              <AdminSecurityTab />
             </div>
           )}
 
