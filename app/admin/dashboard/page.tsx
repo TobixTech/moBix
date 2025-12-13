@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Video,
   DollarSign,
+  Wallet,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -106,6 +107,8 @@ import { AdminCreatorTiersTab } from "@/components/admin-creator-tiers-tab"
 import { AdminCreatorOffersTab } from "@/components/admin-creator-offers-tab"
 // CHANGE END
 
+import { AdminCreatorBalancesTab } from "@/components/admin-creator-balances-tab"
+
 import { AdminSecurityTab } from "@/components/admin-security-tab"
 // CHANGE END
 
@@ -125,6 +128,7 @@ type AdminTab =
   | "settings" // Added
   | "creators" // Added creators tab
   | "submissions" // Added submissions tab
+  | "balances" // Added balances tab
   | "tiers" // Added tiers tab
   | "offers" // Added offers tab
   | "security" // Added security tab
@@ -1501,6 +1505,8 @@ export default function AdminDashboard() {
             { id: "tiers", label: "Tier Requests", icon: TrendingUp },
             { id: "offers", label: "Offers & Promotions", icon: Gift },
             { id: "security", label: "Security & Fraud", icon: AlertTriangle },
+            // Add balances tab to sidebar navigation
+            { id: "balances", label: "Creator Balances", icon: Wallet },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1555,6 +1561,8 @@ export default function AdminDashboard() {
             { id: "offers", icon: Gift },
             // Add security tab to mobile nav
             { id: "security", icon: AlertTriangle },
+            // Add balances tab to mobile bottom tabs
+            { id: "balances", icon: Wallet },
           ].map(({ id, icon: Icon }) => (
             <button
               key={id}
@@ -3098,7 +3106,17 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ... existing code for other tabs ... */}
+          {activeTab === "balances" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <Wallet className="w-7 h-7 text-cyan-400" />
+                Creator Balances
+              </h2>
+              <AdminCreatorBalancesTab />
+            </div>
+          )}
+
+          {/* ... existing code ... */}
         </div>
       </main>
 
