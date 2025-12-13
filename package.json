@@ -63,6 +63,7 @@
     "@vercel/postgres": "latest",
     "@xata.io/client": "latest",
     "autoprefixer": "^10.4.20",
+    "bcryptjs": "3.0.3",
     "better-sqlite3": "latest",
     "bun-types": "latest",
     "child_process": "1.0.2",

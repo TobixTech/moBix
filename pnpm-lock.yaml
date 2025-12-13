@@ -16,7 +16,7 @@ importers:
         version: 6.34.0(next@16.0.10(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@cloudflare/workers-types':
         specifier: latest
-        version: 4.20251212.0
+        version: 4.20251213.0
       '@electric-sql/pglite':
         specifier: latest
         version: 0.3.14
@@ -158,6 +158,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.20(postcss@8.5.0)
+      bcryptjs:
+        specifier: 3.0.3
+        version: 3.0.3
       better-sqlite3:
         specifier: latest
         version: 12.5.0
@@ -187,7 +190,7 @@ importers:
         version: 16.4.7
       drizzle-orm:
         specifier: ^0.36.0
-        version: 0.36.0(ae18ca71e829ee5fab42f0262673dd77)
+        version: 0.36.0(f1eca3de7e555ac2d7796704128c6ee0)
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.2.0)
@@ -965,8 +968,8 @@ packages:
     resolution: {integrity: sha512-Ah6R65loy5Aq1jBpWo3x01IOlYJfgVn4LVAkSXKVQDtehn8w1bT2uJ7BTa2zH72A8F4K2HivkmMQa+v/37tLFA==}
     engines: {node: '>=18.17.0'}
 
-  '@cloudflare/workers-types@4.20251212.0':
-    resolution: {integrity: sha512-RrvbKQli+zkDSLtqmsQetHoc38Zi6VWajb0E79w3lGDbJ0Qq1T4HavAm5jIQ+1R6CJxpWO6t41aefRakj+ciaw==}
+  '@cloudflare/workers-types@4.20251213.0':
+    resolution: {integrity: sha512-PJAGdKfU7hs39C2YOFNLTdrfdqG6rbaVj5UuI306zS+TPokiskRLEgUXKqS6avN9Uu9Nyuf2a0hqoumLQCnJlQ==}
 
   '@date-fns/tz@1.2.0':
     resolution: {integrity: sha512-LBrd7MiJZ9McsOgxqWX7AaxrDjcFVjWH/tIKJd7pnR7McaslGYOP1QmmiBXdJH/H/yLCT+rcQ7FaPBUxRGUtrg==}
@@ -3280,6 +3283,10 @@ packages:
 
   baseline-browser-mapping@2.8.31:
     resolution: {integrity: sha512-a28v2eWrrRWPpJSzxc+mKwm0ZtVx/G8SepdQZDArnXYU/XS+IF6mp8aB/4E+hH1tyGCoDo3KlUCdlSxGDsRkAw==}
+    hasBin: true
+
+  bcryptjs@3.0.3:
+    resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
     hasBin: true
 
   better-opn@3.0.2:
@@ -7051,7 +7058,7 @@ snapshots:
       - react
       - react-dom
 
-  '@cloudflare/workers-types@4.20251212.0': {}
+  '@cloudflare/workers-types@4.20251213.0': {}
 
   '@date-fns/tz@1.2.0': {}
 
@@ -9597,6 +9604,8 @@ snapshots:
 
   baseline-browser-mapping@2.8.31: {}
 
+  bcryptjs@3.0.3: {}
+
   better-opn@3.0.2:
     dependencies:
       open: 8.4.2
@@ -9980,10 +9989,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.36.0(ae18ca71e829ee5fab42f0262673dd77):
+  drizzle-orm@0.36.0(f1eca3de7e555ac2d7796704128c6ee0):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.948.0
-      '@cloudflare/workers-types': 4.20251212.0
+      '@cloudflare/workers-types': 4.20251213.0
       '@electric-sql/pglite': 0.3.14
       '@libsql/client': 0.15.15(bufferutil@4.0.9)
       '@libsql/client-wasm': 0.15.15

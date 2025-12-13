@@ -35,6 +35,7 @@ import {
   TrendingUp,
   AlertTriangle,
   Video,
+  DollarSign,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -75,6 +76,8 @@ import {
   getContentSubmissions, // Added
   updateSubmissionStatus, // Added
   deleteSubmission, // Added
+  // CHANGE START
+  // CHANGE END
 } from "@/lib/server-actions"
 
 // Import necessary shadcn/ui dialog components
@@ -94,8 +97,14 @@ import { AdminSeriesManager } from "@/components/admin-series-manager" // First 
 // Import AdminDashboardLoader
 import { AdminDashboardLoader } from "@/components/admin-dashboard-loader"
 
-import { AdminCreatorManagementTab } from "@/components/admin-creator-management-tab"
-import { AdminContentSubmissionsTab } from "@/components/admin-content-submissions-tab"
+import { AdminCreatorManagementTab } from "@/components/admin-creator-management-tab" // Fixed imports - importing admin payout components from their respective component files
+import { AdminContentSubmissionsTab } from "@/components/admin-content-submissions-tab" // Fixed imports - importing admin payout components from their respective component files
+
+// CHANGE START
+import { AdminCreatorPayoutsTab } from "@/components/admin-creator-payouts-tab"
+import { AdminCreatorTiersTab } from "@/components/admin-creator-tiers-tab"
+import { AdminCreatorOffersTab } from "@/components/admin-creator-offers-tab"
+// CHANGE END
 
 // Update AdminTab type
 type AdminTab =
@@ -113,6 +122,8 @@ type AdminTab =
   | "settings" // Added
   | "creators" // Added creators tab
   | "submissions" // Added submissions tab
+  | "tiers" // Added tiers tab
+  | "offers" // Added offers tab
 
 interface Metric {
   label: string
@@ -992,14 +1003,15 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const handleUpdateFeedback = async (id: string, status: string) => {
+  const updateFeedbackStatusHandler = async (id: string, status: string) => {
     setLoading(true)
     const result = await updateFeedbackStatus(id, status)
     if (result.success) {
       const feedbackData = await getFeedbackEntries()
       setFeedback(feedbackData)
+      toast.success(`Feedback status updated to ${status}`)
     } else {
-      alert("Failed to update status")
+      toast.error(`Failed to update status: ${result.error}`)
     }
     setLoading(false)
   }
@@ -1011,8 +1023,9 @@ export default function AdminDashboard() {
     if (result.success) {
       const feedbackData = await getFeedbackEntries()
       setFeedback(feedbackData)
+      toast.success("Feedback entry deleted successfully")
     } else {
-      alert("Failed to delete entry")
+      toast.error(`Failed to delete entry: ${result.error}`)
     }
     setLoading(false)
   }
@@ -1030,10 +1043,11 @@ export default function AdminDashboard() {
     )
 
     // Mark as complete
-    await handleUpdateFeedback(feedbackId, "COMPLETE")
+    await updateFeedbackStatusHandler(feedbackId, "COMPLETE") // Use the specific handler
 
     setRespondingToFeedback(null)
     setFeedbackResponse("")
+    toast.success("Response sent and feedback marked as complete.")
   }
 
   const handleUpdateReportStatus = async (reportId: string, status: string, userEmail?: string | null) => {
@@ -1054,8 +1068,9 @@ export default function AdminDashboard() {
       // const reportsData = await getAllContentReports()
       // to:
       setContentReports(reportsData as unknown as ContentReport[])
+      toast.success(`Report status updated to ${status}`)
     } else {
-      alert("Failed to update report status")
+      toast.error(`Failed to update report status: ${result.error}`)
     }
     setLoading(false)
   }
@@ -1070,8 +1085,9 @@ export default function AdminDashboard() {
       // const reportsData = await getAllContentReports()
       // to:
       setContentReports(reportsData as unknown as ContentReport[])
+      toast.success("Report deleted successfully")
     } else {
-      alert("Failed to delete report")
+      toast.error(`Failed to delete report: ${result.error}`)
     }
     setLoading(false)
   }
@@ -1477,6 +1493,9 @@ export default function AdminDashboard() {
             // Add creators and submissions tabs to sidebar navigation
             { id: "creators", label: "Creators", icon: Users },
             { id: "submissions", label: "Submissions", icon: Video },
+            // Add new tabs to sidebar navigation
+            { id: "tiers", label: "Tier Requests", icon: TrendingUp },
+            { id: "offers", label: "Offers & Promotions", icon: Gift },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1526,6 +1545,9 @@ export default function AdminDashboard() {
             { id: "creators", icon: Users },
             { id: "submissions", icon: Video },
             { id: "payouts", icon: Gift }, // Added payouts to mobile nav
+            // Add new tabs to mobile nav
+            { id: "tiers", icon: TrendingUp },
+            { id: "offers", icon: Gift },
           ].map(({ id, icon: Icon }) => (
             <button
               key={id}
@@ -1630,7 +1652,7 @@ export default function AdminDashboard() {
                           )}
                           {entry.status === "PENDING" && (
                             <button
-                              onClick={() => handleUpdateFeedback(entry.id, "COMPLETE")}
+                              onClick={() => updateFeedbackStatusHandler(entry.id, "COMPLETE")} // Use the specific handler
                               className="p-2 hover:bg-green-500/10 text-white/50 hover:text-green-400 rounded-lg transition-colors"
                               title="Mark as Complete"
                             >
@@ -3035,62 +3057,31 @@ export default function AdminDashboard() {
 
           {activeTab === "payouts" && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                    <Gift className="w-7 h-7 text-cyan-400" />
-                    Creator Payout & Offers
-                  </h2>
-                  <p className="text-white/60 mt-1">Manage creator earnings and promotional offers</p>
-                </div>
-              </div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <DollarSign className="w-7 h-7 text-cyan-400" />
+                Creator Payouts
+              </h2>
+              <AdminCreatorPayoutsTab />
+            </div>
+          )}
 
-              <div className="bg-gradient-to-br from-cyan-500/10 via-purple-500/10 to-pink-500/10 border border-cyan-500/20 rounded-2xl p-12 text-center">
-                <div className="max-w-2xl mx-auto space-y-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center mx-auto">
-                    <Gift className="w-10 h-10 text-white" />
-                  </div>
+          {activeTab === "tiers" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <TrendingUp className="w-7 h-7 text-cyan-400" />
+                Creator Tier Requests
+              </h2>
+              <AdminCreatorTiersTab />
+            </div>
+          )}
 
-                  <h3 className="text-3xl font-bold text-white">Coming Soon</h3>
-
-                  <p className="text-white/70 text-lg leading-relaxed">
-                    We're building an amazing system to manage creator payouts and promotional offers. This feature will
-                    allow you to:
-                  </p>
-
-                  <div className="grid md:grid-cols-2 gap-4 text-left">
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <h4 className="text-white font-semibold mb-2">💰 Creator Payouts</h4>
-                      <p className="text-white/60 text-sm">
-                        Track earnings, process payments, and manage creator revenue distribution
-                      </p>
-                    </div>
-
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <h4 className="text-white font-semibold mb-2">🎁 Promotional Offers</h4>
-                      <p className="text-white/60 text-sm">
-                        Create and manage special offers to attract new creators to your platform
-                      </p>
-                    </div>
-
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <h4 className="text-white font-semibold mb-2">📊 Revenue Analytics</h4>
-                      <p className="text-white/60 text-sm">
-                        View detailed analytics on creator earnings and content performance
-                      </p>
-                    </div>
-
-                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <h4 className="text-white font-semibold mb-2">⚡ Automated Processing</h4>
-                      <p className="text-white/60 text-sm">Set up automatic payment schedules and payout thresholds</p>
-                    </div>
-                  </div>
-
-                  <p className="text-cyan-400 text-sm font-medium">
-                    Stay tuned! This feature is currently in development.
-                  </p>
-                </div>
-              </div>
+          {activeTab === "offers" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <Gift className="w-7 h-7 text-cyan-400" />
+                Creator Offers & Promotions
+              </h2>
+              <AdminCreatorOffersTab />
             </div>
           )}
 

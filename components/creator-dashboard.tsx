@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { CreatorEarningsDashboard } from "@/components/creator-earnings-dashboard"
 
 interface CreatorDashboardProps {
   profile: any
@@ -731,19 +732,7 @@ export function CreatorDashboard({ profile, onRefresh }: CreatorDashboardProps) 
       )}
 
       {/* Earnings Tab */}
-      {activeTab === "earnings" && (
-        <div className="bg-[#1A1B23] border border-[#2A2B33] rounded-xl p-6">
-          <div className="text-center py-12">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-[#00FFFF]/20 to-purple-500/20 flex items-center justify-center">
-              <DollarSign className="w-10 h-10 text-[#00FFFF]" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Coming Soon!</h2>
-            <p className="text-white/60 max-w-md mx-auto">
-              Revenue sharing feature launching soon. Stay tuned for updates on how you can earn from your content!
-            </p>
-          </div>
-        </div>
-      )}
+      {activeTab === "earnings" && <CreatorEarningsDashboard onWalletSetup={() => {}} />}
 
       {/* Strike Warning */}
       {dashboardData?.stats?.strikeCount > 0 && (

@@ -930,3 +930,135 @@ export const creatorSettings = pgTable("CreatorSettings", {
     .notNull()
     .$onUpdate(() => new Date()),
 })
+
+// Creator Payout System tables
+
+// Creator Wallets - store crypto addresses for payouts
+export const creatorWallets = pgTable("CreatorWallet", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  cryptoType: text("cryptoType").notNull(), // 'SOL', 'TRC20', 'BEP20'
+  walletAddress: text("walletAddress").notNull(),
+  isPrimary: boolean("isPrimary").default(true).notNull(),
+  changeHistory: text("changeHistory").default("[]").notNull(), // JSON array
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
+  canChangeAt: timestamp("canChangeAt")
+    .notNull()
+    .$defaultFn(() => {
+      const date = new Date()
+      date.setDate(date.getDate() + 21) // 3 weeks from now
+      return date
+    }),
+})
+
+export const creatorWalletsRelations = relations(creatorWallets, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorWallets.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Withdrawal PINs - security for withdrawals
+export const creatorWithdrawalPins = pgTable("CreatorWithdrawalPin", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  pinHash: text("pinHash").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastChangedAt: timestamp("lastChangedAt").defaultNow().notNull(),
+})
+
+export const creatorWithdrawalPinsRelations = relations(creatorWithdrawalPins, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorWithdrawalPins.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Earnings - track daily earnings per content
+export const creatorEarnings = pgTable("CreatorEarning", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  contentId: text("contentId").notNull(),
+  contentType: text("contentType").notNull(), // 'movie', 'series'
+  date: timestamp("date").notNull(),
+  views: integer("views").default(0).notNull(),
+  earningsUSD: decimal("earningsUSD", { precision: 10, scale: 4 }).default("0").notNull(),
+  tierRate: decimal("tierRate", { precision: 10, scale: 6 }).default("0.0008").notNull(),
+  bonusMultiplier: decimal("bonusMultiplier", { precision: 4, scale: 2 }).default("1.00").notNull(),
+  isPaid: boolean("isPaid").default(false).notNull(),
+  calculatedAt: timestamp("calculatedAt").defaultNow().notNull(),
+  weekNumber: integer("weekNumber").notNull(),
+})
+
+export const creatorEarningsRelations = relations(creatorEarnings, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorEarnings.userId],
+    references: [users.id],
+  }),
+}))
+
+// Creator Tiers - manage tier levels and rates
+export const creatorTiers = pgTable("CreatorTier", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tierLevel: text("tierLevel").default("bronze").notNull(), // 'bronze', 'silver', 'gold', 'platinum'
+  totalViews: integer("totalViews").default(0).notNull(),
+  ratePerView: decimal("ratePerView", { precision: 10, scale: 6 }).default("0.0008").notNull(),
+  requestedAt: timestamp("requestedAt"),
+  approvedAt: timestamp("approvedAt"),
+  approvedBy: text("approvedBy").references(() => users.id, { onDelete: "set null" }),
+})
+
+export const creatorTiersRelations = relations(creatorTiers, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorTiers.userId],
+    references: [users.id],
+  }),
+  approver: one(users, {
+    fields: [creatorTiers.approvedBy],
+    references: [users.id],
+  }),
+}))
+
+// Creator Settings - individual creator payout settings
+export const creatorPayoutSettings = pgTable("CreatorSetting", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  userId: text("userId")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  monthlyWithdrawalLimit: decimal("monthlyWithdrawalLimit", { precision: 10, scale: 2 }).default("100.00").notNull(),
+  holdingPeriodDays: integer("holdingPeriodDays").default(7).notNull(),
+  canWithdraw: boolean("canWithdraw").default(true).notNull(),
+  isPremiumCreator: boolean("isPremiumCreator").default(false).notNull(),
+  pausedBy: text("pausedBy").references(() => users.id, { onDelete: "set null" }),
+  pausedReason: text("pausedReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+})
+
+export const creatorPayoutSettingsRelations = relations(creatorPayoutSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorPayoutSettings.userId],
+    references: [users.id],
+  }),
+  pauser: one(users, {
+    fields: [creatorPayoutSettings.pausedBy],
+    references: [users.id],
+  }),
+}))
