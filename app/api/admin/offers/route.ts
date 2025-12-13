@@ -10,24 +10,22 @@ export async function GET(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if user is admin
     const [admin] = await sql`
-      SELECT role FROM users WHERE clerkId = ${userId}
+      SELECT role FROM "User" WHERE "clerkId" = ${userId}
     `
 
     if (!admin || admin.role !== "admin") {
       return Response.json({ error: "Admin access required" }, { status: 403 })
     }
 
-    // Get all offers
     const offers = await sql`
       SELECT 
         co.*,
-        u.username as createdByName,
-        (SELECT COUNT(*) FROM creatorOfferRedemptions WHERE offerId = co.id) as redemptionCount
-      FROM creatorOffers co
-      LEFT JOIN users u ON u.clerkId = co.createdBy
-      ORDER BY co.createdAt DESC
+        u.username as "createdByName",
+        (SELECT COUNT(*) FROM "CreatorOfferRedemption" WHERE "offerId" = co.id) as "redemptionCount"
+      FROM "CreatorOffer" co
+      LEFT JOIN "User" u ON u."clerkId" = co."createdBy"
+      ORDER BY co."createdAt" DESC
     `
 
     return Response.json({ offers })
@@ -44,9 +42,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if user is admin
     const [admin] = await sql`
-      SELECT role FROM users WHERE clerkId = ${userId}
+      SELECT role FROM "User" WHERE "clerkId" = ${userId}
     `
 
     if (!admin || admin.role !== "admin") {
@@ -59,9 +56,9 @@ export async function POST(request: Request) {
       const { offerType, title, description, bonusAmount, multiplier, conditions, expiresAt } = offerData
 
       await sql`
-        INSERT INTO creatorOffers (
-          offerType, title, description, bonusAmount, multiplier, 
-          conditions, expiresAt, isActive, createdAt, createdBy
+        INSERT INTO "CreatorOffer" (
+          "offerType", title, description, "bonusAmount", multiplier, 
+          conditions, "expiresAt", "isActive", "createdAt", "createdBy"
         ) VALUES (
           ${offerType}, ${title}, ${description}, ${bonusAmount || null}, ${multiplier || null},
           ${JSON.stringify(conditions)}, ${expiresAt || null}, true, NOW(), ${userId}
@@ -74,8 +71,8 @@ export async function POST(request: Request) {
       })
     } else if (action === "toggle") {
       await sql`
-        UPDATE creatorOffers
-        SET isActive = NOT isActive
+        UPDATE "CreatorOffer"
+        SET "isActive" = NOT "isActive"
         WHERE id = ${offerId}
       `
 
@@ -85,7 +82,7 @@ export async function POST(request: Request) {
       })
     } else if (action === "delete") {
       await sql`
-        DELETE FROM creatorOffers WHERE id = ${offerId}
+        DELETE FROM "CreatorOffer" WHERE id = ${offerId}
       `
 
       return Response.json({
@@ -93,10 +90,18 @@ export async function POST(request: Request) {
         message: "Offer deleted",
       })
     } else if (action === "send-bonus") {
+      const [targetUser] = await sql`
+        SELECT id FROM "User" WHERE "clerkId" = ${targetUserId}
+      `
+
+      if (!targetUser) {
+        return Response.json({ error: "User not found" }, { status: 404 })
+      }
+
       // Send bonus to specific creator
       await sql`
-        INSERT INTO creatorBonuses (userId, bonusType, amount, reason, appliedBy, appliedAt)
-        VALUES (${targetUserId}, 'custom', ${bonusAmount}, ${bonusReason}, ${userId}, NOW())
+        INSERT INTO "CreatorBonus" ("userId", "bonusType", amount, reason, "appliedBy", "appliedAt")
+        VALUES (${targetUser.id}, 'custom', ${bonusAmount}, ${bonusReason}, ${userId}, NOW())
       `
 
       return Response.json({
@@ -104,15 +109,16 @@ export async function POST(request: Request) {
         message: `Bonus of $${bonusAmount} sent successfully`,
       })
     } else if (action === "mass-bonus") {
-      // Send bonus to all creators
       const creators = await sql`
-        SELECT clerkId FROM users WHERE role = 'creator'
+        SELECT DISTINCT cp."userId"
+        FROM "CreatorProfile" cp
+        WHERE cp.status = 'active'
       `
 
       for (const creator of creators) {
         await sql`
-          INSERT INTO creatorBonuses (userId, bonusType, amount, reason, appliedBy, appliedAt)
-          VALUES (${creator.clerkId}, 'mass', ${bonusAmount}, ${bonusReason}, ${userId}, NOW())
+          INSERT INTO "CreatorBonus" ("userId", "bonusType", amount, reason, "appliedBy", "appliedAt")
+          VALUES (${creator.userId}, 'mass', ${bonusAmount}, ${bonusReason}, ${userId}, NOW())
         `
       }
 

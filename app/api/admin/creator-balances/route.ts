@@ -11,11 +11,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if admin
     const adminCheck = await sql`
-      SELECT "isAdmin" FROM "User" WHERE "clerkId" = ${user.id}
+      SELECT role, id FROM "User" WHERE "clerkId" = ${user.id}
     `
-    if (!adminCheck[0]?.isAdmin) {
+    if (!adminCheck[0] || adminCheck[0].role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
@@ -73,11 +72,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if admin
     const adminCheck = await sql`
-      SELECT "isAdmin", id FROM "User" WHERE "clerkId" = ${user.id}
+      SELECT role, id FROM "User" WHERE "clerkId" = ${user.id}
     `
-    if (!adminCheck[0]?.isAdmin) {
+    if (!adminCheck[0] || adminCheck[0].role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
@@ -86,13 +84,13 @@ export async function POST(req: NextRequest) {
     if (action === "fund") {
       // Add bonus to creator balance
       await sql`
-        INSERT INTO "CreatorBonus" ("userId", "bonusType", "amount", "reason", "appliedBy", "appliedAt")
+        INSERT INTO "CreatorBonus" ("userId", "bonusType", amount, reason, "appliedBy", "appliedAt")
         VALUES (${userId}, 'admin_bonus', ${amount}, ${reason}, ${adminCheck[0].id}, NOW())
       `
 
       // Create a positive earning entry
       await sql`
-        INSERT INTO "CreatorEarning" ("userId", "contentId", "contentType", "date", "views", "earningsUsd", "tierRate", "isPaid", "calculatedAt")
+        INSERT INTO "CreatorEarning" ("userId", "contentId", "contentType", date, views, "earningsUsd", "tierRate", "isPaid", "calculatedAt")
         VALUES (${userId}, null, 'bonus', NOW(), 0, ${amount}, 0, false, NOW())
       `
 
@@ -100,13 +98,13 @@ export async function POST(req: NextRequest) {
     } else if (action === "debit") {
       // Deduct from creator balance
       await sql`
-        INSERT INTO "CreatorBonus" ("userId", "bonusType", "amount", "reason", "appliedBy", "appliedAt")
+        INSERT INTO "CreatorBonus" ("userId", "bonusType", amount, reason, "appliedBy", "appliedAt")
         VALUES (${userId}, 'admin_deduction', ${-Math.abs(amount)}, ${reason}, ${adminCheck[0].id}, NOW())
       `
 
       // Create a negative earning entry
       await sql`
-        INSERT INTO "CreatorEarning" ("userId", "contentId", "contentType", "date", "views", "earningsUsd", "tierRate", "isPaid", "calculatedAt")
+        INSERT INTO "CreatorEarning" ("userId", "contentId", "contentType", date, views, "earningsUsd", "tierRate", "isPaid", "calculatedAt")
         VALUES (${userId}, null, 'deduction', NOW(), 0, ${-Math.abs(amount)}, 0, false, NOW())
       `
 
