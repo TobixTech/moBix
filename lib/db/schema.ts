@@ -890,7 +890,7 @@ export const creatorEarnings = pgTable("CreatorEarning", {
   userId: text("userId").notNull(),
   contentId: text("contentId").notNull(),
   contentType: text("contentType").notNull(), // 'movie' or 'series'
-  date: timestamp("date").notNull(),
+  earnedAt: timestamp("earnedAt").notNull(),
   views: integer("views").default(0).notNull(),
   earningsUsd: decimal("earningsUsd", { precision: 10, scale: 4 }).default("0").notNull(),
   tierRate: decimal("tierRate", { precision: 10, scale: 6 }).notNull(),
