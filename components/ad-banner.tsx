@@ -65,14 +65,14 @@ export default async function AdBanner({ type = "horizontal", className = "", pl
 
   return (
     <div
-      className={`flex items-center justify-center bg-gradient-to-br from-[#1A1B23]/50 to-[#0F1018]/50 border border-[#2A2B33] rounded-lg overflow-hidden mx-auto backdrop-blur-sm ${className}`}
+      className={`flex items-center justify-center bg-transparent border border-cyan-500/10 rounded-lg overflow-hidden mx-auto ${className}`}
       style={{
         maxWidth: isHorizontal ? "728px" : "300px",
         width: "100%",
       }}
     >
       <div className="relative w-full">
-        <div className="absolute top-1 left-1 bg-yellow-500/90 text-black text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
+        <div className="absolute top-1 left-1 bg-cyan-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
           AD
         </div>
         <iframe

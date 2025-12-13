@@ -64,21 +64,20 @@ export default function InterstitialAd({ adCode, onClose, closeDelay = 5 }: Inte
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="relative w-full max-w-4xl bg-[#1A1B23] rounded-xl overflow-hidden shadow-2xl"
+          className="relative w-full max-w-4xl bg-transparent rounded-xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-black/80 border-b border-white/10">
+          <div className="flex items-center justify-between px-4 py-3 bg-black/40 backdrop-blur-md border-b border-cyan-500/20">
             <div className="flex items-center gap-3">
-              <span className="text-xs text-white/60 uppercase tracking-wider">Advertisement</span>
-              <span className="bg-yellow-500/90 text-black text-xs font-bold px-2 py-1 rounded">AD</span>
+              <span className="bg-cyan-500 text-black text-xs font-bold px-2 py-1 rounded">AD</span>
+              <span className="text-xs text-white/40 uppercase tracking-wider">Advertisement</span>
             </div>
             <button
               onClick={canClose ? onClose : undefined}
               disabled={!canClose}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 canClose
-                  ? "bg-white/20 hover:bg-white/30 text-white cursor-pointer"
+                  ? "bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 cursor-pointer"
                   : "bg-white/5 text-white/30 cursor-not-allowed"
               }`}
             >
@@ -93,8 +92,7 @@ export default function InterstitialAd({ adCode, onClose, closeDelay = 5 }: Inte
             </button>
           </div>
 
-          {/* Ad Content */}
-          <div className="w-full h-[60vh] min-h-[400px] max-h-[600px]">
+          <div className="w-full h-[60vh] min-h-[400px] max-h-[600px] border border-cyan-500/10 rounded-b-xl overflow-hidden">
             <iframe
               srcDoc={getIframeSrcDoc(adCode)}
               className="w-full h-full"
@@ -106,8 +104,8 @@ export default function InterstitialAd({ adCode, onClose, closeDelay = 5 }: Inte
 
           {/* Footer hint */}
           {!canClose && (
-            <div className="px-4 py-2 bg-black/60 text-center">
-              <p className="text-white/60 text-xs">Please wait {countdown} seconds to continue</p>
+            <div className="px-4 py-2 bg-black/40 backdrop-blur-md text-center border-t border-cyan-500/20">
+              <p className="text-white/50 text-xs">Please wait {countdown} seconds to continue</p>
             </div>
           )}
         </motion.div>

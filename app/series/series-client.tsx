@@ -129,15 +129,21 @@ function SeriesContent({ allSeries, genres }: SeriesClientProps) {
         </select>
       </div>
 
+      {/* Horizontal Ad Banner after filters, before grid */}
       <AdBannerClient type="horizontal" placement="homepage" className="mb-8" />
 
       {/* Series Grid */}
       {filteredSeries.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-          {filteredSeries.map((s) => (
-            <SeriesCard key={s.id} series={s} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+            {filteredSeries.map((s) => (
+              <SeriesCard key={s.id} series={s} />
+            ))}
+          </div>
+
+          {/* Horizontal Ad Banner after grid */}
+          <AdBannerClient type="horizontal" placement="homepage" className="mt-8" />
+        </>
       ) : (
         <div className="text-center py-20">
           <Tv className="w-16 h-16 text-white/20 mx-auto mb-4" />

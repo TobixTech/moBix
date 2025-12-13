@@ -298,6 +298,7 @@ export default function AdminDashboard() {
   const [adSettings, setAdSettings] = useState({
     horizontalAdCode: "",
     verticalAdCode: "",
+    interstitialAdCode: "", // Added interstitial ad code field
     prerollAdCodes: [] as { code: string; name: string }[],
     midrollAdCodes: [] as { code: string; name: string }[],
     smartLinkUrl: "",
@@ -459,6 +460,7 @@ export default function AdminDashboard() {
         setAdSettings({
           horizontalAdCode: adSettingsData.horizontalAdCode || "",
           verticalAdCode: adSettingsData.verticalAdCode || "",
+          interstitialAdCode: adSettingsData.interstitialAdCode || "", // Load interstitial ad code
           prerollAdCodes: adSettingsData.prerollAdCodes ? JSON.parse(adSettingsData.prerollAdCodes) : [],
           midrollAdCodes: adSettingsData.midrollAdCodes ? JSON.parse(adSettingsData.midrollAdCodes) : [],
           smartLinkUrl: adSettingsData.smartLinkUrl || "",
@@ -532,6 +534,7 @@ export default function AdminDashboard() {
           setAdSettings({
             horizontalAdCode: adSettingsData.horizontalAdCode || "",
             verticalAdCode: adSettingsData.verticalAdCode || "",
+            interstitialAdCode: adSettingsData.interstitialAdCode || "", // Load interstitial ad code
             prerollAdCodes: adSettingsData.prerollAdCodes ? JSON.parse(adSettingsData.prerollAdCodes) : [],
             midrollAdCodes: adSettingsData.midrollAdCodes ? JSON.parse(adSettingsData.midrollAdCodes) : [],
             smartLinkUrl: adSettingsData.smartLinkUrl || "",
@@ -860,6 +863,7 @@ export default function AdminDashboard() {
     const result = await updateAdSettings({
       horizontalAdCode: adSettings.horizontalAdCode,
       verticalAdCode: adSettings.verticalAdCode,
+      interstitialAdCode: adSettings.interstitialAdCode, // Save interstitial ad code
       prerollAdCodes: JSON.stringify(adSettings.prerollAdCodes),
       midrollAdCodes: JSON.stringify(adSettings.midrollAdCodes),
       smartLinkUrl: adSettings.smartLinkUrl,
@@ -2554,6 +2558,23 @@ export default function AdminDashboard() {
                         placeholder="<!-- HTML/JS Code -->"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-white font-medium mb-2">
+                      Interstitial Ad Code
+                      <span className="ml-2 text-xs text-cyan-400">(Shown between page navigations)</span>
+                    </label>
+                    <textarea
+                      value={adSettings.interstitialAdCode}
+                      onChange={(e) => setAdSettings({ ...adSettings, interstitialAdCode: e.target.value })}
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 font-mono text-sm"
+                      placeholder="<!-- Paste your interstitial ad code here -->"
+                    />
+                    <p className="text-white/40 text-sm mt-2">
+                      This ad appears as a full-screen modal after every 2-3 content clicks (movies/series cards).
+                    </p>
                   </div>
 
                   {/* Toggles for Ad Display */}

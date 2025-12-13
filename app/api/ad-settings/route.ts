@@ -12,17 +12,16 @@ export async function GET() {
       {
         horizontalAdCode: settings?.horizontalAdCode || "",
         verticalAdCode: settings?.verticalAdCode || "",
+        interstitialAdCode: settings?.interstitialAdCode || "", // Added interstitial ad code
         prerollAdCodes: settings?.prerollAdCodes || "[]",
         midrollAdCodes: settings?.midrollAdCodes || "[]",
         smartLinkUrl: settings?.smartLinkUrl || "",
-        // Return actual boolean values from database
         homepageEnabled: settings?.homepageEnabled === true,
         movieDetailEnabled: settings?.movieDetailEnabled === true,
         dashboardEnabled: settings?.dashboardEnabled === true,
         showPrerollAds: settings?.showPrerollAds === true,
         showMidrollAds: settings?.showMidrollAds === true,
         showDownloadPageAds: settings?.showDownloadPageAds === true,
-        // Return actual numeric values
         adTimeoutSeconds: settings?.adTimeoutSeconds || 20,
         skipDelaySeconds: settings?.skipDelaySeconds || 10,
         rotationIntervalSeconds: settings?.rotationIntervalSeconds || 5,
@@ -30,7 +29,6 @@ export async function GET() {
       },
       {
         headers: {
-          // Prevent caching of this response
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
           Pragma: "no-cache",
           Expires: "0",

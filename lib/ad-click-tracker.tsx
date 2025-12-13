@@ -1,9 +1,11 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
+import InterstitialAd from "@/components/interstitial-ad"
 
 interface AdClickTrackerContextType {
-  trackCardClick: () => boolean // Returns true if ad should show
+  trackCardClick: () => void
+  trackButtonClick: (buttonName: string) => void
   resetClickCount: () => void
 }
 
@@ -11,27 +13,57 @@ const AdClickTrackerContext = createContext<AdClickTrackerContextType | undefine
 
 export function AdClickTrackerProvider({ children }: { children: ReactNode }) {
   const [clickCount, setClickCount] = useState(0)
-  const CLICKS_BEFORE_AD = 3 // Show ad after every 3 clicks
+  const [showAd, setShowAd] = useState(false)
+  const [adCode, setAdCode] = useState<string>("")
+  const [clickPattern] = useState([2, 3]) // 2 clicks, then 3 clicks, repeat
+  const [patternIndex, setPatternIndex] = useState(0)
+
+  useEffect(() => {
+    fetch("/api/ad-settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.interstitialAdCode) {
+          setAdCode(data.interstitialAdCode)
+        }
+      })
+      .catch((err) => console.error("Failed to load ad settings:", err))
+  }, [])
 
   const trackCardClick = useCallback(() => {
     const newCount = clickCount + 1
-    setClickCount(newCount)
+    const targetClicks = clickPattern[patternIndex]
 
-    // Show ad every 3 clicks
-    if (newCount >= CLICKS_BEFORE_AD) {
-      setClickCount(0) // Reset counter
-      return true
+    console.log("[v0] Card click tracked:", newCount, "Target:", targetClicks)
+
+    if (newCount >= targetClicks && adCode) {
+      setShowAd(true)
+      setClickCount(0)
+      setPatternIndex((prev) => (prev + 1) % clickPattern.length)
+    } else {
+      setClickCount(newCount)
     }
-    return false
-  }, [clickCount])
+  }, [clickCount, patternIndex, clickPattern, adCode])
+
+  const trackButtonClick = useCallback(
+    (buttonName: string) => {
+      console.log("[v0] Button click tracked:", buttonName)
+      if (adCode && Math.random() < 0.3) {
+        // 30% chance to show ad on button clicks
+        setShowAd(true)
+      }
+    },
+    [adCode],
+  )
 
   const resetClickCount = useCallback(() => {
     setClickCount(0)
+    setPatternIndex(0)
   }, [])
 
   return (
-    <AdClickTrackerContext.Provider value={{ trackCardClick, resetClickCount }}>
+    <AdClickTrackerContext.Provider value={{ trackCardClick, trackButtonClick, resetClickCount }}>
       {children}
+      {showAd && adCode && <InterstitialAd adCode={adCode} onClose={() => setShowAd(false)} />}
     </AdClickTrackerContext.Provider>
   )
 }

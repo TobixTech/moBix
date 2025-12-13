@@ -6,6 +6,8 @@ import { motion } from "framer-motion"
 import { Film, Loader2 } from "lucide-react"
 import MovieCard from "@/components/movie-card"
 import { Button } from "@/components/ui/button"
+import AdBannerClient from "@/components/ad-banner-client"
+import { useAdClickTracker } from "@/lib/ad-click-tracker"
 
 interface Movie {
   id: string
@@ -30,6 +32,8 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
   const limit = 24
+
+  const { trackButtonClick } = useAdClickTracker()
 
   useEffect(() => {
     const fetchInitialMovies = async () => {
@@ -81,6 +85,8 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return
+
+    trackButtonClick("Load More Movies")
 
     try {
       setLoadingMore(true)
@@ -153,6 +159,8 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
         ))}
       </div>
 
+      <AdBannerClient type="horizontal" placement="homepage" className="mb-8" />
+
       {/* Movies Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -181,24 +189,26 @@ export default function MoviesPageClient({ genres }: MoviesPageClientProps) {
             ))}
           </div>
 
-          {/* Load More Button */}
           {hasMore && (
-            <div className="flex justify-center mt-8">
-              <Button
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold px-8"
-              >
-                {loadingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  "Load More Movies"
-                )}
-              </Button>
-            </div>
+            <>
+              <AdBannerClient type="horizontal" placement="homepage" className="mt-8" />
+              <div className="flex justify-center mt-8">
+                <Button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="bg-[#00FFFF] hover:bg-[#00CCCC] text-[#0B0C10] font-semibold px-8"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Load More Movies"
+                  )}
+                </Button>
+              </div>
+            </>
           )}
         </>
       )}
